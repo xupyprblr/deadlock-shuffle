@@ -1,0 +1,225 @@
+{
+  "heroes": {
+    "1": {
+      "name": "Infernus",
+      "firstSeen": null,
+      "active": true
+    },
+    "2": {
+      "name": "Seven",
+      "firstSeen": null,
+      "active": true
+    },
+    "3": {
+      "name": "Vindicta",
+      "firstSeen": null,
+      "active": true
+    },
+    "4": {
+      "name": "Lady Geist",
+      "firstSeen": null,
+      "active": true
+    },
+    "6": {
+      "name": "Abrams",
+      "firstSeen": null,
+      "active": true
+    },
+    "7": {
+      "name": "Wraith",
+      "firstSeen": null,
+      "active": true
+    },
+    "8": {
+      "name": "McGinnis",
+      "firstSeen": null,
+      "active": true
+    },
+    "10": {
+      "name": "Paradox",
+      "firstSeen": null,
+      "active": true
+    },
+    "11": {
+      "name": "Dynamo",
+      "firstSeen": null,
+      "active": true
+    },
+    "12": {
+      "name": "Kelvin",
+      "firstSeen": null,
+      "active": true
+    },
+    "13": {
+      "name": "Haze",
+      "firstSeen": null,
+      "active": true
+    },
+    "14": {
+      "name": "Holliday",
+      "firstSeen": null,
+      "active": true
+    },
+    "15": {
+      "name": "Bebop",
+      "firstSeen": null,
+      "active": true
+    },
+    "16": {
+      "name": "Calico",
+      "firstSeen": null,
+      "active": true
+    },
+    "17": {
+      "name": "Grey Talon",
+      "firstSeen": null,
+      "active": true
+    },
+    "18": {
+      "name": "Mo & Krill",
+      "firstSeen": null,
+      "active": true
+    },
+    "19": {
+      "name": "Shiv",
+      "firstSeen": null,
+      "active": true
+    },
+    "20": {
+      "name": "Ivy",
+      "firstSeen": null,
+      "active": true
+    },
+    "25": {
+      "name": "Warden",
+      "firstSeen": null,
+      "active": true
+    },
+    "27": {
+      "name": "Yamato",
+      "firstSeen": null,
+      "active": true
+    },
+    "31": {
+      "name": "Lash",
+      "firstSeen": null,
+      "active": true
+    },
+    "35": {
+      "name": "Viscous",
+      "firstSeen": null,
+      "active": true
+    },
+    "50": {
+      "name": "Pocket",
+      "firstSeen": null,
+      "active": true
+    },
+    "52": {
+      "name": "Mirage",
+      "firstSeen": null,
+      "active": true
+    },
+    "58": {
+      "name": "Vyper",
+      "firstSeen": null,
+      "active": true
+    },
+    "60": {
+      "name": "Sinclair",
+      "firstSeen": null,
+      "active": true
+    },
+    "63": {
+      "name": "Mina",
+      "firstSeen": null,
+      "active": true
+    },
+    "64": {
+      "name": "Drifter",
+      "firstSeen": null,
+      "active": true
+    },
+    "65": {
+      "name": "Venator",
+      "firstSeen": null,
+      "active": true
+    },
+    "66": {
+      "name": "Victor",
+      "firstSeen": null,
+      "active": true
+    },
+    "67": {
+      "name": "Paige",
+      "firstSeen": null,
+      "active": true
+    },
+    "69": {
+      "name": "The Doorman",
+      "firstSeen": null,
+      "active": true
+    },
+    "72": {
+      "name": "Billy",
+      "firstSeen": null,
+      "active": true
+    },
+    "76": {
+      "name": "Graves",
+      "firstSeen": null,
+      "active": true
+    },
+    "77": {
+      "name": "Apollo",
+      "firstSeen": null,
+      "active": true
+    },
+    "78": {
+      "name": "Deadman Danny",
+      "firstSeen": "2026-10-15T03:12:00Z",
+      "active": true
+    },
+    "79": {
+      "name": "Rem",
+      "firstSeen": null,
+      "active": true
+    },
+    "80": {
+      "name": "Silver",
+      "firstSeen": null,
+      "active": true
+    },
+    "81": {
+      "name": "Celeste",
+      "firstSeen": null,
+      "active": true
+    },
+    "84": {
+      "name": "Rat King",
+      "firstSeen": "2026-10-15T03:12:00Z",
+      "active": true
+    },
+    "85": {
+      "name": "Solomon",
+      "firstSeen": "2026-10-15T03:12:00Z",
+      "active": true
+    },
+    "86": {
+      "name": "Violet",
+      "firstSeen": "2026-10-15T03:12:00Z",
+      "active": true
+    },
+    "87": {
+      "name": "Nurse Harrow",
+      "firstSeen": "2026-10-20T22:13:00Z",
+      "active": true
+    },
+    "88": {
+      "name": "Baba",
+      "firstSeen": "2026-10-15T03:12:00Z",
+      "active": true
+    }
+  },
+  "note": "firstSeen для героев City Never Sleeps выставлен вручную: дата патча 15.10.2026, Nurse Harrow — дата выхода 20.10.2026. Остальные герои были в игре до появления журнала (firstSeen = null)."
+}

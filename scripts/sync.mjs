@@ -1,0 +1,191 @@
+#!/usr/bin/env node
+// Синхронизация данных Deadlock -> public/data/{lang}.json
+//
+//   node scripts/sync.mjs                 # ru + en, ссылки на CDN deadlock-api
+//   node scripts/sync.mjs --icons         # + скачать иконки в public/icons (без хотлинка)
+//   node scripts/sync.mjs --langs ru      # только русский
+//
+// Выходит с кодом 0 и печатает CHANGED/UNCHANGED — удобно для CI.
+
+import { mkdir, writeFile, readFile, access } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { fetchRaw, buildSnapshot, applyEnglishNames, bannedFromStats, itemScores, STATS } from '../public/js/normalize.js';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const args = process.argv.slice(2);
+const flag = (n) => args.includes(n);
+const opt = (n, d) => {
+  const i = args.indexOf(n);
+  return i >= 0 && args[i + 1] ? args[i + 1] : d;
+};
+
+const LANGS_TO_SYNC = opt('--langs', 'ru,en').split(',').map((s) => s.trim()).filter(Boolean);
+const OUT = path.resolve(root, opt('--out', 'public/data'));
+const ICONS = flag('--icons');
+const ICON_DIR = path.resolve(root, 'public/icons');
+
+async function fetchJson(url, tries = 3) {
+  let last;
+  for (let i = 0; i < tries; i++) {
+    try {
+      const ctl = new AbortController();
+      const t = setTimeout(() => ctl.abort(), 60_000);
+      const res = await fetch(url, { signal: ctl.signal, headers: { 'User-Agent': 'deadlock-shuffle-sync/1.0' } });
+      clearTimeout(t);
+      if (!res.ok) throw new Error(`${res.status} ${url}`);
+      return await res.json();
+    } catch (e) {
+      last = e;
+      await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+    }
+  }
+  throw last;
+}
+
+const hash = (obj) => createHash('sha1').update(JSON.stringify(obj)).digest('hex').slice(0, 12);
+
+async function exists(p) {
+  try { await access(p); return true; } catch { return false; }
+}
+
+// Скачивает картинку один раз и возвращает локальный путь (относительно public/)
+async function mirror(url) {
+  if (!url || !url.startsWith('http')) return url;
+  const rel = url.split('/assets-api-res/')[1] || path.basename(new URL(url).pathname);
+  const file = path.join(ICON_DIR, rel);
+  if (!(await exists(file))) {
+    for (let i = 0; i < 3; i++) {
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+        if (!res.ok) return url; // нет картинки — оставляем внешнюю ссылку
+        await mkdir(path.dirname(file), { recursive: true });
+        await writeFile(file, Buffer.from(await res.arrayBuffer()));
+        break;
+      } catch {
+        if (i === 2) return url; // сеть подвела — сайт возьмёт картинку с CDN
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    }
+  }
+  return 'icons/' + rel.replace(/\\/g, '/');
+}
+
+async function mirrorAll(snap) {
+  const jobs = [];
+  for (const h of snap.heroes) {
+    for (const k of ['card', 'small']) jobs.push(mirror(h[k]).then((v) => (h[k] = v)));
+    for (const a of h.abilities) jobs.push(mirror(a.icon).then((v) => (a.icon = v)));
+  }
+  for (const i of snap.items) {
+    jobs.push(mirror(i.icon).then((v) => (i.icon = v)));
+  }
+  // ограничиваем параллельность пачками
+  for (let i = 0; i < jobs.length; i += 24) await Promise.all(jobs.slice(i, i + 24));
+}
+
+await mkdir(OUT, { recursive: true });
+let changed = false;
+const meta = { updatedAt: new Date().toISOString(), langs: {} };
+
+// Английский снимок нужен всегда: из него берутся имена героев, предметов и способностей
+const enSnap = buildSnapshot(await fetchRaw(fetchJson, 'en'));
+
+// Журнал героев: когда каждый появился в пуле. Новые герои логируются и получают дату —
+// по ней сайт показывает бейдж «Новинка».
+const ROSTER = path.join(OUT, 'roster.json');
+let roster = { heroes: {} };
+try { roster = JSON.parse(await readFile(ROSTER, 'utf8')); } catch {}
+const nowIso = new Date().toISOString();
+const firstRun = !Object.keys(roster.heroes).length;
+const activeIds = new Set(enSnap.heroes.map((h) => String(h.id)));
+const added = [];
+for (const h of enSnap.heroes) {
+  const r = roster.heroes[h.id];
+  if (!r) {
+    // при самом первом запуске все текущие герои считаются «старыми»
+    roster.heroes[h.id] = { name: h.name, firstSeen: firstRun ? null : nowIso, active: true };
+    if (!firstRun) added.push(h.name);
+  } else {
+    if (r.active === false) { added.push(`${h.name} (вернулся)`); r.firstSeen = r.firstSeen || nowIso; }
+    r.active = true; r.name = h.name;
+  }
+  h.addedAt = roster.heroes[h.id].firstSeen || null;
+}
+const removed = [];
+for (const [id, r] of Object.entries(roster.heroes)) if (r.active && !activeIds.has(id)) { r.active = false; removed.push(r.name); }
+if (added.length) console.log(`НОВЫЕ ГЕРОИ: ${added.join(', ')}`);
+if (removed.length) console.log(`УБРАНЫ ИЗ ПУЛА: ${removed.join(', ')}`);
+await writeFile(ROSTER, JSON.stringify(roster, null, 2));
+
+// Запреты на покупку по статистике матчей за 30 дней (по 6 героев параллельно)
+const since = Math.floor(Date.now() / 1000) - 30 * 86400;
+let bansFound = 0;
+const globalStats = await fetchJson(`${STATS}?min_unix_timestamp=${since}`).catch(() => null);
+// Оценки предметов для «Оценки затара»: тот же запрос статистики, считаем раз в сутки
+const STATS_FILE = path.join(OUT, 'stats.json');
+let prevStats = null;
+try { prevStats = JSON.parse(await readFile(STATS_FILE, 'utf8')); } catch {}
+const statsFresh = prevStats && Date.now() - Date.parse(prevStats.updatedAt) < 20 * 3600e3 && !flag('--force-stats');
+const heroStats = statsFresh ? null : await fetchJson(`https://api.deadlock-api.com/v1/analytics/hero-stats?min_unix_timestamp=${since}`).catch(() => null);
+const scoreOut = { updatedAt: new Date().toISOString(), windowDays: 30, minMatches: 300, heroes: {} };
+for (let i = 0; i < enSnap.heroes.length; i += 6) {
+  await Promise.all(enSnap.heroes.slice(i, i + 6).map(async (h) => {
+    try {
+      const stats = await fetchJson(`${STATS}?hero_id=${h.id}&min_unix_timestamp=${since}`);
+      h.banned = bannedFromStats(stats, enSnap.items, globalStats);
+      if (!statsFresh) {
+        const hs = (heroStats || []).find((x) => x.hero_id === h.id);
+        scoreOut.heroes[h.id] = {
+          base: hs && hs.matches ? Math.round((hs.wins / hs.matches) * 1000) : null,
+          matches: hs ? hs.matches : 0,
+          items: itemScores(stats, enSnap.items),
+        };
+      }
+      bansFound += h.banned.length;
+      if (h.banned.length) console.log(`  ${h.name}: нельзя купить ${h.banned.length} — ${h.banned.map((s) => enSnap.items.find((x) => x.slug === s).name).join(', ')}`);
+    } catch (e) {
+      console.warn(`  ${h.name}: статистика недоступна, запреты не применены (${e.message})`);
+    }
+  }));
+}
+console.log(`Запреты: ${bansFound} пар герой/предмет`);
+if (!statsFresh) {
+  await writeFile(STATS_FILE, JSON.stringify(scoreOut));
+  console.log(`Оценки предметов: ${Object.keys(scoreOut.heroes).length} героев`);
+} else {
+  console.log('Оценки предметов: свежие (моложе 20 ч), пропускаю');
+}
+
+for (const lang of LANGS_TO_SYNC) {
+  const snap = lang === 'en' ? enSnap : applyEnglishNames(buildSnapshot(await fetchRaw(fetchJson, lang)), enSnap);
+  if (snap.heroes.length < 10 || snap.items.length < 50) {
+    throw new Error(`Подозрительно мало данных (${lang}): героев ${snap.heroes.length}, предметов ${snap.items.length}`);
+  }
+  if (ICONS) await mirrorAll(snap);
+
+  const { fetchedAt, ...stable } = snap;
+  const h = hash(stable);
+  const file = path.join(OUT, `${lang}.json`);
+  let prev = null;
+  try { prev = JSON.parse(await readFile(file, 'utf8')); } catch {}
+  if (prev && prev.hash === h) {
+    meta.langs[lang] = { hash: h, clientVersion: prev.clientVersion, fetchedAt: prev.fetchedAt };
+    console.log(`${lang}: без изменений (${snap.heroes.length} героев, ${snap.items.length} предметов)`);
+    continue;
+  }
+  snap.hash = h;
+  await writeFile(file, JSON.stringify(snap));
+  meta.langs[lang] = { hash: h, clientVersion: snap.clientVersion, fetchedAt };
+  changed = true;
+  console.log(`${lang}: обновлено -> ${snap.heroes.length} героев, ${snap.items.length} предметов, ${snap.lanes.length} линии, версия клиента ${snap.clientVersion}`);
+}
+
+// meta.json читает быстрый сторож (scripts/watch.mjs): версия клиента и список активных героев
+meta.clientVersion = enSnap.clientVersion;
+meta.heroIds = enSnap.heroes.map((h) => h.id).sort((a, b) => a - b);
+if (changed || !(await exists(path.join(OUT, 'meta.json')))) {
+  await writeFile(path.join(OUT, 'meta.json'), JSON.stringify(meta, null, 2));
+}
+console.log(changed ? 'CHANGED' : 'UNCHANGED');

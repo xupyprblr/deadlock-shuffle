@@ -1,0 +1,91 @@
+# Два режима:
+#  • каждые 20 минут — быстрый сторож (scripts/watch.mjs): версия игры + список героев.
+#    Если вышел патч или новый герой — сразу полная синхронизация и деплой;
+#  • каждые 3 часа — полная синхронизация в любом случае (предметы, запреты, картинки).
+name: sync-and-deploy
+
+on:
+  schedule:
+    - cron: '*/20 * * * *'
+    - cron: '17 */3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.decide.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Быстрая проверка (патч / новые герои)
+        id: watch
+        if: github.event_name == 'schedule' && github.event.schedule == '*/20 * * * *'
+        run: |
+          node scripts/watch.mjs | tee watch.log
+          echo "changed=$(grep -q '^CHANGED' watch.log && echo yes || echo no)" >> "$GITHUB_OUTPUT"
+      - name: Нужна ли синхронизация
+        id: need
+        run: |
+          if [ "${{ steps.watch.outcome }}" = "skipped" ] || [ "${{ steps.watch.outputs.changed }}" = "yes" ]; then
+            echo "run=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=no" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Полная синхронизация данных
+        id: sync
+        if: steps.need.outputs.run == 'yes'
+        run: |
+          node scripts/sync.mjs --icons | tee sync.log
+          echo "changed=$(grep -q '^CHANGED' sync.log && echo yes || echo no)" >> "$GITHUB_OUTPUT"
+          grep -E '^(НОВЫЕ ГЕРОИ|УБРАНЫ ИЗ ПУЛА)' sync.log >> "$GITHUB_STEP_SUMMARY" || true
+      - name: Проверить логику рандома
+        if: steps.need.outputs.run == 'yes'
+        run: node scripts/test.mjs
+      - name: Закоммитить снимок
+        if: steps.sync.outputs.changed == 'yes'
+        run: |
+          git config user.name "deadlock-shuffle-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add public/data public/icons
+          MSG="data: обновление из Deadlock API"
+          NEW=$(grep '^НОВЫЕ ГЕРОИ' sync.log | sed 's/^НОВЫЕ ГЕРОИ: //' || true)
+          [ -n "$NEW" ] && MSG="data: новые герои — $NEW"
+          git commit -m "$MSG"
+          git push
+      - name: Решить, публиковать ли сайт
+        id: decide
+        run: |
+          if [ "${{ steps.sync.outputs.changed }}" = "yes" ] || [ "${{ github.event_name }}" != "schedule" ]; then
+            echo "deploy=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=no" >> "$GITHUB_OUTPUT"
+          fi
+      # Публикация на GitHub Pages — только если в репозитории задана переменная DEPLOY_PAGES=true.
+      # На Vercel сайт пересобирается сам при каждом коммите в main.
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.decide.outputs.deploy == 'yes' && vars.DEPLOY_PAGES == 'true'
+        with:
+          path: public
+
+  deploy:
+    needs: sync
+    if: needs.sync.outputs.deploy == 'yes' && vars.DEPLOY_PAGES == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Deadlock Shuffle — случайный герой и сборка для Deadlock</title>
+  <meta name="description" content="Рандомайзер для Deadlock: случайный герой, линия, 12 предметов и порядок прокачки способностей. Данные обновляются автоматически после каждого патча.">
+  <meta property="og:title" content="Deadlock Shuffle — рандомный герой и затар">
+  <meta property="og:description" content="Нажми «Крутить» и попробуй собрать выпавшую сборку к концу матча.">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="#100e0e">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://assets-bucket.deadlock-api.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:wght@800&family=Jost:wght@400;500;600&family=Rubik:wght@700;900&display=swap">
+  <link rel="stylesheet" href="css/styles.css">
+  <script>
+    // Настройки сайта. live=true — браузер сам проверяет свежую версию игры в API.
+    window.DS_CONFIG = { live: true, dataUrl: 'data/' };
+  </script>
+</head>
+<body>
+  <div id="app" class="wrap"><div class="loading">Загружаю героев и предметы…</div></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -29,6 +29,8 @@ jobs:
       deploy: ${{ steps.decide.outputs.deploy }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main # всегда свежий main, а не коммит, который запустил workflow
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -66,7 +68,11 @@ jobs:
           NEW=$(grep '^НОВЫЕ ГЕРОИ' sync.log | sed 's/^НОВЫЕ ГЕРОИ: //' || true)
           [ -n "$NEW" ] && MSG="data: новые герои — $NEW"
           git commit -m "$MSG"
-          git push
+          # другой запуск мог успеть закоммитить раньше: подтягиваем и оставляем наш, более свежий снимок
+          for i in 1 2 3; do
+            git pull --rebase -X theirs origin main && git push && break
+            sleep 5
+          done
       - name: Решить, публиковать ли сайт
         id: decide
         run: |

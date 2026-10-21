@@ -99,7 +99,7 @@ npm run dev          # http://localhost:5173
 
 Сайт полностью статический: подойдёт GitHub Pages (workflow уже настроен), Cloudflare Pages, Netlify или любой nginx.
 
-**GitHub Pages:** залить репозиторий, в Settings → Pages выбрать источник «GitHub Actions», запустить workflow вручную один раз.
+**GitHub Pages (текущий тестовый хостинг):** https://xupyprblr.github.io/deadlock-shuffle/ — в Settings → Pages источник «GitHub Actions». Workflow публикует сайт при пуше в main, при изменении данных (сторож каждые 20 минут) и раз в 3 часа.
 
 **Свой сервер:** положить `public/` в корень сайта и добавить в crontab:
 

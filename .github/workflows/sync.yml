@@ -9,6 +9,9 @@ on:
     - cron: '*/20 * * * *'
     - cron: '17 */3 * * *'
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore: ['README.md']
 
 permissions:
   contents: write
@@ -72,16 +75,14 @@ jobs:
           else
             echo "deploy=no" >> "$GITHUB_OUTPUT"
           fi
-      # Публикация на GitHub Pages — только если в репозитории задана переменная DEPLOY_PAGES=true.
-      # На Vercel сайт пересобирается сам при каждом коммите в main.
       - uses: actions/upload-pages-artifact@v3
-        if: steps.decide.outputs.deploy == 'yes' && vars.DEPLOY_PAGES == 'true'
+        if: steps.decide.outputs.deploy == 'yes'
         with:
           path: public
 
   deploy:
     needs: sync
-    if: needs.sync.outputs.deploy == 'yes' && vars.DEPLOY_PAGES == 'true'
+    if: needs.sync.outputs.deploy == 'yes'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

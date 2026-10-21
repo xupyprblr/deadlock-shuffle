@@ -83,7 +83,7 @@ const store = {
 };
 
 const state = {
-  lang: store.get('ds:lang', (navigator.language || 'ru').startsWith('ru') ? 'ru' : 'en'),
+  lang: store.get('ds:lang', 'ru'), // по умолчанию русский; EN — только если зритель сам переключил
   // старые сохранённые настройки (слоты, классы, лимит активок) больше не используются
   opts: (({ slots, types, maxActive, ...rest }) => Object.assign({}, DEFAULTS, rest))(store.get('ds:opts', {})),
   stats: null,

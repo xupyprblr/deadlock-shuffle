@@ -147,6 +147,7 @@ const icon = (p) => (p && !p.startsWith('http') ? '../' + p : p || '');
 const state = {
   tab: 'hero', heroId: null, days: 30, badge: 0, minMatches: 500, sort: 'wr', show: 'all',
   ids: '', rows: null, loading: false, error: '',
+  compare: [], modal: null,
 };
 
 // ---------- рендер ----------
@@ -155,7 +156,8 @@ function shell() {
     <h1 class="lab-title">Сборки <mark>игроков</mark></h1>
     <div class="seg-order lab-tabs" role="tablist">
       <button data-tab="hero" aria-pressed="${state.tab === 'hero'}">По герою</button>
-      <button data-tab="ids" aria-pressed="${state.tab === 'ids'}">По ID / сравнение</button>
+      <button data-tab="ids" aria-pressed="${state.tab === 'ids'}">По ID</button>
+      <button data-tab="cmp" aria-pressed="${state.tab === 'cmp'}">${cmpLabel()}</button>
     </div>
     <section id="panel"></section>`;
   renderPanel();
@@ -164,8 +166,10 @@ function shell() {
 function renderPanel() {
   const el = document.getElementById('panel');
   if (state.tab === 'hero') el.innerHTML = heroPanel();
-  else el.innerHTML = idsPanel();
-  if (state.tab === 'ids' && state.cards) renderCards();
+  else if (state.tab === 'ids') el.innerHTML = idsPanel();
+  else el.innerHTML = cmpPanel();
+  syncUrl();
+  renderLists();
 }
 
 function selectHtml(id, items, val) {
@@ -221,14 +225,14 @@ function heroOut() {
         return `<tr>
           <td class="n muted">${i + 1}</td>
           <td><div class="b-name">${r.kind === 'gem' ? '<span class="kind gem">Самородок</span>' : r.kind === 'anom' ? '<span class="kind anom">Аномалия</span>' : ''}${b ? esc(b.name || 'Без названия') : `<span class="muted">загрузка…</span>`}</div>
-              <div class="b-meta">ID ${r.id}${b ? ` · v${b.version} · обновлена ${day(b.last_updated_timestamp)}` : ''}</div></td>
+              <div class="b-meta">${idBtn(r.id)}${b ? ` · v${b.version} · обновлена ${day(b.last_updated_timestamp)}` : ''}</div></td>
           <td class="n">${fmt(r.matches)}</td>
           <td class="n">${fmt(r.players)}</td>
           <td class="n wr">${pct(r.wr)}</td>
           <td class="n muted">${pct(r.ci[0])}–${pct(r.ci[1])}</td>
           <td class="n"><span class="sig ${sig}">${base ? pp(d) : '—'}</span></td>
           ${anomMode ? `<td class="n" title="Реалистичная оценка с учётом размера выборки">${pct(r.est)}</td>` : ''}
-          <td class="n"><button class="btn btn-mini" data-open="${r.id}">Открыть</button></td>
+          <td class="n"><div class="row-acts"><button class="btn btn-mini" data-open="${r.id}">Открыть</button>${cmpBtn(r.id, true)}</div></td>
         </tr>`;
       }).join('')}</tbody>
     </table></div>
@@ -263,45 +267,134 @@ async function loadHero() {
   }
 }
 
-// ---------- по ID / сравнение ----------
+// ---------- сравнение: список ID ----------
+const CMP_MAX = 6;
+const CMP_KEY = 'lab:compare';
+function loadCompare() {
+  try { const v = JSON.parse(localStorage.getItem(CMP_KEY) || '[]'); return Array.isArray(v) ? v.map(Number).filter((n) => n > 0).slice(0, CMP_MAX) : []; } catch { return []; }
+}
+function saveCompare() { try { localStorage.setItem(CMP_KEY, JSON.stringify(state.compare)); } catch {} }
+const inCmp = (id) => state.compare.includes(+id);
+const cmpLabel = () => `Сравнение${state.compare.length ? ` · ${state.compare.length}` : ''}`;
+
+function cmpBtn(id, mini) {
+  return inCmp(id)
+    ? `<button class="btn ${mini ? 'btn-mini' : ''} btn-cmp on" data-cmp-del="${id}" title="Убрать из сравнения">${mini ? '✓ В сравнении' : 'Убрать из сравнения'}</button>`
+    : `<button class="btn ${mini ? 'btn-mini' : ''} btn-cmp" data-cmp-add="${id}">${mini ? '+ Сравнить' : 'Добавить в сравнение'}</button>`;
+}
+const idBtn = (id) => `<button class="id-copy" data-copy-id="${id}" title="Скопировать ID">ID ${id}</button>`;
+
+function cmpAdd(id) {
+  id = +id;
+  if (inCmp(id)) return;
+  if (state.compare.length >= CMP_MAX) { toast(`В сравнении максимум ${CMP_MAX} сборок — сначала убери одну`); return; }
+  state.compare.push(id); saveCompare(); toast(`Сборка ${id} добавлена в сравнение`); refresh();
+}
+function cmpDel(id) {
+  state.compare = state.compare.filter((x) => x !== +id); saveCompare(); refresh();
+}
+
+function syncUrl() {
+  try {
+    const u = new URL(location.href);
+    u.searchParams.delete('ids'); u.searchParams.delete('cmp');
+    if (state.tab === 'ids' && parseIds(state.ids).length) u.searchParams.set('ids', parseIds(state.ids).join(','));
+    if (state.tab === 'cmp' && state.compare.length) u.searchParams.set('cmp', state.compare.join(','));
+    history.replaceState(null, '', u);
+  } catch {}
+}
+
+// ---------- загрузка сборок (кэш на сессию, по рангу) ----------
+const cards = new Map();
+function cardFor(id) {
+  const key = id + ':' + state.badge;
+  if (!cards.has(key)) {
+    const c = { id, loading: true };
+    cards.set(key, c);
+    fillCard(c).finally(() => { c.loading = false; renderLists(); });
+  }
+  return cards.get(key);
+}
+async function fillCard(c) {
+  try {
+    const b = await getBuild(c.id);
+    if (!b) { c.error = 'Сборка не найдена'; return; }
+    c.build = b;
+    const hid = b.hero_id;
+    c.periods = await Promise.all(PERIODS.map(async (d) => {
+      const r = await api(`/analytics/hero-build-stats/${hid}`, { hero_build_id: c.id, min_unix_timestamp: since(d), min_average_badge: state.badge });
+      const x = (r || [])[0];
+      return x ? { days: d, matches: x.matches, players: x.players, wr: x.wins / x.matches, ci: wilson(x.wins, x.matches) } : { days: d, matches: 0 };
+    }));
+    c.base = await heroBase(hid, 30, state.badge);
+  } catch (e) { c.error = e.message; }
+}
+
+function parseIds(s) {
+  return [...new Set(String(s).split(/[^0-9]+/).filter(Boolean).map(Number).filter((n) => n > 0))].slice(0, CMP_MAX);
+}
+
+// ---------- панели ----------
 function idsPanel() {
   return `
     <form id="ids-form" class="lab-ids">
-      <label for="ids-input">ID сборок через запятую — до 6 штук для сравнения</label>
+      <label for="ids-input">ID сборки — можно несколько через запятую</label>
       <div class="lab-ids-row">
         <input id="ids-input" type="text" inputmode="numeric" placeholder="410706, 697756" value="${esc(state.ids)}">
         <button class="btn btn-game" type="submit">Найти</button>
       </div>
       <label>Ранг для статистики ${selectHtml('i-badge', RANKS, state.badge)}</label>
     </form>
-    <div id="cards" class="lab-cards"></div>`;
+    <div id="ids-cards" class="g-list"></div>`;
+}
+function cmpPanel() {
+  return `
+    <div class="lab-filters">
+      <label>Ранг для статистики ${selectHtml('c-badge', RANKS, state.badge)}</label>
+      ${state.compare.length ? '<button class="btn btn-mini" data-cmp-clear="1">Очистить сравнение</button>' : ''}
+    </div>
+    <div id="cmp-cards" class="g-compare"></div>`;
 }
 
-function parseIds(s) {
-  return [...new Set(String(s).split(/[^0-9]+/).filter(Boolean).map(Number).filter((n) => n > 0))].slice(0, 6);
+function renderLists() {
+  const idsBox = document.getElementById('ids-cards');
+  if (idsBox) {
+    const ids = parseIds(state.ids);
+    idsBox.innerHTML = ids.length ? ids.map((id) => buildCard(cardFor(id), 'view')).join('') : '<p class="lab-empty">Введи ID сборки — он есть в игре в заголовке сборки.</p>';
+  }
+  const cmpBox = document.getElementById('cmp-cards');
+  if (cmpBox) {
+    cmpBox.innerHTML = state.compare.length
+      ? state.compare.map((id) => buildCard(cardFor(id), 'compare')).join('')
+      : '<p class="lab-empty">Сравнение пустое. Добавляй сборки кнопкой «Добавить в сравнение» на вкладках «По герою» и «По ID» — до 6 штук.</p>';
+  }
+  renderModal();
 }
 
-async function loadIds() {
-  const ids = parseIds(state.ids);
-  try { const u = new URL(location.href); u.searchParams.set('ids', ids.join(',')); history.replaceState(null, '', u); } catch {}
-  state.cards = ids.map((id) => ({ id, loading: true }));
-  renderCards();
-  await Promise.all(state.cards.map(async (c) => {
-    try {
-      const b = await getBuild(c.id);
-      if (!b) { c.error = 'Сборка не найдена'; return; }
-      c.build = b;
-      const hid = b.hero_id;
-      c.periods = await Promise.all(PERIODS.map(async (d) => {
-        const r = await api(`/analytics/hero-build-stats/${hid}`, { hero_build_id: c.id, min_unix_timestamp: since(d), min_average_badge: state.badge });
-        const x = (r || [])[0];
-        return x ? { days: d, matches: x.matches, players: x.players, wr: x.wins / x.matches, ci: wilson(x.wins, x.matches) } : { days: d, matches: 0 };
-      }));
-      c.base = await heroBase(hid, 30, state.badge);
-    } catch (e) { c.error = e.message; } finally { c.loading = false; renderCards(); }
-  }));
+// обновить всё, что зависит от списка сравнения
+function refresh() {
+  const tab = document.querySelector('[data-tab="cmp"]');
+  if (tab) tab.textContent = cmpLabel();
+  if (state.tab === 'hero' && document.getElementById('hero-out')) document.getElementById('hero-out').innerHTML = heroOut();
+  if (state.tab === 'cmp') { const el = document.getElementById('panel'); el.innerHTML = cmpPanel(); syncUrl(); }
+  renderLists();
 }
 
+// ---------- окно просмотра ----------
+function renderModal() {
+  let el = document.getElementById('lab-modal');
+  if (!state.modal) { if (el) { el.remove(); document.body.classList.remove('lab-noscroll'); } return; }
+  if (!el) {
+    el = document.createElement('div'); el.id = 'lab-modal'; el.className = 'lab-modal';
+    el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
+    document.body.appendChild(el); document.body.classList.add('lab-noscroll');
+  }
+  const top = el.scrollTop;
+  el.innerHTML = `<div class="lab-modal-in"><button class="lab-close" data-close="1" aria-label="Закрыть">✕</button>${buildCard(cardFor(state.modal), 'modal')}</div>`;
+  el.scrollTop = top;
+}
+
+// ---------- карточка сборки в стиле игры ----------
 function verdict(p, base) {
   if (!p || !p.matches) return ['flat', 'нет матчей за 30 дней'];
   if (!base) return ['flat', 'нет данных по герою'];
@@ -310,51 +403,98 @@ function verdict(p, base) {
   return ['flat', `в пределах погрешности (±${(((p.ci[1] - p.ci[0]) / 2) * 100).toFixed(1).replace('.', ',')} п.п.)`];
 }
 
-function itemChip(m) {
-  const it = itemById[m.ability_id >>> 0];
-  const name = it ? it.name : `#${m.ability_id}`;
-  return `<span class="chip-item ${it ? it.cat : ''}" title="${esc(name)}${m.annotation ? ' — ' + esc(m.annotation) : ''}">${it && it.icon ? `<img src="${esc(icon(it.icon))}" alt="" width="34" height="34" loading="lazy">` : ''}<span>${esc(name)}${m.annotation ? ' <i>✎</i>' : ''}</span></span>`;
-}
-
 const CAT_NAMES = { '#Citadel_HeroBuilds_EarlyGame': 'Ранний этап', '#Citadel_HeroBuilds_MidGame': 'Середина матча', '#Citadel_HeroBuilds_LateGame': 'Поздний этап', '#Citadel_HeroBuilds_Early': 'Ранний этап', '#Citadel_HeroBuilds_Mid': 'Середина', '#Citadel_HeroBuilds_Late': 'Поздний этап', '#Citadel_HeroBuilds_Lane': 'Линия' };
 
-function abilityStrip(b) {
-  const ch = b.details && b.details.ability_order && b.details.ability_order.currency_changes;
-  if (!ch || !ch.length) return '';
-  return `<div class="ab-strip">${ch.map((c, i) => {
-    const a = abilityById[c.ability_id >>> 0];
-    const lab = c.currency_type === 2 ? '◆' : String(-c.delta);
-    return `<span class="ab-step ${c.currency_type === 2 ? 'open' : ''}" title="${i + 1}. ${esc(a ? a.name : c.ability_id)}">${a && a.icon ? `<img src="${esc(icon(a.icon))}" alt="" width="22" height="22">` : ''}<b>${lab}</b></span>`;
-  }).join('')}</div>`;
+function itemTile(m) {
+  const it = itemById[m.ability_id >>> 0];
+  const name = it ? it.name : `#${m.ability_id}`;
+  const cls = it ? `${it.cat} t${it.tier}${it.active ? ' act' : ''}` : 'unk';
+  const tip = `${name}${it ? ` · ${it.tier} тир${it.active ? ' · активный' : ''}` : ''}${m.annotation ? ' — ' + m.annotation : ''}`;
+  return `<div class="g-item ${cls}" title="${esc(tip)}">
+    <div class="g-ic">${it && it.icon ? `<img src="${esc(icon(it.icon))}" alt="" loading="lazy">` : ''}</div>
+    <div class="g-nm"><span>${esc(name)}</span></div>${m.annotation ? '<i class="g-note">✎</i>' : ''}
+  </div>`;
 }
 
-function renderCards() {
-  const box = document.getElementById('cards');
-  if (!box || !state.cards) return;
-  if (!state.cards.length) { box.innerHTML = '<p class="lab-empty">Введи хотя бы один ID.</p>'; return; }
-  box.innerHTML = state.cards.map((c, idx) => {
-    if (c.loading) return `<article class="b-card"><p class="lab-empty">ID ${c.id}: загрузка…</p></article>`;
-    if (c.error) return `<article class="b-card"><p class="lab-error">ID ${c.id}: ${esc(c.error)}</p></article>`;
-    const b = c.build, h = heroById[b.hero_id];
-    const p30 = c.periods.find((p) => p.days === 30);
-    const [vcls, vtxt] = verdict(p30, c.base);
-    return `<article class="b-card">
-      <header class="b-head">
-        ${h && h.small ? `<img class="b-hero" src="${esc(icon(h.small))}" alt="" width="52" height="52">` : ''}
-        <div><h2>${esc(b.name || 'Без названия')}</h2>
-        <div class="b-meta">ID ${c.id} · ${esc(h ? h.name : 'герой ' + b.hero_id)} · v${b.version} · опубликована ${day(b.publish_timestamp)}, обновлена ${day(b.last_updated_timestamp)}${b.origin_build_id ? ` · копия #${b.origin_build_id}` : ''}</div></div>
-      </header>
-      <div class="b-verdict sig ${vcls}">30 дней: ${p30 && p30.matches ? `${pct(p30.wr)} на ${fmt(p30.matches)} матчах` : 'нет матчей'} — ${vtxt}${c.base ? ` · герой ${pct(c.base.wr)}` : ''}</div>
-      <div class="lab-table-wrap"><table class="lab-table b-periods"><thead><tr><th>Период</th><th class="n">Матчи</th><th class="n">Игроки</th><th class="n">WR</th><th class="n">95% интервал</th></tr></thead>
-        <tbody>${c.periods.map((p) => `<tr><td>${p.days} дн.</td><td class="n">${fmt(p.matches)}</td><td class="n">${p.matches ? fmt(p.players) : '—'}</td><td class="n wr">${p.matches ? pct(p.wr) : '—'}</td><td class="n muted">${p.matches ? `${pct(p.ci[0])}–${pct(p.ci[1])}` : '—'}</td></tr>`).join('')}</tbody></table></div>
-      ${(b.details && b.details.mod_categories || []).map((cat) => `
-        <div class="b-cat"><h3>${esc(CAT_NAMES[cat.name] || cat.name)}${cat.optional ? ' <small>необязательно</small>' : ''}</h3>
-        <div class="b-items">${(cat.mods || []).map(itemChip).join('')}</div></div>`).join('')}
-      ${abilityStrip(b)}
-      ${b.description ? `<details class="b-desc"><summary>Описание автора</summary><p>${esc(b.description)}</p></details>` : ''}
-      <div class="b-actions"><button class="btn btn-game" data-game="${idx}">В игру</button></div>
-    </article>`;
-  }).join('');
+function catPanel(cat) {
+  const sys = CAT_NAMES[cat.name];
+  const items = cat.mods || [];
+  return `<section class="g-cat${cat.optional ? ' opt' : ''}">
+    <h3><b>${esc(sys || cat.name || 'Без названия')}</b>${cat.description ? `<span>${esc(cat.description)}</span>` : ''}${cat.optional ? '<em>Необязательно</em>' : ''}</h3>
+    <div class="g-items">${items.length ? items.map(itemTile).join('') : '<span class="muted">пусто</span>'}</div>
+  </section>`;
+}
+
+const BOLT = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.5 1 3.5 9h4l-1 6 6-8h-4z" fill="currentColor"/></svg>';
+const PT = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 14.5 8 8 14.5 1.5 8z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.6"/></svg>';
+
+function abilityGrid(b) {
+  const ch = (b.details && b.details.ability_order && b.details.ability_order.currency_changes) || [];
+  if (!ch.length) return '';
+  const h = heroById[b.hero_id];
+  const abs = ((h && h.abilities) || []).filter((a) => a.id);
+  const ids = abs.map((a) => a.id >>> 0);
+  for (const c of ch) { const id = c.ability_id >>> 0; if (!ids.includes(id)) { ids.push(id); abs.push(abilityById[id] || { id, name: '#' + id }); } }
+  const n = ch.length;
+  const cols = `grid-template-columns: 38px repeat(${n}, minmax(30px, 1fr))`;
+  return `<section class="g-abil">
+    <h3>Порядок улучшения умений</h3>
+    <div class="g-abil-scroll"><div class="g-abil-grid">
+      ${abs.map((a) => `<div class="g-ab-row" style="${cols}">
+        <div class="g-ab-ic" title="${esc(a.name)}">${a.icon ? `<img src="${esc(icon(a.icon))}" alt="${esc(a.name)}">` : ''}</div>
+        ${ch.map((c, i) => ((c.ability_id >>> 0) === (a.id >>> 0)
+          ? `<div class="g-ab-cell"><span class="g-pt${c.currency_type === 2 ? ' unlock' : ''}" title="${i + 1}. ${esc(a.name)}: ${c.currency_type === 2 ? 'открыть' : 'улучшение за ' + -c.delta}">${c.currency_type === 2 ? BOLT : PT + '<b>' + -c.delta + '</b>'}</span></div>`
+          : '<div class="g-ab-cell"></div>')).join('')}
+      </div>`).join('')}
+    </div></div>
+  </section>`;
+}
+
+const fullDate = (t) => {
+  if (!t) return '—';
+  const s = new Date(t * 1000).toLocaleString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(' г.', '').replace(' в ', ' ');
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
+
+function statsBlock(c) {
+  const p30 = c.periods.find((p) => p.days === 30);
+  const [vcls, vtxt] = verdict(p30, c.base);
+  return `<section class="g-stats">
+    <div class="b-verdict sig ${vcls}">30 дней: ${p30 && p30.matches ? `${pct(p30.wr)} на ${fmt(p30.matches)} матчах` : 'нет матчей'} — ${vtxt}${c.base ? ` · герой ${pct(c.base.wr)}` : ''}</div>
+    <div class="lab-table-wrap"><table class="lab-table b-periods"><thead><tr><th>Период</th><th class="n">Матчи</th><th class="n">Игроки</th><th class="n">WR</th><th class="n">95% интервал</th></tr></thead>
+      <tbody>${c.periods.map((p) => `<tr><td>${p.days} дн.</td><td class="n">${fmt(p.matches)}</td><td class="n">${p.matches ? fmt(p.players) : '—'}</td><td class="n wr">${p.matches ? pct(p.wr) : '—'}</td><td class="n muted">${p.matches ? `${pct(p.ci[0])}–${pct(p.ci[1])}` : '—'}</td></tr>`).join('')}</tbody></table></div>
+  </section>`;
+}
+
+function buildCard(c, mode) {
+  if (c.loading) return `<article class="g-build"><p class="lab-empty">ID ${c.id}: загрузка…</p>${mode === 'compare' ? `<div class="g-actions">${cmpBtn(c.id)}</div>` : ''}</article>`;
+  if (c.error) return `<article class="g-build"><p class="lab-error">ID ${c.id}: ${esc(c.error)}</p>${mode === 'compare' ? `<div class="g-actions">${cmpBtn(c.id)}</div>` : ''}</article>`;
+  const b = c.build, h = heroById[b.hero_id];
+  const cats = (b.details && b.details.mod_categories) || [];
+  return `<article class="g-build ${mode}">
+    <header class="g-head">
+      ${h && h.small ? `<img class="g-hero" src="${esc(icon(h.small))}" alt="${esc(h.name)}" title="${esc(h.name)}">` : ''}
+      <div class="g-title">
+        <h2>${esc(b.name || 'Без названия')}</h2>
+        <div class="g-sub">
+          <span>Версия: ${b.version}</span>
+          <button class="g-id" data-copy-id="${c.id}" title="Нажми, чтобы скопировать">ID сборки: <u>${c.id}</u></button>
+        </div>
+        <div class="g-upd">Последнее обновление: ${esc(fullDate(b.last_updated_timestamp))}${b.origin_build_id ? ` · копия ${idBtn(b.origin_build_id)}` : ''}</div>
+      </div>
+    </header>
+    <div class="g-actions">
+      <button class="btn btn-game" data-game="${c.id}">В игру</button>
+      ${cmpBtn(c.id)}
+    </div>
+    ${statsBlock(c)}
+    <div class="g-overview">
+      <div class="g-tabbar"><span>Обзор</span></div>
+      ${b.description ? `<p class="g-desc">${esc(b.description)}</p>` : ''}
+      <div class="g-cats">${cats.map(catPanel).join('') || '<p class="lab-empty">В сборке нет предметов.</p>'}</div>
+    </div>
+    ${abilityGrid(b)}
+  </article>`;
 }
 
 function gameCode(c) {
@@ -388,37 +528,45 @@ async function copy(text, msg) {
 }
 
 // ---------- события ----------
-root.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-tab],[data-hero],[data-open],[data-game]');
+document.addEventListener('click', (e) => {
+  const modal = document.getElementById('lab-modal');
+  if (modal && e.target === modal) { state.modal = null; renderModal(); return; }
+  const t = e.target.closest('[data-tab],[data-hero],[data-open],[data-game],[data-cmp-add],[data-cmp-del],[data-cmp-clear],[data-copy-id],[data-close]');
   if (!t) return;
-  if (t.dataset.tab) { state.tab = t.dataset.tab; shell(); if (state.tab === 'ids' && state.ids && !state.cards) loadIds(); return; }
-  if (t.dataset.hero) { state.heroId = +t.dataset.hero; renderPanel(); loadHero(); return; }
-  if (t.dataset.open) {
-    const cur = parseIds(state.ids);
-    state.ids = [...new Set([...cur, +t.dataset.open])].slice(-6).join(', ');
-    state.tab = 'ids'; shell(); loadIds(); return;
-  }
-  if (t.dataset.game) {
-    const c = state.cards[+t.dataset.game];
+  const d = t.dataset;
+  if (d.close) { state.modal = null; renderModal(); return; }
+  if (d.copyId) { copy(d.copyId, `ID ${d.copyId} скопирован`); return; }
+  if (d.cmpAdd) { cmpAdd(d.cmpAdd); return; }
+  if (d.cmpDel) { cmpDel(d.cmpDel); return; }
+  if (d.cmpClear) { state.compare = []; saveCompare(); refresh(); return; }
+  if (d.tab) { state.tab = d.tab; shell(); return; }
+  if (d.hero) { state.heroId = +d.hero; renderPanel(); loadHero(); return; }
+  if (d.open) { state.modal = +d.open; renderModal(); return; }
+  if (d.game) {
+    const c = cardFor(+d.game);
     try { copy(gameCode(c), 'Код скопирован. В игре: Сборки → Создать → Вставить'); } catch { toast('Не удалось собрать код сборки'); }
   }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && state.modal) { state.modal = null; renderModal(); }
 });
 root.addEventListener('change', (e) => {
   const id = e.target.id;
   if (id === 'f-days') state.days = +e.target.value;
-  else if (id === 'f-badge' || id === 'i-badge') state.badge = +e.target.value;
+  else if (id === 'f-badge' || id === 'i-badge' || id === 'c-badge') state.badge = +e.target.value;
   else if (id === 'f-min') state.minMatches = +e.target.value;
   else if (id === 'f-show') { state.show = e.target.value; renderPanel(); }
   else if (id === 'f-sort') { state.sort = e.target.value; document.getElementById('hero-out').innerHTML = heroOut(); return; }
   else return;
-  if (id === 'i-badge') { if (state.ids) loadIds(); return; }
+  if (id === 'i-badge' || id === 'c-badge') { renderLists(); return; }
   if (state.heroId) loadHero();
 });
 root.addEventListener('submit', (e) => {
   if (e.target.id !== 'ids-form') return;
   e.preventDefault();
   state.ids = document.getElementById('ids-input').value;
-  loadIds();
+  syncUrl();
+  renderLists();
 });
 
 // ---------- старт ----------
@@ -432,9 +580,10 @@ root.addEventListener('submit', (e) => {
   heroById = Object.fromEntries(D.heroes.map((h) => [h.id, h]));
   itemById = Object.fromEntries(D.items.map((i) => [i.id >>> 0, i]));
   for (const h of D.heroes) for (const a of h.abilities || []) if (a.id) abilityById[a.id >>> 0] = a;
-  let q = null;
-  try { q = new URL(location.href).searchParams.get('ids'); } catch {}
-  if (q) { state.ids = q; state.tab = 'ids'; }
+  state.compare = loadCompare();
+  let q = null, cmp = null;
+  try { const sp = new URL(location.href).searchParams; q = sp.get('ids'); cmp = sp.get('cmp'); } catch {}
+  if (cmp) { state.compare = parseIds(cmp); saveCompare(); state.tab = 'cmp'; }
+  else if (q) { state.ids = q; state.tab = 'ids'; }
   shell();
-  if (q) loadIds();
 })();

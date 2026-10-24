@@ -74,3 +74,90 @@
 .kind { display: inline-block; font: 900 10px/1 var(--f-tag); text-transform: uppercase; letter-spacing: .03em; padding: 3px 6px 2px; margin-right: 8px; color: var(--ink); vertical-align: 1px; transform: rotate(-2deg); }
 .kind.anom { background: var(--teal); }
 .kind.gem { background: var(--yellow); box-shadow: 0 0 10px rgba(255, 225, 77, .45); }
+
+/* ===== карточка сборки в стиле игрового окна сборок ===== */
+.row-acts { display: flex; gap: 6px; justify-content: flex-end; }
+.btn-cmp.on { background: var(--teal); color: var(--ink); }
+.id-copy { all: unset; cursor: pointer; border-bottom: 1px dashed currentColor; }
+.id-copy:hover, .g-id:hover u { color: var(--yellow); }
+.id-copy:focus-visible, .g-id:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
+
+.g-list, .g-compare { display: grid; gap: 22px; }
+.g-compare { grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); align-items: start; }
+.g-build {
+  --g-bg: #141b26; --g-panel: #1f2c40; --g-panel-2: #18233a; --g-edge: #2d4062; --g-txt: #ece4d2; --g-dim: #9aa6b8;
+  background: linear-gradient(180deg, #1a2331, var(--g-bg)); color: var(--g-txt);
+  border: 1px solid var(--g-edge); padding: 18px; display: grid; gap: 16px; min-width: 0;
+  font-family: var(--f-body);
+}
+.g-head { display: flex; gap: 14px; align-items: flex-start; min-width: 0; }
+.g-hero { width: 58px; height: 58px; border-radius: 50%; object-fit: cover; background: #0c1119; border: 2px solid #3a4a64; flex: none; }
+.g-title { min-width: 0; display: grid; gap: 4px; }
+.g-title h2 { margin: 0; font: 700 clamp(22px, 2.6vw, 30px)/1.1 var(--f-body); color: #fff; overflow-wrap: anywhere; }
+.g-sub { display: flex; flex-wrap: wrap; gap: 4px 18px; font: 600 16px var(--f-body); }
+.g-id { all: unset; cursor: pointer; font: inherit; }
+.g-id u { text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.g-upd { color: var(--g-dim); font-size: 14px; font-weight: 500; }
+.g-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.g-stats { display: grid; gap: 10px; }
+.g-build .lab-table-wrap { border-color: var(--g-edge); }
+.g-build .lab-table th, .g-build .lab-table td { border-color: var(--g-edge); }
+
+.g-overview { display: grid; gap: 12px; }
+.g-tabbar { border-bottom: 3px solid #6fd39a; }
+.g-tabbar span { display: inline-block; padding: 8px 14px; font: 900 15px/1 var(--f-tag); text-transform: uppercase; letter-spacing: .03em; background: var(--g-panel-2); }
+.g-desc { margin: 0; padding: 4px 4px 0; font: 600 18px/1.4 var(--f-body); white-space: pre-wrap; overflow-wrap: anywhere; }
+.g-cats { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
+.g-cat { flex: 1 1 100%; background: var(--g-panel-2); border: 1px solid var(--g-edge); padding: 8px 10px 10px; min-width: 0; }
+.g-cat.opt { flex: 0 1 auto; background: var(--g-panel); }
+.g-cat h3 { margin: 0 0 8px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 13px; }
+.g-cat h3 b { font: 700 13px var(--f-body); color: #fff; }
+.g-cat h3 span { font: 500 12px var(--f-body); color: var(--g-dim); }
+.g-cat h3 em { font: 900 10px/1 var(--f-tag); font-style: normal; text-transform: uppercase; letter-spacing: .03em; color: #8fb2ea; background: #23375a; padding: 3px 5px 2px; }
+.g-items { display: flex; flex-wrap: wrap; gap: 5px; }
+
+/* плитка предмета: светлая на I–III тирах, тёмная на IV, круглая иконка у активок */
+.g-item { position: relative; width: 66px; display: grid; grid-template-rows: 58px 34px; background: var(--tb); color: #1b1712; box-shadow: 0 2px 0 rgba(0,0,0,.45); overflow: hidden; }
+.g-ic { display: grid; place-items: center; overflow: hidden; }
+.g-ic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.g-item.act .g-ic img { width: 52px; height: 52px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(0,0,0,.5); }
+.g-nm { display: grid; place-items: center; padding: 2px 3px; background: rgba(0,0,0,.1); text-align: center; font: 700 9.5px/1.1 var(--f-body); overflow-wrap: normal; word-break: normal; }
+.g-nm span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.g-note { position: absolute; top: 2px; left: 3px; font-style: normal; font-size: 11px; color: #fff; text-shadow: 0 0 3px #000; }
+.g-item.weapon.t1 { --tb: #f1dcbc; } .g-item.weapon.t2 { --tb: #e6b77e; } .g-item.weapon.t3 { --tb: #cf8d48; }
+.g-item.spirit.t1 { --tb: #e9e0f7; } .g-item.spirit.t2 { --tb: #ccb6f0; } .g-item.spirit.t3 { --tb: #a98ad8; }
+.g-item.vitality.t1 { --tb: #e2eccb; } .g-item.vitality.t2 { --tb: #bed895; } .g-item.vitality.t3 { --tb: #97bb63; }
+.g-item.t4 { --tb: #1c1a17; }
+.g-item.t4 .g-nm { background: rgba(255,255,255,.04); }
+.g-item.weapon.t4 { color: #f0ac5e; } .g-item.spirit.t4 { color: #c9a6ff; } .g-item.vitality.t4 { color: #a6df6e; }
+.g-item.unk { --tb: #3a3f48; color: var(--g-txt); }
+
+/* порядок прокачки — сетка как в игре */
+.g-abil { background: #121212; border: 1px solid #2a2a2a; padding: 14px; min-width: 0; }
+.g-abil h3 { margin: 0 0 12px; font: 700 20px var(--f-body); color: #fff; }
+.g-abil-scroll { overflow-x: auto; }
+.g-abil-grid { display: grid; min-width: max-content; }
+.g-ab-row { display: grid; align-items: center; min-height: 34px; }
+.g-ab-row:nth-child(odd) { background: #1b1b1b; }
+.g-ab-row:nth-child(even) { background: #151515; }
+.g-ab-ic { width: 34px; height: 34px; background: #efe3c8; display: grid; place-items: center; }
+.g-ab-ic img { width: 30px; height: 30px; filter: invert(1); }
+.g-ab-cell { display: grid; place-items: center; padding: 3px 1px; }
+.g-pt { display: inline-flex; align-items: center; gap: 2px; height: 24px; padding: 0 5px; background: #2b2b2b; color: #d8d3c8; border-radius: 4px; font: 700 13px/1 var(--f-body); }
+.g-pt svg { width: 13px; height: 13px; }
+.g-pt.unlock { color: #b98cff; padding: 0 7px; }
+.g-pt.unlock svg { width: 15px; height: 15px; }
+
+/* окно просмотра */
+.lab-noscroll { overflow: hidden; }
+.lab-modal { position: fixed; inset: 0; z-index: 50; background: rgba(5, 7, 10, .82); overflow-y: auto; padding: 24px 16px; }
+.lab-modal-in { position: relative; max-width: 980px; margin: 0 auto; }
+.lab-close { position: absolute; top: 8px; right: 8px; z-index: 1; width: 36px; height: 36px; border: 1px solid #3a4a64; background: #0d131c; color: #fff; font-size: 18px; cursor: pointer; }
+.lab-modal .g-head { padding-right: 44px; }
+@media (max-width: 640px) {
+  .g-build { padding: 12px; }
+  .lab-modal { padding: 10px 8px; }
+  .g-item { width: 60px; grid-template-rows: 52px 32px; }
+  .g-desc { font-size: 16px; }
+  .g-nm { font-size: 8.5px; padding: 2px 2px; }
+}

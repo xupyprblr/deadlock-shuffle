@@ -53,7 +53,8 @@ const day = (t) => (t ? new Date(t * 1000).toLocaleDateString('ru-RU') : '—');
 // Начало периода округляем до начала часа: у всех зрителей в течение часа получаются одинаковые
 // адреса запросов, и их отдают кэш Cloudflare и часовой кэш самого API, не тратя лимит.
 const HOUR = 3600;
-const since = (days) => Math.floor(Date.now() / 1000 / HOUR) * HOUR - days * DAY;
+const ALL_TIME = 1704067200; // 01.01.2024 — без даты API отдаёт только последний месяц
+const since = (days) => days == null ? ALL_TIME : Math.floor(Date.now() / 1000 / HOUR) * HOUR - days * DAY;
 
 // 95% интервал Уилсона для доли побед
 function wilson(w, n) {
@@ -321,12 +322,15 @@ async function fillCard(c) {
     if (!b) { c.error = 'Сборка не найдена'; return; }
     c.build = b;
     const hid = b.hero_id;
-    c.periods = await Promise.all(PERIODS.map(async (d) => {
-      const r = await api(`/analytics/hero-build-stats/${hid}`, { hero_build_id: c.id, min_unix_timestamp: since(d), min_average_badge: state.badge });
+    // для карточки — только 14 дней и всё время; сравнение с героем за тот же период
+    c.periods = await Promise.all(CARD_PERIODS.map(async (d) => {
+      const [r, base] = await Promise.all([
+        api(`/analytics/hero-build-stats/${hid}`, { hero_build_id: c.id, min_unix_timestamp: since(d), min_average_badge: state.badge }),
+        heroBase(hid, d, state.badge),
+      ]);
       const x = (r || [])[0];
-      return x ? { days: d, matches: x.matches, players: x.players, wr: x.wins / x.matches, ci: wilson(x.wins, x.matches) } : { days: d, matches: 0 };
+      return x ? { days: d, base, matches: x.matches, players: x.players, wr: x.wins / x.matches, ci: wilson(x.wins, x.matches) } : { days: d, base, matches: 0 };
     }));
-    c.base = await heroBase(hid, 30, state.badge);
   } catch (e) { c.error = e.message; }
 }
 
@@ -395,12 +399,21 @@ function renderModal() {
 }
 
 // ---------- карточка сборки в стиле игры ----------
-function verdict(p, base) {
-  if (!p || !p.matches) return ['flat', 'нет матчей за 30 дней'];
-  if (!base) return ['flat', 'нет данных по герою'];
-  if (p.ci[0] > base.wr) return ['up', 'выше среднего героя — уверенно'];
-  if (p.ci[1] < base.wr) return ['down', 'ниже среднего героя — уверенно'];
-  return ['flat', `в пределах погрешности (±${(((p.ci[1] - p.ci[0]) / 2) * 100).toFixed(1).replace('.', ',')} п.п.)`];
+const CARD_PERIODS = [14, null]; // null — за всё время
+const periodName = (d) => (d ? `За ${d} дней` : 'За всё время');
+
+// одна строка: на сколько WR сборки выше/ниже среднего по герою
+function verdict(c) {
+  const p = c.periods.find((x) => x.matches) || null;
+  if (!p) return ['flat', 'Нет матчей с этой сборкой'];
+  if (!p.base) return ['flat', `Винрейт ${pct(p.wr)} — нет данных по герою для сравнения`];
+  const d = p.wr - p.base.wr;
+  const n = Math.abs(d * 100).toFixed(1).replace('.', ',');
+  const when = p.days ? `за ${p.days} дней` : 'за всё время';
+  const cls = p.ci[0] > p.base.wr ? 'up' : p.ci[1] < p.base.wr ? 'down' : 'flat';
+  const word = d >= 0.0005 ? `на ${n}% выше` : d <= -0.0005 ? `на ${n}% ниже` : 'на уровне';
+  const tail = cls === 'flat' && Math.abs(d) >= 0.0005 ? ' · матчей пока мало, может быть случайность' : '';
+  return [cls, `Винрейт ${word} среднего по герою (${pct(p.wr)} против ${pct(p.base.wr)} ${when})${tail}`];
 }
 
 const CAT_NAMES = { '#Citadel_HeroBuilds_EarlyGame': 'Ранний этап', '#Citadel_HeroBuilds_MidGame': 'Середина матча', '#Citadel_HeroBuilds_LateGame': 'Поздний этап', '#Citadel_HeroBuilds_Early': 'Ранний этап', '#Citadel_HeroBuilds_Mid': 'Середина', '#Citadel_HeroBuilds_Late': 'Поздний этап', '#Citadel_HeroBuilds_Lane': 'Линия' };
@@ -457,12 +470,11 @@ const fullDate = (t) => {
 };
 
 function statsBlock(c) {
-  const p30 = c.periods.find((p) => p.days === 30);
-  const [vcls, vtxt] = verdict(p30, c.base);
+  const [vcls, vtxt] = verdict(c);
   return `<section class="g-stats">
-    <div class="b-verdict sig ${vcls}">30 дней: ${p30 && p30.matches ? `${pct(p30.wr)} на ${fmt(p30.matches)} матчах` : 'нет матчей'} — ${vtxt}${c.base ? ` · герой ${pct(c.base.wr)}` : ''}</div>
-    <div class="lab-table-wrap"><table class="lab-table b-periods"><thead><tr><th>Период</th><th class="n">Матчи</th><th class="n">Игроки</th><th class="n">WR</th><th class="n">95% интервал</th></tr></thead>
-      <tbody>${c.periods.map((p) => `<tr><td>${p.days} дн.</td><td class="n">${fmt(p.matches)}</td><td class="n">${p.matches ? fmt(p.players) : '—'}</td><td class="n wr">${p.matches ? pct(p.wr) : '—'}</td><td class="n muted">${p.matches ? `${pct(p.ci[0])}–${pct(p.ci[1])}` : '—'}</td></tr>`).join('')}</tbody></table></div>
+    <div class="b-verdict sig ${vcls}">${vtxt}</div>
+    <div class="lab-table-wrap"><table class="lab-table b-periods"><thead><tr><th>Период</th><th class="n">Матчи</th><th class="n">Игроки</th><th class="n">Винрейт</th></tr></thead>
+      <tbody>${c.periods.map((p) => `<tr><td>${periodName(p.days)}</td><td class="n">${fmt(p.matches)}</td><td class="n">${p.matches ? fmt(p.players) : '—'}</td><td class="n wr">${p.matches ? pct(p.wr) : '—'}</td></tr>`).join('')}</tbody></table></div>
   </section>`;
 }
 

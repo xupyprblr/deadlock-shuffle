@@ -18,7 +18,10 @@ const fmt = (n) => Number(n || 0).toLocaleString('ru-RU');
 const pct = (v, d = 1) => (v * 100).toFixed(d).replace('.', ',') + '%';
 const pp = (v) => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v * 100).toFixed(1).replace('.', ',');
 const day = (t) => (t ? new Date(t * 1000).toLocaleDateString('ru-RU') : '—');
-const since = (days) => Math.floor(Date.now() / 1000) - days * DAY;
+// Начало периода округляем до начала часа: у всех зрителей в течение часа получаются одинаковые
+// адреса запросов, и их отдают кэш Cloudflare и часовой кэш самого API, не тратя лимит.
+const HOUR = 3600;
+const since = (days) => Math.floor(Date.now() / 1000 / HOUR) * HOUR - days * DAY;
 
 // 95% интервал Уилсона для доли побед
 function wilson(w, n) {
@@ -38,17 +41,62 @@ function limited(fn) {
     active < 6 ? run() : queue.push(run);
   });
 }
+// Кэш в браузере на час: повторный просмотр той же сборки или героя не тратит запросы к API.
+// localStorage может быть недоступен (приватный режим, переполнение) — тогда работаем без него.
+const STORE_TTL = HOUR * 1000;
+const STORE_PREFIX = 'lab:api:';
+function storeGet(key) {
+  try {
+    const raw = localStorage.getItem(STORE_PREFIX + key);
+    if (!raw) return undefined;
+    const { t, v } = JSON.parse(raw);
+    if (Date.now() - t > STORE_TTL) { localStorage.removeItem(STORE_PREFIX + key); return undefined; }
+    return v;
+  } catch { return undefined; }
+}
+function storeSet(key, v) {
+  const put = () => localStorage.setItem(STORE_PREFIX + key, JSON.stringify({ t: Date.now(), v }));
+  try { put(); } catch {
+    // нет места — выкидываем свои старые записи и пробуем ещё раз
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && k.startsWith(STORE_PREFIX)) localStorage.removeItem(k); }
+      put();
+    } catch { /* без кэша */ }
+  }
+}
+
+// Ответы 429 (лимит) и 503 (API перегружен) — ждём, сколько просит Retry-After, и повторяем.
+const MAX_TRIES = 4;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function fetchWithRetry(url) {
+  for (let attempt = 1; ; attempt++) {
+    const r = await fetch(url);
+    if (r.ok) return r.json();
+    if ((r.status === 429 || r.status === 503) && attempt < MAX_TRIES) {
+      const ra = parseFloat(r.headers.get('retry-after'));
+      const wait = Math.min(60, Number.isFinite(ra) && ra > 0 ? ra : 5 * attempt);
+      toast(r.status === 429 ? `Лимит API — повторю через ${Math.ceil(wait)} с` : `API перегружен — повторю через ${Math.ceil(wait)} с`);
+      await sleep(wait * 1000);
+      continue;
+    }
+    if (r.status === 429) throw new Error('Слишком много запросов к API — подожди минуту и повтори.');
+    if (r.status === 503) throw new Error('API перегружен — попробуй через пару минут.');
+    throw new Error(`API ответил ${r.status}`);
+  }
+}
+
 function api(path, params = {}) {
   const u = new URL(API + path);
   for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null && v !== '' && v !== 0) u.searchParams.set(k, v);
   const key = u.toString();
   if (!cache.has(key)) {
-    cache.set(key, limited(async () => {
-      const r = await fetch(key);
-      if (r.status === 429) throw new Error('Слишком много запросов к API — подожди минуту и повтори.');
-      if (!r.ok) throw new Error(`API ответил ${r.status}`);
-      return r.json();
-    }).catch((e) => { cache.delete(key); throw e; }));
+    const stored = storeGet(key);
+    if (stored !== undefined) cache.set(key, Promise.resolve(stored));
+    else {
+      cache.set(key, limited(() => fetchWithRetry(key))
+        .then((v) => { storeSet(key, v); return v; })
+        .catch((e) => { cache.delete(key); throw e; }));
+    }
   }
   return cache.get(key);
 }

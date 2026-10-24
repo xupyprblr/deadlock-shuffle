@@ -80,20 +80,31 @@ const fitHeight = (n) => { const rows = Math.ceil(n / PER_ROW); return rows > 1 
 /**
  * @param {object} b
  *   heroId, name, desc,
- *   categories: [{ name, items: [itemId, …] }],
+ *   categories: [{ name, desc?, items: [itemId | { id, note?, imbue? }, …] }],
  *   abilityOrder: [abilityIndex …] (16 шагов), abilityIds: [id ×4]
+ *   или abilityChanges: [{ ability_id, currency_type, delta }] — готовый порядок прокачки (из сборок игроков)
  */
 export function buildPayload(b) {
   const details = new Writer();
   for (const c of b.categories) {
     const cw = new Writer();
-    for (const id of c.items) cw.B(1, new Writer().V(1, id >>> 0).bytes());
+    for (const it of c.items) {
+      const m = typeof it === 'object' ? it : { id: it };
+      const mw = new Writer().V(1, m.id >>> 0);
+      if (m.note || m.imbue) mw.S(2, m.note || '').V(4, 0); // как в редакторе игры: заметка + поле 4
+      if (m.imbue) mw.V(5, m.imbue >>> 0);
+      cw.B(1, mw.bytes());
+    }
     cw.S(2, c.name).S(3, c.desc || '').F(4, fitWidth(c.items.length));
     const h = fitHeight(c.items.length);
     if (h) cw.F(5, h);
     details.B(1, cw.bytes());
   }
-  if (b.abilityOrder && b.abilityIds && b.abilityIds.length === 4) {
+  if (Array.isArray(b.abilityChanges) && b.abilityChanges.length) {
+    const aw = new Writer();
+    for (const c of b.abilityChanges) aw.B(1, new Writer().V(1, c.ability_id >>> 0).V(2, c.currency_type).V(3, c.delta).bytes());
+    details.B(2, aw.bytes());
+  } else if (b.abilityOrder && b.abilityIds && b.abilityIds.length === 4) {
     const aw = new Writer();
     const seen = [0, 0, 0, 0];
     for (const idx of b.abilityOrder) {

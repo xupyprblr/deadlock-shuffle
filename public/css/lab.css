@@ -1,0 +1,71 @@
+/* Технический раздел «Сборки игроков» — поверх токенов основного styles.css */
+.lab-tag { background: var(--teal); }
+.lab-note { font: 900 11px/1 var(--f-tag); text-transform: uppercase; letter-spacing: .04em; color: var(--yellow); }
+.lab { display: grid; gap: 22px; padding-block: 30px 10px; }
+.lab-title { font: 800 clamp(32px, 4vw, 44px)/1.05 var(--f-display); margin: 0; }
+.lab-tabs { max-width: 420px; }
+.lab-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 8px; }
+.lab-pick .hp[aria-pressed="true"] { border-color: var(--teal); box-shadow: 0 0 0 2px var(--teal); }
+.lab-filters { display: flex; flex-wrap: wrap; gap: 14px 20px; align-items: end; }
+.lab-filters label, .lab-ids label { display: grid; gap: 6px; font: 800 16px/1.1 var(--f-display); }
+.lab-select, .lab-ids input {
+  background: var(--bg-2); color: var(--fg); border: 2px solid var(--line); padding: 8px 10px;
+  font: 600 14px var(--f-body); min-width: 0;
+}
+.lab-select:focus, .lab-ids input:focus { border-color: var(--teal); outline: none; }
+.lab-summary { margin: 0; color: var(--muted); }
+.lab-summary b { color: var(--fg); }
+.lab-empty { color: var(--muted); margin: 0; }
+.lab-error { color: #ff7a6b; margin: 0; }
+.lab-legend { font-size: 13px; color: var(--muted); margin: 0; }
+
+.lab-table-wrap { overflow-x: auto; border: 2px solid var(--line); }
+.lab-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.lab-table th { font: 900 11px/1 var(--f-tag); text-transform: uppercase; letter-spacing: .04em; color: var(--muted); text-align: left; padding: 10px 10px; border-bottom: 2px solid var(--line); white-space: nowrap; }
+.lab-table td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.lab-table tr:last-child td { border-bottom: 0; }
+.lab-table .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lab-table .wr { font: 900 15px var(--f-tag); }
+.lab-table .muted, .muted { color: var(--muted); }
+.b-name { font-weight: 600; max-width: 42ch; overflow-wrap: anywhere; }
+.b-meta { font-size: 12px; color: var(--muted); }
+.sig { font: 900 13px var(--f-tag); white-space: nowrap; }
+.sig.up { color: var(--green); }
+.sig.down { color: #ff7a6b; }
+.sig.flat { color: var(--muted); }
+.btn-mini { padding: 6px 10px 5px; font-size: 11px; }
+
+.lab-ids { display: grid; gap: 12px; max-width: 640px; }
+.lab-ids-row { display: flex; gap: 10px; }
+.lab-ids-row input { flex: 1; font-size: 16px; }
+.lab-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 18px; align-items: start; }
+.b-card { display: grid; gap: 14px; padding: 18px; border: 2px solid var(--line); background: rgba(0,0,0,.3); min-width: 0; }
+.b-head { display: flex; gap: 12px; align-items: center; min-width: 0; }
+.b-head > div { min-width: 0; }
+.b-head h2 { font: 800 22px/1.15 var(--f-display); margin: 0; overflow-wrap: anywhere; }
+.b-hero { border: 2px solid var(--fg); flex: none; }
+.b-verdict { padding: 9px 12px; border: 2px solid currentColor; font-size: 13px; line-height: 1.35; white-space: normal; }
+.b-periods { border: 0; }
+@media (max-width: 640px) { .b-card { padding: 14px; } .lab-table th, .lab-table td { padding: 8px 6px; } .lab-ids-row { flex-direction: column; } }
+.b-cat h3 { font: 900 12px/1 var(--f-tag); text-transform: uppercase; letter-spacing: .04em; margin: 0 0 8px; color: var(--muted); }
+.b-cat h3 small { color: var(--teal); font-size: 10px; margin-left: 6px; }
+.b-items { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip-item { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px 3px 3px; background: var(--bg-2); border: 2px solid var(--c, var(--line)); font-size: 12px; max-width: 100%; }
+.chip-item img { width: 26px; height: 26px; object-fit: cover; flex: none; }
+.chip-item i { font-style: normal; color: var(--yellow); }
+.chip-item.weapon { --c: var(--weapon); }
+.chip-item.spirit { --c: var(--spirit); }
+.chip-item.vitality { --c: var(--vitality); }
+.ab-strip { display: flex; flex-wrap: wrap; gap: 4px; }
+.ab-step { display: inline-flex; align-items: center; gap: 3px; padding: 2px 5px 2px 2px; background: #3a3a37; font: 700 11px var(--f-tag); }
+.ab-step.open { background: #3b2c55; color: #b48cff; }
+.ab-step img { filter: invert(1); background: #10190d; }
+.b-desc summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+.b-desc p { white-space: pre-wrap; font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+.b-actions { display: flex; gap: 10px; }
+
+/* в лаборатории портрет героя — это выбор, а не исключение из пула */
+.lab-pick .hp[aria-pressed="false"] img { filter: none; }
+.lab-pick .hp[aria-pressed="false"]::after { content: none; }
+.lab-pick .hp[aria-pressed="false"] { opacity: .75; }
+.lab-pick .hp:hover { opacity: 1; }

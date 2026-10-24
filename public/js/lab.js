@@ -134,6 +134,25 @@ function api(path, params = {}) {
   return cache.get(key);
 }
 const getBuild = (id) => api('/builds', { build_id: id, only_latest: 'true' }).then((r) => (r && r[0] ? r[0].hero_build : null));
+// Свежая версия прямо из игры: база API обновляет сборки с опозданием (бывает на месяцы).
+// Лимит этого запроса — 20/мин с IP, поэтому только для открытых карточек, кэш на час, без долгих повторов.
+async function getFreshBuild(id) {
+  const old = await getBuild(id);
+  if (!old) return null;
+  const key = `${API}/builds/${old.hero_id}/${id}?force_refetch=true`;
+  const stored = storeGet(key);
+  if (stored !== undefined) return stored;
+  try {
+    const r = await fetch(key);
+    if (!r.ok) return old;
+    const d = await r.json();
+    const b = d && (d.hero_build || d);
+    if (!b || !b.hero_id) return old;
+    const fresh = (b.version || 0) >= (old.version || 0) ? b : old;
+    storeSet(key, fresh);
+    return fresh;
+  } catch { return old; }
+}
 async function heroBase(heroId, days, badge) {
   const r = await api('/analytics/hero-stats', { min_unix_timestamp: since(days), min_average_badge: badge });
   const h = r.find((x) => x.hero_id === heroId);
@@ -318,7 +337,7 @@ function cardFor(id) {
 }
 async function fillCard(c) {
   try {
-    const b = await getBuild(c.id);
+    const b = await getFreshBuild(c.id);
     if (!b) { c.error = 'Сборка не найдена'; return; }
     c.build = b;
     const hid = b.hero_id;

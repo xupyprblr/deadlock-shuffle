@@ -460,10 +460,27 @@ function catPanel(cat) {
 const BOLT = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.5 1 3.5 9h4l-1 6 6-8h-4z" fill="currentColor"/></svg>';
 const PT = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 14.5 8 8 14.5 1.5 8z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.6"/></svg>';
 
+// В API у части сборок после 16 шагов идёт «хвост» с повторами (история правок).
+// Проигрываем шаги как игра: умение открывается один раз, улучшается максимум трижды; лишнее отбрасываем.
+// Также отбрасываем умения чужих героев и старые ID (бывает, когда прокачку копировали с другого героя).
+function cleanAbilityOrder(raw, allowed) {
+  const st = new Map(); const out = [];
+  for (const c of raw || []) {
+    const id = c.ability_id >>> 0;
+    if (allowed && allowed.size && !allowed.has(id)) continue;
+    const a = st.get(id) || { open: false, lvl: 0 };
+    if (c.currency_type === 2) { if (a.open) continue; a.open = true; }
+    else { if (!a.open || a.lvl >= 3 || c.delta >= 0) continue; a.lvl++; }
+    st.set(id, a); out.push(c);
+  }
+  return out;
+}
+
 function abilityGrid(b) {
-  const ch = (b.details && b.details.ability_order && b.details.ability_order.currency_changes) || [];
-  if (!ch.length) return '';
   const h = heroById[b.hero_id];
+  const own = new Set(((h && h.abilities) || []).filter((a) => a.id).map((a) => a.id >>> 0));
+  const ch = cleanAbilityOrder(b.details && b.details.ability_order && b.details.ability_order.currency_changes, own);
+  if (!ch.length) return '';
   const abs = ((h && h.abilities) || []).filter((a) => a.id);
   const ids = abs.map((a) => a.id >>> 0);
   for (const c of ch) { const id = c.ability_id >>> 0; if (!ids.includes(id)) { ids.push(id); abs.push(abilityById[id] || { id, name: '#' + id }); } }

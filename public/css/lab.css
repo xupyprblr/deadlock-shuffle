@@ -69,3 +69,8 @@
 .lab-pick .hp[aria-pressed="false"]::after { content: none; }
 .lab-pick .hp[aria-pressed="false"] { opacity: .75; }
 .lab-pick .hp:hover { opacity: 1; }
+
+/* метки аномалий */
+.kind { display: inline-block; font: 900 10px/1 var(--f-tag); text-transform: uppercase; letter-spacing: .03em; padding: 3px 6px 2px; margin-right: 8px; color: var(--ink); vertical-align: 1px; transform: rotate(-2deg); }
+.kind.anom { background: var(--teal); }
+.kind.gem { background: var(--yellow); box-shadow: 0 0 10px rgba(255, 225, 77, .45); }

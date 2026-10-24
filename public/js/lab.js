@@ -12,6 +12,38 @@ const RANKS = [
 const SORTS = [['wr', 'Винрейт'], ['matches', 'Матчи'], ['delta', 'Отклонение от героя'], ['low', 'Нижняя граница WR']];
 const TOP_N = 40; // для скольких сборок подгружать названия и содержимое
 
+// ---------- аномалии и самородки ----------
+// Малые сборки (< 50 матчей) почти целиком шум: из 1313 таких сборок у 313 «60%+».
+// Поэтому голого порога по винрейту мало — нужна статистическая надёжность (калибровка 24.10.2026, 12 героев):
+//  • кандидат: не в топ-10% сборок героя по матчам (непопулярная), ≥ 50 матчей, ≥ 10 разных игроков
+//    (иначе это личная сборка одного человека);
+//  • «Аномалия»: WR ≥ 55% и нижняя граница одностороннего 95% интервала Уилсона выше винрейта героя;
+//  • «Самородок»: то же, но WR ≥ 60%.
+// «Реалистичная оценка» — эмпирический байес: WR поджимается к винрейту героя с весом K матчей.
+// Настоящий разброс между сборками ≈ 3 п.п. (наблюдаемый разброс минус шум выборки), K = p(1−p)/τ² ≈ 0,25/0,03² ≈ 275.
+const ANOM = { minMatches: 50, minPlayers: 10, popularPct: 0.9, wr: 0.55, gemWr: 0.6, z: 1.645, k: 275, fetchMin: 20 };
+const SHOWS = [['all', 'Все сборки'], ['anom', 'Аномалии и самородки'], ['gem', 'Только самородки']];
+
+function wilsonLow(w, n, z) {
+  const p = w / n, d = 1 + (z * z) / n;
+  return ((p + (z * z) / (2 * n)) - z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n))) / d;
+}
+// Помечает сборки героя: r.kind = 'gem' | 'anom' | null, r.est — реалистичная оценка
+function classify(rows, base) {
+  if (!rows.length || !base) return { cut: 0 };
+  const ms = rows.map((r) => r.matches).sort((a, b) => a - b);
+  const cut = ms[Math.floor(ms.length * ANOM.popularPct)] || Infinity; // граница топ-10% по популярности
+  for (const r of rows) {
+    r.est = base.wr + (r.wr - base.wr) * (r.matches / (r.matches + ANOM.k));
+    r.kind = null;
+    if (r.matches < ANOM.minMatches || r.players < ANOM.minPlayers || r.matches >= cut) continue;
+    if (wilsonLow(r.wins, r.matches, ANOM.z) <= base.wr) continue;
+    if (r.wr >= ANOM.gemWr) r.kind = 'gem';
+    else if (r.wr >= ANOM.wr) r.kind = 'anom';
+  }
+  return { cut };
+}
+
 const root = document.getElementById('lab');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU');
@@ -113,7 +145,7 @@ let heroById = {}, itemById = {}, abilityById = {};
 const icon = (p) => (p && !p.startsWith('http') ? '../' + p : p || '');
 
 const state = {
-  tab: 'hero', heroId: null, days: 30, badge: 0, minMatches: 500, sort: 'wr',
+  tab: 'hero', heroId: null, days: 30, badge: 0, minMatches: 500, sort: 'wr', show: 'all',
   ids: '', rows: null, loading: false, error: '',
 };
 
@@ -148,7 +180,8 @@ function heroPanel() {
     <div class="lab-filters">
       <label>Период ${selectHtml('f-days', PERIODS.map((d) => [d, d + ' дней']), state.days)}</label>
       <label>Ранг ${selectHtml('f-badge', RANKS, state.badge)}</label>
-      <label>Мин. матчей ${selectHtml('f-min', [[100, '100'], [500, '500'], [1000, '1 000'], [2000, '2 000'], [5000, '5 000']], state.minMatches)}</label>
+      <label>Показать ${selectHtml('f-show', SHOWS, state.show)}</label>
+      ${state.show === 'all' ? `<label>Мин. матчей ${selectHtml('f-min', [[100, '100'], [500, '500'], [1000, '1 000'], [2000, '2 000'], [5000, '5 000']], state.minMatches)}</label>` : ''}
       <label>Сортировка ${selectHtml('f-sort', SORTS, state.sort)}</label>
     </div>
     <div id="hero-out">${heroOut()}</div>`;
@@ -159,9 +192,16 @@ function heroOut() {
   if (state.loading) return '<p class="lab-empty">Считаю статистику…</p>';
   if (state.error) return `<p class="lab-error">${esc(state.error)}</p>`;
   if (!state.rows) return '';
-  const { rows, base, total } = state.rows;
-  if (!rows.length) return `<p class="lab-empty">Нет сборок с ${fmt(state.minMatches)}+ матчей за этот период и ранг. Уменьши порог.</p>`;
+  const { base, total, cut } = state.rows;
+  const anomMode = state.show !== 'all';
+  const rows = anomMode ? state.rows.rows.filter((r) => (state.show === 'gem' ? r.kind === 'gem' : r.kind)) : state.rows.rows;
+  if (!rows.length) {
+    return anomMode
+      ? `<p class="lab-empty">За этот период и ранг ${state.show === 'gem' ? 'самородков' : 'аномалий'} нет: ни одна непопулярная сборка не выше героя с достаточной уверенностью. Попробуй период 90 дней или «Все ранги».</p>`
+      : `<p class="lab-empty">Нет сборок с ${fmt(state.minMatches)}+ матчей за этот период и ранг. Уменьши порог.</p>`;
+  }
   const sorted = rows.slice().sort((a, b) => {
+    if (anomMode && state.sort === 'wr') return b.est - a.est; // в поиске аномалий сначала самые правдоподобные
     if (state.sort === 'matches') return b.matches - a.matches;
     if (state.sort === 'delta') return (b.wr - (base?.wr || 0)) - (a.wr - (base?.wr || 0));
     if (state.sort === 'low') return b.ci[0] - a.ci[0];
@@ -169,27 +209,30 @@ function heroOut() {
   });
   const h = heroById[state.heroId];
   return `
-    <p class="lab-summary"><b>${esc(h.name)}</b>: ${base ? `винрейт героя ${pct(base.wr)} на ${fmt(base.matches)} матчах` : 'нет данных по герою'} · сборок с ${fmt(state.minMatches)}+ матчей: <b>${rows.length}</b> (${fmt(total)} матчей)</p>
+    <p class="lab-summary"><b>${esc(h.name)}</b>: ${base ? `винрейт героя ${pct(base.wr)} на ${fmt(base.matches)} матчах` : 'нет данных по герою'} · ${anomMode
+      ? `самородков: <b>${state.rows.rows.filter((r) => r.kind === 'gem').length}</b>, аномалий: <b>${state.rows.rows.filter((r) => r.kind === 'anom').length}</b> из ${fmt(state.rows.rows.length)} сборок (непопулярные — до ${fmt(cut)} матчей)`
+      : `сборок с ${fmt(state.minMatches)}+ матчей: <b>${rows.length}</b> (${fmt(total)} матчей)`}</p>
     <div class="lab-table-wrap"><table class="lab-table">
-      <thead><tr><th>#</th><th>Сборка</th><th class="n">Матчи</th><th class="n">Игроки</th><th class="n">WR</th><th class="n">95% интервал</th><th class="n">к герою</th><th></th></tr></thead>
+      <thead><tr><th>#</th><th>Сборка</th><th class="n">Матчи</th><th class="n">Игроки</th><th class="n">WR</th><th class="n">95% интервал</th><th class="n">к герою</th>${anomMode ? '<th class="n">Оценка</th>' : ''}<th></th></tr></thead>
       <tbody>${sorted.map((r, i) => {
         const d = base ? r.wr - base.wr : 0;
         const sig = base ? (r.ci[0] > base.wr ? 'up' : r.ci[1] < base.wr ? 'down' : 'flat') : 'flat';
         const b = r.build;
         return `<tr>
           <td class="n muted">${i + 1}</td>
-          <td><div class="b-name">${b ? esc(b.name || 'Без названия') : `<span class="muted">загрузка…</span>`}</div>
+          <td><div class="b-name">${r.kind === 'gem' ? '<span class="kind gem">Самородок</span>' : r.kind === 'anom' ? '<span class="kind anom">Аномалия</span>' : ''}${b ? esc(b.name || 'Без названия') : `<span class="muted">загрузка…</span>`}</div>
               <div class="b-meta">ID ${r.id}${b ? ` · v${b.version} · обновлена ${day(b.last_updated_timestamp)}` : ''}</div></td>
           <td class="n">${fmt(r.matches)}</td>
           <td class="n">${fmt(r.players)}</td>
           <td class="n wr">${pct(r.wr)}</td>
           <td class="n muted">${pct(r.ci[0])}–${pct(r.ci[1])}</td>
           <td class="n"><span class="sig ${sig}">${base ? pp(d) : '—'}</span></td>
+          ${anomMode ? `<td class="n" title="Реалистичная оценка с учётом размера выборки">${pct(r.est)}</td>` : ''}
           <td class="n"><button class="btn btn-mini" data-open="${r.id}">Открыть</button></td>
         </tr>`;
       }).join('')}</tbody>
     </table></div>
-    <p class="lab-legend"><span class="sig up">зелёный</span> — выше героя с учётом погрешности, <span class="sig down">красный</span> — ниже, <span class="sig flat">серый</span> — в пределах погрешности.</p>`;
+    <p class="lab-legend"><span class="sig up">зелёный</span> — выше героя с учётом погрешности, <span class="sig down">красный</span> — ниже, <span class="sig flat">серый</span> — в пределах погрешности.${anomMode ? ` <span class="kind anom">Аномалия</span> — непопулярная сборка с WR 55%+, надёжно выше героя; <span class="kind gem">Самородок</span> — то же с WR 60%+. «Оценка» — ожидаемый винрейт с поправкой на малую выборку.` : ''}</p>`;
 }
 
 async function loadHero() {
@@ -198,16 +241,18 @@ async function loadHero() {
   document.getElementById('hero-out').innerHTML = heroOut();
   try {
     const [stats, base] = await Promise.all([
-      api(`/analytics/hero-build-stats/${hid}`, { min_unix_timestamp: since(state.days), min_average_badge: state.badge, min_matches: state.minMatches }),
+      api(`/analytics/hero-build-stats/${hid}`, { min_unix_timestamp: since(state.days), min_average_badge: state.badge, min_matches: state.show === 'all' ? state.minMatches : ANOM.fetchMin }),
       heroBase(hid, state.days, state.badge),
     ]);
     if (hid !== state.heroId) return;
     const rows = (stats || []).map((x) => ({ id: x.hero_build_id, matches: x.matches, players: x.players, wins: x.wins, wr: x.wins / x.matches, ci: wilson(x.wins, x.matches), build: null }));
-    state.rows = { rows, base, total: rows.reduce((a, r) => a + r.matches, 0) };
+    const { cut } = classify(rows, base);
+    state.rows = { rows, base, cut, total: rows.reduce((a, r) => a + r.matches, 0) };
     state.loading = false;
     document.getElementById('hero-out').innerHTML = heroOut();
     // названия — для самых популярных сборок, постепенно
-    const top = rows.slice().sort((a, b) => b.matches - a.matches).slice(0, TOP_N);
+    // в поиске аномалий — названия всех найденных, иначе самых популярных
+    const top = state.show !== 'all' ? rows.filter((r) => r.kind) : rows.slice().sort((a, b) => b.matches - a.matches).slice(0, TOP_N);
     await Promise.all(top.map(async (r) => {
       try { r.build = await getBuild(r.id); } catch { /* пропускаем */ }
       if (hid === state.heroId && state.tab === 'hero') document.getElementById('hero-out').innerHTML = heroOut();
@@ -363,6 +408,7 @@ root.addEventListener('change', (e) => {
   if (id === 'f-days') state.days = +e.target.value;
   else if (id === 'f-badge' || id === 'i-badge') state.badge = +e.target.value;
   else if (id === 'f-min') state.minMatches = +e.target.value;
+  else if (id === 'f-show') { state.show = e.target.value; renderPanel(); }
   else if (id === 'f-sort') { state.sort = e.target.value; document.getElementById('hero-out').innerHTML = heroOut(); return; }
   else return;
   if (id === 'i-badge') { if (state.ids) loadIds(); return; }

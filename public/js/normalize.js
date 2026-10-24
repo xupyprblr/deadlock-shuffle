@@ -163,6 +163,10 @@ export const STATS = 'https://api.deadlock-api.com/v1/analytics/item-stats';
 // ожидание = доля предмета в общей статистике × размер выборки героя.
 // Так случайный ноль у редкого предмета или нового героя не станет ложным запретом.
 export const BAN_MIN_EXPECTED = 200;
+// Запрет, если покупок не больше 0,05% от ожидаемого. Порог стоит в разрыве распределения (24.10.2026):
+// настоящие запреты — 0 или ≤0,026% (единичный шум: Abrams/Extra Charge — 20 покупок при ~490 тыс. ожидаемых),
+// а просто непопулярные предметы начинаются от ~0,09% (Vyper/Echo Shard — 26 при 28 тыс.).
+export const BAN_MAX_RATIO = 0.0005;
 // Новый герой (первые часы и дни после выхода) — выборка мала и перекошена, запреты не считаем.
 export const BAN_MIN_SAMPLE = 5000; // матчей у самого популярного предмета героя
 
@@ -174,7 +178,11 @@ export function bannedFromStats(stats, items, globalStats) {
   const gTop = Math.max(...globalStats.map((s) => s.matches || 0));
   if (top < BAN_MIN_SAMPLE) return [];
   return items
-    .filter((i) => !mine.get(i.id >>> 0) && ((all.get(i.id >>> 0) || 0) / gTop) * top >= BAN_MIN_EXPECTED)
+    .filter((i) => {
+      const expected = ((all.get(i.id >>> 0) || 0) / gTop) * top;
+      // «почти ноль»: единичные покупки из других режимов или старых записей не отменяют запрет
+      return expected >= BAN_MIN_EXPECTED && (mine.get(i.id >>> 0) || 0) <= expected * BAN_MAX_RATIO;
+    })
     .map((i) => i.slug);
 }
 

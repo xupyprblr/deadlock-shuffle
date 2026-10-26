@@ -11,7 +11,13 @@ const I18N = {
     tagline: 'рандомайзер', loading: 'Загружаю героев и предметы…', patch: 'Патч', fresh: 'данные актуальны', stale: 'снимок данных',
     updated: 'Данные обновлены до свежей версии игры', yourHero: 'Твой герой', build: 'Затар [на матч]',
     toGame: 'В игру', toGameDone: 'Код скопирован. В игре: Сборки → Создать → Вставить', toGameFail: 'Не удалось собрать код сборки', gameCat: 'Порядок покупки',
-    gameT: 'Перенос в игру', game: ['Нажми <strong>«В игру»</strong> — сайт скопирует код сборки.', 'В Deadlock открой <strong>Сборки → Создать новую</strong> и нажми кнопку вставки — предметы по порядку покупки и порядок прокачки встанут сами. Без модов и аддонов.'],
+    gameT: 'Перенос в игру', game: ['Нажми <strong>«В игру»</strong> — сайт скопирует код сборки. Дальше в Deadlock: выбери этого же героя → <strong>Поиск сборок</strong> → <strong>Создать сборку</strong> → <strong>Вставить сборку</strong>. Предметы и порядок прокачки встанут сами, без модов и аддонов.'],
+    howBtn: 'Как вставить в игру?', howT: 'Как вставить сборку в игру', howCopied: 'Код сборки скопирован', howCopyAgain: 'Скопировать ещё раз', howOk: 'Понятно', howMute: 'Не открывать это окно после копирования',
+    how1T: 'Выбери в игре героя', how1: 'Сборка вставляется только на того героя, для которого её собрали.',
+    how2T: 'Открой сборки и нажми «Поиск сборок»', how2: 'Кнопка справа вверху в окне сборок.',
+    how3T: 'Нажми «Создать сборку»', how3: 'Откроется пустая сборка этого героя.',
+    how4T: 'Нажми «Вставить сборку»', how4: 'Маленькая квадратная кнопка рядом с «i». Предметы и прокачка встанут сами — останется сохранить.',
+    howWarn: '<b>Нет кнопки «Вставить сборку»?</b> Значит, в игре выбран другой герой или код пропал из буфера обмена. Проверь героя и нажми «Скопировать ещё раз».',
     orderT: 'Порядок покупки', o_chaos: 'Полный рандом', o_pseudo: 'Псевдо-рандом', o_phases: 'По фазам',
     ph_early: 'Ранняя игра', ph_mid: 'Середина', ph_late: 'Поздняя игра', slotHint: 'Слоты по порядку покупки: сверху вниз, затем следующий столбец — как в игре.', copyOrder: 'Порядок покупки',
     souls: 'душ', roll: 'Крутить', newHero: 'Другой герой', newItems: 'Другие предметы',
@@ -44,7 +50,13 @@ const I18N = {
     tagline: 'randomizer', loading: 'Loading heroes and items…', patch: 'Patch', fresh: 'data is live', stale: 'data snapshot',
     updated: 'Data updated to the latest game version', yourHero: 'Your hero', build: 'Your [build]',
     toGame: 'To game', toGameDone: 'Code copied. In game: Builds → Create → Paste', toGameFail: 'Could not build the code', gameCat: 'Purchase order',
-    gameT: 'Send to the game', game: ['Hit <strong>To game</strong> to copy the build code.', 'In Deadlock open <strong>Builds → Create new</strong> and press the paste button: items in purchase order and the ability order fill in on their own. No mods or add-ons.'],
+    gameT: 'Send to the game', game: ['Hit <strong>To game</strong> to copy the build code. Then in Deadlock: pick the same hero → <strong>Browse builds</strong> → <strong>Create build</strong> → <strong>Paste build</strong>. Items and the ability order fill in on their own, no mods or add-ons.'],
+    howBtn: 'How to paste it in game?', howT: 'How to paste the build in game', howCopied: 'Build code copied', howCopyAgain: 'Copy again', howOk: 'Got it', howMute: 'Don’t open this window after copying',
+    how1T: 'Pick the hero in game', how1: 'A build can only be pasted for the hero it was made for.',
+    how2T: 'Open builds and press “Browse builds”', how2: 'The button in the top right of the builds window. (Screenshots are from the Russian client.)',
+    how3T: 'Press “Create build”', how3: 'An empty build for this hero opens.',
+    how4T: 'Press “Paste build”', how4: 'The small square button next to the “i”. Items and abilities fill in on their own — just save.',
+    howWarn: '<b>No “Paste build” button?</b> The game has a different hero selected, or the code is no longer in your clipboard. Check the hero and press “Copy again”.',
     orderT: 'Purchase order', o_chaos: 'Full random', o_pseudo: 'Pseudo-random', o_phases: 'By phase',
     ph_early: 'Early game', ph_mid: 'Mid game', ph_late: 'Late game', slotHint: 'Slots in purchase order: top to bottom, then the next column, as in the game.', copyOrder: 'Purchase order',
     souls: 'souls', roll: 'Shuffle', newHero: 'New hero', newItems: 'New items',
@@ -259,15 +271,74 @@ function shareUrl() {
 
 
 async function copy(text, msg) {
-  try { await navigator.clipboard.writeText(text); toast(msg); }
+  try { await navigator.clipboard.writeText(text); if (msg) toast(msg); return true; }
   catch {
     const ta = document.createElement('textarea');
     ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
     document.body.appendChild(ta); ta.select();
-    try { document.execCommand('copy'); toast(msg); } catch {}
+    let ok = false;
+    try { ok = document.execCommand('copy'); if (ok && msg) toast(msg); } catch {}
     ta.remove();
+    return ok;
   }
 }
+
+// ---------- инструкция «В игру» ----------
+async function toGame() {
+  const code = gameCode();
+  if (!code) { toast(t('toGameFail')); return; }
+  const ok = await copy(code);
+  if (store.get('ds:howMute', false)) { toast(ok ? t('toGameDone') : t('toGameFail')); return; }
+  openHow(ok);
+}
+function openHow(copied) {
+  closeHow();
+  const h = state.res && state.res.hero;
+  const el = document.createElement('div');
+  el.className = 'how-modal'; el.id = 'how';
+  el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'how-t');
+  const step = (n, title, text, body = '') => `<li class="how-step"><span class="how-n">${n}</span><div><h3>${title}</h3><p>${text}</p>${body}</div></li>`;
+  el.innerHTML = `<div class="how-box">
+    <button class="how-x" data-how="close" aria-label="${t('howOk')}">✕</button>
+    ${copied ? `<p class="how-ok">${ICON.game}<span>${t('howCopied')}</span></p>` : ''}
+    <h2 id="how-t">${t('howT')}</h2>
+    <ol class="how-steps">
+      ${step(1, t('how1T'), t('how1'), h ? `<div class="how-hero">${h.small ? `<img src="${esc(src(h.small))}" alt="" width="56" height="56">` : ''}<b>${esc(h.name)}</b></div>` : '')}
+      ${step(2, t('how2T'), t('how2'), '<img class="how-shot" src="img/howto/search.webp" alt="" loading="lazy">')}
+      ${step(3, t('how3T'), t('how3'), '<img class="how-shot" src="img/howto/create.webp" alt="" loading="lazy">')}
+      ${step(4, t('how4T'), t('how4'), '<img class="how-shot" src="img/howto/paste.webp" alt="" loading="lazy">')}
+    </ol>
+    <p class="how-warn">${t('howWarn')}</p>
+    <div class="how-foot">
+      <label class="how-mute"><input type="checkbox" data-how="mute" ${store.get('ds:howMute', false) ? 'checked' : ''}> ${t('howMute')}</label>
+      <div class="btn-row">
+        <button class="btn" data-how="again">${ICON.game}<span>${t('howCopyAgain')}</span></button>
+        <button class="btn btn-game" data-how="close">${t('howOk')}</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(el);
+  document.body.classList.add('noscroll');
+  el.querySelector('[data-how="close"].btn').focus();
+}
+function closeHow() {
+  const el = document.getElementById('how');
+  if (el) { el.remove(); document.body.classList.remove('noscroll'); }
+}
+document.addEventListener('click', async (e) => {
+  const m = document.getElementById('how');
+  if (!m) return;
+  if (e.target === m) { closeHow(); return; }
+  const b = e.target.closest('[data-how]');
+  if (!b) return;
+  const a = b.dataset.how;
+  if (a === 'close') closeHow();
+  else if (a === 'again') { const code = gameCode(); if (code && await copy(code)) toast(t('howCopied')); else toast(t('toGameFail')); }
+});
+document.addEventListener('change', (e) => {
+  if (e.target.matches && e.target.matches('[data-how="mute"]')) store.set('ds:howMute', e.target.checked);
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeHow(); });
 
 let toastTimer;
 function toast(msg) {
@@ -382,6 +453,7 @@ function renderStage(dealItems = true) {
           <button class="btn btn-game" data-act="game">${ICON.game}<span>${t('toGame')}</span></button>
           <button class="btn" data-act="link">${ICON.link}<span>${t('link')}</span></button>
         </div>
+        <button class="how-link" data-act="how">${t('howBtn')}</button>
       </div>
       </div>
     </div>`;
@@ -572,7 +644,7 @@ function renderAbout() {
   document.getElementById('about').innerHTML = `
     <div class="about">
       <div><h3>${t('aboutT')}</h3>${t('about').map((p) => `<p>${p}</p>`).join('')}</div>
-      <div><h3>${t('gameT')}</h3>${t('game').map((p) => `<p>${p}</p>`).join('')}</div>
+      <div><h3>${t('gameT')}</h3>${t('game').map((p) => `<p>${p}</p>`).join('')}<p><button class="how-link" data-act="how">${t('howBtn')}</button></p></div>
       <div><h3>${t('dataT')}</h3>${t('data').map((p) => `<p>${p}</p>`).join('')}</div>
     </div>`;
   document.getElementById('foot').innerHTML = `<p>${t('legal')}</p>`;
@@ -603,7 +675,8 @@ app.addEventListener('click', (e) => {
     case 'hero': doRoll('hero'); break;
     case 'items': doRoll('items'); break;
     case 'slot': rerollSlot(+b.dataset.i); break;
-    case 'game': { const code = gameCode(); if (code) copy(code, t('toGameDone')); else toast(t('toGameFail')); break; }
+    case 'game': toGame(); break;
+    case 'how': openHow(false); break;
     case 'link': copy(shareUrl(), t('linkCopied')); break;
     case 'lang': if (v !== state.lang) switchLang(v); break;
     case 'mode': if (o.mode === v) break; o.mode = v; saveOpts(); renderStage(false); break;
@@ -649,6 +722,7 @@ app.addEventListener('input', (e) => {
 
 document.addEventListener('keydown', (e) => {
   if (e.code !== 'Space' || e.repeat) return;
+  if (document.getElementById('how')) return;
   const tag = (e.target.tagName || '').toLowerCase();
   if (['input', 'textarea', 'select', 'button'].includes(tag)) return;
   e.preventDefault();

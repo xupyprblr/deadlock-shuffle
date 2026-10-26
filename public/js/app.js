@@ -85,7 +85,13 @@ const store = {
 const state = {
   lang: store.get('ds:lang', 'ru'), // по умолчанию русский; EN — только если зритель сам переключил
   // старые сохранённые настройки (слоты, классы, лимит активок) больше не используются
-  opts: (({ slots, types, maxActive, ...rest }) => Object.assign({}, DEFAULTS, rest))(store.get('ds:opts', {})),
+  opts: (({ slots, types, maxActive, ...rest }) => {
+    const o = Object.assign({}, DEFAULTS, rest);
+    // «По фазам» убран из интерфейса; с версии 2 по умолчанию псевдо-рандом (переводим всех один раз)
+    if (o.order === 'phases' || !rest.ov) o.order = 'pseudo';
+    o.ov = 2;
+    return o;
+  })(store.get('ds:opts', {})),
   stats: null,
   data: null,
   res: null,
@@ -307,20 +313,6 @@ function renderStage(dealItems = true) {
         </div>
         ${hero.complexity ? `<span class="complex">${t('complexity')}: <b>${'◆'.repeat(hero.complexity)}${'◇'.repeat(Math.max(0, 3 - hero.complexity))}</b></span>` : ''}
       </div>
-      <div class="hero-opts">
-        <div class="order-switch">
-          <span class="lbl">${t('orderT')}</span>
-          <div class="seg-order" role="radiogroup" aria-label="${t('orderT')}">
-            ${['chaos', 'pseudo', 'phases'].map((m) => `<button data-act="order" data-v="${m}" role="radio" aria-checked="${order === m}" aria-pressed="${order === m}">${t('o_' + m)}</button>`).join('')}
-          </div>
-        </div>
-        <div class="order-switch">
-          <span class="lbl">${t('mode')}</span>
-          <div class="seg-order" role="radiogroup" aria-label="${t('mode')}">
-            ${['chaos', 'balanced', 'mono'].map((m) => `<button data-act="mode" data-v="${m}" role="radio" aria-checked="${state.opts.mode === m}" aria-pressed="${state.opts.mode === m}">${t(m)}</button>`).join('')}
-          </div>
-        </div>
-      </div>
     </article>
     <div class="build">
       <div class="build-head">
@@ -345,23 +337,39 @@ function renderStage(dealItems = true) {
       ${renderScore(hero, build)}
     </div>
     <div class="actions">
-      <div class="act-group act-left">
+    <div class="hero-opts act-left">
+      <div class="order-switch">
+        <span class="lbl">${t('orderT')}</span>
+        <div class="seg-order" role="radiogroup" aria-label="${t('orderT')}">
+          ${['pseudo', 'chaos'].map((m) => `<button data-act="order" data-v="${m}" role="radio" aria-checked="${order === m}" aria-pressed="${order === m}">${t('o_' + m)}</button>`).join('')}
+        </div>
+      </div>
+      <div class="order-switch">
+        <span class="lbl">${t('mode')}</span>
+        <div class="seg-order" role="radiogroup" aria-label="${t('mode')}">
+          ${['chaos', 'balanced', 'mono'].map((m) => `<button data-act="mode" data-v="${m}" role="radio" aria-checked="${state.opts.mode === m}" aria-pressed="${state.opts.mode === m}">${t(m)}</button>`).join('')}
+        </div>
+      </div>
+    </div>
+      <div class="act-main">
+        <button class="btn btn-main" data-act="roll" id="roll-btn">${ICON.dice}<span>${t('roll')}</span></button>
+        <span class="kbd">Space</span>
+      </div>
+      <div class="act-right">
+      <div class="act-group">
         <span class="act-lbl">${t('grpReroll')}</span>
         <div class="btn-row">
           <button class="btn" data-act="hero">${ICON.mask}<span>${t('heroShort')}</span></button>
           <button class="btn" data-act="items">${ICON.cards}<span>${t('itemsShort')}</span></button>
         </div>
       </div>
-      <div class="act-main">
-        <button class="btn btn-main" data-act="roll" id="roll-btn">${ICON.dice}<span>${t('roll')}</span></button>
-        <span class="kbd">Space</span>
-      </div>
-      <div class="act-group act-right">
+      <div class="act-group">
         <span class="act-lbl">${t('grpTake')}</span>
         <div class="btn-row">
           <button class="btn btn-game" data-act="game">${ICON.game}<span>${t('toGame')}</span></button>
           <button class="btn" data-act="link">${ICON.link}<span>${t('link')}</span></button>
         </div>
+      </div>
       </div>
     </div>`;
   if (dealItems) spinSlots();

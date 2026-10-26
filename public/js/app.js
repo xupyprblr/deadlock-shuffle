@@ -692,9 +692,9 @@ app.addEventListener('click', (e) => {
     case 'mode': if (o.mode === v) break; o.mode = v; saveOpts(); renderStage(false); break;
     case 'order':
       if (o.order === v) break;
+      // режимы по-разному подбирают предметы — при переключении сразу новая крутка
       o.order = v; saveOpts();
-      state.res.build = orderFor(state.res, v);
-      syncUrl(); renderStage(false); break;
+      doRoll('all'); break;
     case 'tier': {
       const n = +v;
       o.tiers = o.tiers.includes(n) ? o.tiers.filter((x) => x !== n) : [...o.tiers, n].sort();

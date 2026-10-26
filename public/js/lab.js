@@ -1,4 +1,4 @@
-// Технический раздел «Сборки игроков» (не входит в релиз 1).
+// Лаборатория: сборки игроков, сравнение, рандомная сборка игрока.
 // Все данные — напрямую из Deadlock API в браузере (CORS открыт).
 import { encodeBuildCode } from './buildcode.js';
 
@@ -173,10 +173,11 @@ const state = {
 // ---------- рендер ----------
 function shell() {
   root.innerHTML = `
-    <h1 class="lab-title">Сборки <mark>игроков</mark></h1>
+    <h1 class="lab-title">Лаборатория <mark>сборок</mark></h1>
     <div class="seg-order lab-tabs" role="tablist">
       <button data-tab="hero" aria-pressed="${state.tab === 'hero'}">По герою</button>
       <button data-tab="ids" aria-pressed="${state.tab === 'ids'}">По ID</button>
+      <button data-tab="rnd" aria-pressed="${state.tab === 'rnd'}">Рандом билд</button>
       <button data-tab="cmp" aria-pressed="${state.tab === 'cmp'}">${cmpLabel()}</button>
     </div>
     <section id="panel"></section>`;
@@ -187,6 +188,7 @@ function renderPanel() {
   const el = document.getElementById('panel');
   if (state.tab === 'hero') el.innerHTML = heroPanel();
   else if (state.tab === 'ids') el.innerHTML = idsPanel();
+  else if (state.tab === 'rnd') el.innerHTML = rndPanel();
   else el.innerHTML = cmpPanel();
   syncUrl();
   renderLists();
@@ -317,7 +319,8 @@ function cmpDel(id) {
 function syncUrl() {
   try {
     const u = new URL(location.href);
-    u.searchParams.delete('ids'); u.searchParams.delete('cmp');
+    u.searchParams.delete('ids'); u.searchParams.delete('cmp'); u.searchParams.delete('tab');
+    if (state.tab === 'rnd') u.searchParams.set('tab', 'rnd');
     if (state.tab === 'ids' && parseIds(state.ids).length) u.searchParams.set('ids', parseIds(state.ids).join(','));
     if (state.tab === 'cmp' && state.compare.length) u.searchParams.set('cmp', state.compare.join(','));
     history.replaceState(null, '', u);
@@ -379,7 +382,108 @@ function cmpPanel() {
     <div id="cmp-cards" class="g-compare"></div>`;
 }
 
+// ---------- рандомная сборка игрока ----------
+// Берём опубликованные сборки с 50+ матчами от 10+ игроков за 30 дней (меньше — винрейт почти чистый шум),
+// фильтруем по диапазону винрейта, затем случайно перебираем и проверяем склонность инвеста по содержимому.
+const RND = { days: 30, minMatches: 50, minPlayers: 10, maxChecks: 24, maxHeroes: 10 };
+const LEANS = [['any', 'Любая'], ['weapon', 'Оружие'], ['spirit', 'Спиритизм'], ['vitality', 'Живучесть']];
+const WRS = [['any', 'Любой'], ['low', 'до 45%'], ['mid', '45–54%'], ['anom', 'Аномалия 55–60%'], ['gem', 'Самородок 60%+']];
+const CAT_RU = { weapon: 'Оружие', spirit: 'Спиритизм', vitality: 'Живучесть' };
+const inWr = (wr, k) => k === 'any' || (k === 'low' ? wr < 0.45 : k === 'mid' ? wr >= 0.45 && wr < 0.55 : k === 'anom' ? wr >= 0.55 && wr < 0.6 : wr >= 0.6);
+const shuffled = (a) => { const b = a.slice(); for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
+// склонность: куда вложено больше всего душ (по всем предметам сборки)
+function leanOf(b) {
+  const sum = { weapon: 0, spirit: 0, vitality: 0 };
+  for (const cat of (b && b.details && b.details.mod_categories) || []) {
+    for (const m of cat.mods || []) { const it = itemById[m.ability_id >>> 0]; if (it && sum[it.cat] !== undefined) sum[it.cat] += it.cost || 0; }
+  }
+  const total = sum.weapon + sum.spirit + sum.vitality;
+  if (!total) return null;
+  const cat = Object.keys(sum).sort((a, b2) => sum[b2] - sum[a])[0];
+  return { cat, share: sum[cat] / total };
+}
+const rnd = { hero: null, lean: 'any', wr: 'any', busy: false, msg: '', id: null, info: null, seen: new Set() };
+
+function segHtml(attr, items, val) {
+  return `<div class="seg-order rnd-seg" role="radiogroup">${items.map(([v, l]) => `<button data-${attr}="${v}" aria-pressed="${val === v}">${esc(l)}</button>`).join('')}</div>`;
+}
+function rndPanel() {
+  return `
+    <div class="rnd-box">
+      <div class="rnd-opt"><span class="rnd-lbl">Герой</span>
+        <div class="lab-pick rnd-pick">
+          <button class="hp hp-any" data-rhero="0" aria-pressed="${!rnd.hero}">Любой</button>
+          ${D.heroes.map((h) => `<button class="hp" data-rhero="${h.id}" aria-pressed="${rnd.hero === h.id}" title="${esc(h.name)}">${h.small ? `<img src="${esc(icon(h.small))}" alt="" width="52" height="52" loading="lazy">` : esc(h.name)}</button>`).join('')}
+        </div>
+      </div>
+      <div class="rnd-row">
+        <div class="rnd-opt"><span class="rnd-lbl">Инвест в билде</span>${segHtml('rlean', LEANS, rnd.lean)}</div>
+        <div class="rnd-opt"><span class="rnd-lbl">Винрейт</span>${segHtml('rwr', WRS, rnd.wr)}</div>
+      </div>
+      <div class="rnd-go">
+        <button class="btn btn-main rnd-roll" data-rroll="1" ${rnd.busy ? 'disabled' : ''}>${rnd.busy ? 'Ищу…' : 'Крутить билд'}</button>
+        <span class="lab-legend">Сборки игроков с ${RND.minMatches}+ матчами от ${RND.minPlayers}+ игроков за ${RND.days} дней.</span>
+      </div>
+    </div>
+    <div id="rnd-out" class="g-list"></div>`;
+}
+
+async function rollRandomBuild() {
+  if (rnd.busy) return;
+  rnd.busy = true; rnd.msg = ''; rnd.id = null; rnd.info = null;
+  renderPanel();
+  try {
+    const heroes = rnd.hero ? [heroById[rnd.hero]] : shuffled(D.heroes).slice(0, RND.maxHeroes);
+    let found = null, poolSize = 0;
+    for (const h of heroes) {
+      const rows = (await api(`/analytics/hero-build-stats/${h.id}`, { min_unix_timestamp: since(RND.days), min_matches: RND.minMatches })) || [];
+      const pool = rows.map((x) => ({ id: x.hero_build_id, matches: x.matches, players: x.players, wr: x.wins / x.matches }))
+        .filter((r) => r.players >= RND.minPlayers && inWr(r.wr, rnd.wr));
+      poolSize = pool.length;
+      // сначала ещё не показанные
+      const order = [...shuffled(pool.filter((r) => !rnd.seen.has(r.id))), ...shuffled(pool.filter((r) => rnd.seen.has(r.id)))];
+      if (rnd.lean === 'any') { if (order.length) found = { r: order[0], h }; }
+      else {
+        const cand = order.slice(0, RND.maxChecks);
+        for (let i = 0; i < cand.length && !found; i += 6) {
+          const part = cand.slice(i, i + 6);
+          const blds = await Promise.all(part.map((r) => getBuild(r.id).catch(() => null)));
+          const k = blds.findIndex((b) => { const l = leanOf(b); return l && l.cat === rnd.lean; });
+          if (k >= 0) found = { r: part[k], h, lean: leanOf(blds[k]) };
+        }
+      }
+      if (found) { found.pool = poolSize; break; }
+    }
+    if (!found) {
+      rnd.msg = rnd.hero
+        ? `У ${esc(heroById[rnd.hero].name)} нет сборок под эти условия. Попробуй другой винрейт или склонность.`
+        : 'Не нашёл сборок под эти условия. Ослабь фильтры и крутани ещё раз.';
+    } else {
+      rnd.seen.add(found.r.id);
+      rnd.id = found.r.id;
+      rnd.info = found;
+    }
+  } catch (e) {
+    rnd.msg = 'Не удалось получить статистику: ' + esc(e.message);
+  }
+  rnd.busy = false;
+  renderPanel();
+}
+
+function rndOut() {
+  if (rnd.busy) return '<p class="lab-empty">Перебираю сборки игроков…</p>';
+  if (rnd.msg) return `<p class="lab-empty">${rnd.msg}</p>`;
+  if (!rnd.id) return '<p class="lab-empty">Выбери условия и нажми «Крутить билд».</p>';
+  const f = rnd.info;
+  const c = cardFor(rnd.id);
+  const lean = f.lean || (c.build ? leanOf(c.build) : null);
+  return `<p class="lab-summary">Выпала сборка на <b>${esc(f.h.name)}</b> · ${pct(f.r.wr)} на ${fmt(f.r.matches)} матчах за ${RND.days} дней${lean ? ` · склонность: <b>${CAT_RU[lean.cat]}</b> (${pct(lean.share, 0)} душ)` : ''} · сборок под эти условия: ${fmt(f.pool)}</p>
+    ${buildCard(c, 'view')}`;
+}
+
 function renderLists() {
+  const rndBox = document.getElementById('rnd-out');
+  if (rndBox) rndBox.innerHTML = rndOut();
   const idsBox = document.getElementById('ids-cards');
   if (idsBox) {
     const ids = parseIds(state.ids);
@@ -579,7 +683,7 @@ async function copy(text, msg) {
 document.addEventListener('click', (e) => {
   const modal = document.getElementById('lab-modal');
   if (modal && e.target === modal) { state.modal = null; renderModal(); return; }
-  const t = e.target.closest('[data-tab],[data-hero],[data-open],[data-game],[data-cmp-add],[data-cmp-del],[data-cmp-clear],[data-copy-id],[data-close]');
+  const t = e.target.closest('[data-tab],[data-hero],[data-open],[data-game],[data-cmp-add],[data-cmp-del],[data-cmp-clear],[data-copy-id],[data-close],[data-rhero],[data-rlean],[data-rwr],[data-rroll]');
   if (!t) return;
   const d = t.dataset;
   if (d.close) { state.modal = null; renderModal(); return; }
@@ -588,11 +692,15 @@ document.addEventListener('click', (e) => {
   if (d.cmpDel) { cmpDel(d.cmpDel); return; }
   if (d.cmpClear) { state.compare = []; saveCompare(); refresh(); return; }
   if (d.tab) { state.tab = d.tab; shell(); return; }
+  if (d.rhero !== undefined) { rnd.hero = +d.rhero || null; renderPanel(); return; }
+  if (d.rlean) { rnd.lean = d.rlean; renderPanel(); return; }
+  if (d.rwr) { rnd.wr = d.rwr; renderPanel(); return; }
+  if (d.rroll) { rollRandomBuild(); return; }
   if (d.hero) { state.heroId = +d.hero; renderPanel(); loadHero(); return; }
   if (d.open) { state.modal = +d.open; renderModal(); return; }
   if (d.game) {
     const c = cardFor(+d.game);
-    try { copy(gameCode(c), 'Код скопирован. В игре: Сборки → Создать → Вставить'); } catch { toast('Не удалось собрать код сборки'); }
+    try { copy(gameCode(c), 'Код скопирован. В игре: Поиск сборок → Создать сборку → Вставить сборку'); } catch { toast('Не удалось собрать код сборки'); }
   }
 });
 document.addEventListener('keydown', (e) => {
@@ -633,5 +741,6 @@ root.addEventListener('submit', (e) => {
   try { const sp = new URL(location.href).searchParams; q = sp.get('ids'); cmp = sp.get('cmp'); } catch {}
   if (cmp) { state.compare = parseIds(cmp); saveCompare(); state.tab = 'cmp'; }
   else if (q) { state.ids = q; state.tab = 'ids'; }
+  else { try { if (new URL(location.href).searchParams.get('tab') === 'rnd') state.tab = 'rnd'; } catch {} }
   shell();
 })();

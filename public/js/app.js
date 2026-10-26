@@ -42,6 +42,7 @@ const I18N = {
       'Герои, предметы, иконки и номер патча подтягиваются автоматически из открытого <a href="https://deadlock-api.com" target="_blank" rel="noopener">Deadlock API</a>. Сайт сам замечает новую версию игры и обновляет список — новые герои и предметы появляются без ручной правки.',
       'Ссылка «Ссылка» сохраняет конкретный результат: друг увидит ровно ту же сборку.',
     ],
+    labLink: 'Лаборатория', labSub: 'сборки игроков, рандом билд и сравнение',
     legal: 'Фанатский проект. Deadlock и все игровые материалы принадлежат Valve Corporation. Сайт не связан с Valve.',
     copyHead: 'RANDOMLOCK', copySkills: 'Прокачка', empty: 'Под эти правила не подошёл ни один герой — сброшу фильтр.',
     error: 'Не удалось загрузить данные. Проверь соединение и обнови страницу.',
@@ -81,6 +82,7 @@ const I18N = {
       'Heroes, items, icons and the patch number come straight from the open <a href="https://deadlock-api.com" target="_blank" rel="noopener">Deadlock API</a>. The site notices new game versions on its own, so new heroes and items show up without manual edits.',
       'The Link button saves this exact result, so a friend sees the same build.',
     ],
+    labLink: 'Lab', labSub: 'player builds, random build and compare (in Russian)',
     legal: 'Fan project. Deadlock and all game assets belong to Valve Corporation. Not affiliated with Valve.',
     copyHead: 'RANDOMLOCK', copySkills: 'Ability order', empty: 'No hero matches these rules, resetting the filter.',
     error: 'Could not load data. Check your connection and refresh the page.',
@@ -541,6 +543,7 @@ const ICON = {
   mask: svg('<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>'),
   cards: svg('<rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/>'),
   game: svg('<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v3h16v-3"/>'),
+  flask: svg('<path d="M9 3h6"/><path d="M10 3v6L4.5 18.5A1.7 1.7 0 0 0 6 21h12a1.7 1.7 0 0 0 1.5-2.5L14 9V3"/><path d="M7 15h10"/>'),
   link: svg('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'),
 };
 
@@ -657,7 +660,7 @@ function renderAbout() {
       <div><h3>${t('gameT')}</h3>${t('game').map((p) => `<p>${p}</p>`).join('')}<p><button class="how-link" data-act="how">${t('howBtn')}</button></p></div>
       <div><h3>${t('dataT')}</h3>${t('data').map((p) => `<p>${p}</p>`).join('')}</div>
     </div>`;
-  document.getElementById('foot').innerHTML = `<p>${t('legal')}</p>`;
+  document.getElementById('foot').innerHTML = `<a class="btn lab-link" href="lab/builds.html">${ICON.flask}<span>${t('labLink')}</span></a><span class="lab-sub">${t('labSub')}</span><p>${t('legal')}</p>`;
 }
 
 function renderAll() {

@@ -161,3 +161,22 @@
   .g-desc { font-size: 16px; }
   .g-nm { font-size: 8.5px; padding: 2px 2px; }
 }
+a.lab-note { text-decoration: none; }
+a.lab-note:hover { color: var(--fg); }
+.lab-tabs { max-width: 560px; }
+
+/* рандомная сборка игрока */
+.rnd-box { display: grid; gap: 18px; }
+.rnd-opt { display: grid; gap: 8px; min-width: 0; }
+.rnd-lbl { font: 800 17px/1.1 var(--f-display); }
+.rnd-row { display: flex; flex-wrap: wrap; gap: 16px 28px; }
+.rnd-row .rnd-opt { flex: 1 1 320px; }
+.rnd-seg { max-width: none; }
+.rnd-seg button { padding-inline: 6px; }
+.hp-any { font: 900 11px/1 var(--f-tag); text-transform: uppercase; color: var(--fg); aspect-ratio: 1; }
+.lab-pick .hp-any[aria-pressed="false"] { opacity: .75; }
+.lab-pick .hp-any[aria-pressed="true"] { background: var(--teal); color: var(--ink); }
+.rnd-go { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; padding: 6px 0 14px; }
+.rnd-roll { font-size: 26px; padding: 14px 30px 12px; }
+.rnd-roll[disabled] { opacity: .7; cursor: progress; }
+@media (max-width: 640px) { .rnd-roll { width: 100%; justify-content: center; } .rnd-seg { grid-auto-flow: row; grid-template-columns: 1fr 1fr; } .rnd-seg button + button { border-left: 0; } .rnd-seg button { border: 1px solid var(--fg); } }

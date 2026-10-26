@@ -37,7 +37,7 @@ const I18N = {
       'Ссылка «Ссылка» сохраняет конкретный результат: друг увидит ровно ту же сборку.',
     ],
     legal: 'Фанатский проект. Deadlock и все игровые материалы принадлежат Valve Corporation. Сайт не связан с Valve.',
-    copyHead: 'Deadlock Shuffle', copySkills: 'Прокачка', empty: 'Под эти правила не подошёл ни один герой — сброшу фильтр.',
+    copyHead: 'RANDOMLOCK', copySkills: 'Прокачка', empty: 'Под эти правила не подошёл ни один герой — сброшу фильтр.',
     error: 'Не удалось загрузить данные. Проверь соединение и обнови страницу.',
   },
   en: {
@@ -70,7 +70,7 @@ const I18N = {
       'The Link button saves this exact result, so a friend sees the same build.',
     ],
     legal: 'Fan project. Deadlock and all game assets belong to Valve Corporation. Not affiliated with Valve.',
-    copyHead: 'Deadlock Shuffle', copySkills: 'Ability order', empty: 'No hero matches these rules, resetting the filter.',
+    copyHead: 'RANDOMLOCK', copySkills: 'Ability order', empty: 'No hero matches these rules, resetting the filter.',
     error: 'Could not load data. Check your connection and refresh the page.',
   },
 };
@@ -191,8 +191,11 @@ function doRoll(kind = 'all') {
   if (kind !== 'hero' || !prev) res.orders = { [state.opts.order]: res.build };
   state.res = res;
   state.rerolls = 0;
+  state.heroIn = kind !== 'items';
   syncUrl();
   renderStage(kind !== 'hero');
+  state.heroIn = false;
+  kick(kind === 'all' ? '#roll-btn' : `[data-act="${kind}"]`);
   renderSkills();
   ensureAbilities(res.hero);
 }
@@ -275,7 +278,7 @@ function renderTop() {
   const p = d.patch;
   const when = d.fetchedAt ? new Date(d.fetchedAt).toLocaleDateString(state.lang === 'ru' ? 'ru-RU' : 'en-US') : '';
   document.getElementById('top').innerHTML = `
-    <a class="brand" href="./"><b>Deadlock <em>Shuffle</em></b><span class="tag">${t('tagline')}</span></a>
+    <a class="brand" href="./" aria-label="RANDOMLOCK by podvalni akrobat"><b>Random<em>lock</em></b><span class="tag">by podvalni akrobat</span></a>
     <div class="top-meta">
       <span class="patch"><i class="dot ${state.live ? '' : 'stale'}"></i>${p ? `${t('patch')} <a href="${esc(p.link)}" target="_blank" rel="noopener">${esc(p.title)}</a> · ` : ''}${state.live ? t('fresh') : `${t('stale')} ${when}`}</span>
       <span class="seg" role="group" aria-label="Language">
@@ -293,7 +296,7 @@ function renderStage(dealItems = true) {
   const per = Object.fromEntries(CATS.map((c) => [c, build.filter((i) => i.cat === c).length]));
   const stage = document.getElementById('stage');
   stage.innerHTML = `
-    <article class="hero flash" aria-live="polite">
+    <article class="hero ${state.heroIn ? 'hero-in' : ''}" aria-live="polite">
       <div class="hero-art">${isNewHero(hero) ? `<span class="new-badge">${t('newHeroBadge')}</span>` : ''}${hero.card ? `<img src="${esc(src(hero.card))}" alt="${esc(hero.name)}" width="330" height="440">` : ''}</div>
       <div class="hero-info">
         <span class="eyebrow">${t('yourHero')}</span>
@@ -340,27 +343,70 @@ function renderStage(dealItems = true) {
       <div class="split" aria-hidden="true">${CATS.map((c) => `<span style="flex-grow:${per[c]};background:var(--${c})"></span>`).join('')}</div>
       <div class="legend-row">${CATS.map((c) => `<span><i class="sw" style="background:var(--${c})"></i>${t(c)} <b>${per[c]}</b></span>`).join('')}</div>
       ${renderScore(hero, build)}
-      <div class="actions">
-        <div class="act-main">
-          <button class="btn btn-main" data-act="roll" id="roll-btn">${ICON.dice}<span>${t('roll')}</span></button>
-          <span class="kbd">Space</span>
+    </div>
+    <div class="actions">
+      <div class="act-group act-left">
+        <span class="act-lbl">${t('grpReroll')}</span>
+        <div class="btn-row">
+          <button class="btn" data-act="hero">${ICON.mask}<span>${t('heroShort')}</span></button>
+          <button class="btn" data-act="items">${ICON.cards}<span>${t('itemsShort')}</span></button>
         </div>
-        <div class="act-group">
-          <span class="act-lbl">${t('grpReroll')}</span>
-          <div class="btn-row">
-            <button class="btn" data-act="hero">${ICON.mask}<span>${t('heroShort')}</span></button>
-            <button class="btn" data-act="items">${ICON.cards}<span>${t('itemsShort')}</span></button>
-          </div>
-        </div>
-        <div class="act-group">
-          <span class="act-lbl">${t('grpTake')}</span>
-          <div class="btn-row">
-            <button class="btn btn-game" data-act="game">${ICON.game}<span>${t('toGame')}</span></button>
-            <button class="btn" data-act="link">${ICON.link}<span>${t('link')}</span></button>
-          </div>
+      </div>
+      <div class="act-main">
+        <button class="btn btn-main" data-act="roll" id="roll-btn">${ICON.dice}<span>${t('roll')}</span></button>
+        <span class="kbd">Space</span>
+      </div>
+      <div class="act-group act-right">
+        <span class="act-lbl">${t('grpTake')}</span>
+        <div class="btn-row">
+          <button class="btn btn-game" data-act="game">${ICON.game}<span>${t('toGame')}</span></button>
+          <button class="btn" data-act="link">${ICON.link}<span>${t('link')}</span></button>
         </div>
       </div>
     </div>`;
+  if (dealItems) spinSlots();
+}
+
+// ---------- анимации крутки ----------
+const reduceMotion = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } };
+function kick(sel) {
+  const b = document.querySelector(sel);
+  if (!b || reduceMotion()) return;
+  b.classList.remove('kick'); void b.offsetWidth; b.classList.add('kick');
+}
+// иконки всех предметов заранее в кэш браузера — чтобы «барабан» не мигал пустыми плитками
+let pooled = false;
+function preloadIcons() {
+  if (pooled || !state.data) return; pooled = true;
+  const go = () => state.data.items.forEach((i) => { if (i.icon) { const im = new Image(); im.decoding = 'async'; im.src = src(i.icon); } });
+  (window.requestIdleCallback || ((f) => setTimeout(f, 600)))(go);
+}
+// «Барабан»: каждая плитка прокручивает случайные иконки и останавливается по очереди, 1 → 12
+let spinToken = 0;
+function spinSlots() {
+  const token = ++spinToken;
+  const slots = [...document.querySelectorAll('#stage .slot')];
+  if (!slots.length) return;
+  if (reduceMotion() || !pooled) return; // при первой загрузке — только раздача, иконки ещё не в кэше
+  const pool = state.data.items.filter((i) => i.icon);
+  slots.forEach((el, i) => {
+    const img = el.querySelector('.slot-tile img');
+    const fin = img && img.getAttribute('src');
+    const stopAt = 420 + i * 85;
+    const t0 = performance.now();
+    el.classList.add('spinning');
+    const tick = () => {
+      if (token !== spinToken || !el.isConnected) return;
+      if (performance.now() - t0 >= stopAt) {
+        if (img) img.src = fin;
+        el.classList.remove('spinning'); el.classList.add('landed');
+        return;
+      }
+      if (img) img.src = src(pool[(Math.random() * pool.length) | 0].icon);
+      setTimeout(tick, 75);
+    };
+    tick();
+  });
 }
 
 // Порядок покупки фиксирован для каждой крутки: один и тот же для режима, сколько ни переключай.
@@ -397,7 +443,7 @@ function gameCode() {
   try {
     return encodeBuildCode({
       heroId: r.hero.id,
-      name: `Shuffle · ${r.hero.name}`,
+      name: `RANDOMLOCK · ${r.hero.name}`,
       desc,
       categories,
       abilityOrder: ab.length === 4 && ab.every((a) => a.id) ? r.skills : null,
@@ -609,6 +655,7 @@ async function boot() {
   state.res.orders = { [state.opts.order || 'chaos']: state.res.build };
   if (!state.res.skills || state.res.skills.length !== 16) state.res.skills = rollSkillOrder(rng(newSeed()), 4, ultIndexOf(state.res.hero));
   renderAll();
+  preloadIcons();
   ensureAbilities(state.res.hero);
   loadStats().then(() => renderStage(false));
   liveCheck();

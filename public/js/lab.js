@@ -554,7 +554,7 @@ function gameCode(c) {
   return encodeBuildCode({
     heroId: b.hero_id,
     name: b.name || `Build ${c.id}`,
-    desc: `${b.description || ''}\n— копия сборки #${c.id} (Deadlock Shuffle Lab)`.trim(),
+    desc: `${b.description || ''}\n— копия сборки #${c.id} (RANDOMLOCK Lab)`.trim(),
     categories: cats,
     abilityChanges: (b.details && b.details.ability_order && b.details.ability_order.currency_changes) || [],
   });

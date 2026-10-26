@@ -261,10 +261,14 @@ mark {
 
 /* --- Кнопки --- */
 /* Кнопки сгруппированы по назначению: крутка | перекрутить | забрать */
-.actions { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px 32px; align-items: center; padding-top: 10px; }
-.act-main { grid-row: span 2; }
-.act-main { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.actions {
+  grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 16px 40px; align-items: center; padding: 18px 0 6px;
+}
+.act-main { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .act-group { display: grid; gap: 7px; min-width: 0; }
+.act-left { justify-self: end; justify-items: end; }
+.act-right { justify-self: start; }
 .act-lbl { font: 800 17px/1 var(--f-display); color: var(--muted); }
 /* кнопки группы склеены в одну плашку, как переключатели */
 .btn-row { display: flex; flex-wrap: wrap; box-shadow: 4px 4px 0 var(--ink); }
@@ -283,23 +287,25 @@ mark {
 .btn-game:hover { background: var(--yellow); color: var(--ink); }
 
 .btn-main {
-  gap: 12px; font-size: 26px; padding: 16px 30px 14px; background: var(--orange); border: 3px solid var(--ink); color: var(--ink);
-  transform: rotate(-2deg); box-shadow: 5px 5px 0 var(--ink);
+  gap: 16px; font-size: 38px; padding: 22px 48px 19px; background: var(--orange); border: 3px solid var(--ink); color: var(--ink);
+  transform: rotate(-2deg); box-shadow: 7px 7px 0 var(--ink);
 }
-.btn-main .ico { width: 28px; height: 28px; transition: transform .35s cubic-bezier(.2,.8,.3,1.3); }
+.btn-main .ico { width: 40px; height: 40px; transition: transform .35s cubic-bezier(.2,.8,.3,1.3); }
 .btn-main:hover { background: var(--yellow); color: var(--ink); transform: rotate(-2deg) translateY(-2px); }
 .btn-main:hover .ico { transform: rotate(90deg); }
-.btn-main:active { transform: rotate(-2deg) translate(3px, 3px); box-shadow: 2px 2px 0 var(--ink); }
+.btn-main:active { transform: rotate(-2deg) translate(4px, 4px); box-shadow: 3px 3px 0 var(--ink); }
 .kbd {
   font: 900 10px/1 var(--f-tag); color: var(--muted); letter-spacing: .1em; text-transform: uppercase;
   border: 1px solid var(--line); padding: 4px 8px 3px; border-radius: 3px;
 }
 @media (hover: none) { .kbd { display: none; } }
 @media (max-width: 640px) {
-  .actions { grid-template-columns: minmax(0, 1fr); gap: 18px; }
-  .act-main { grid-row: auto; }
+  .actions { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px 12px; }
+  .act-main { grid-column: 1 / -1; order: -1; }
+  .act-left, .act-right { justify-self: stretch; justify-items: stretch; }
   .act-main, .act-group { width: 100%; }
-  .btn-main { width: 100%; justify-content: center; }
+  .btn-main { width: 100%; justify-content: center; font-size: 30px; padding: 18px 20px 15px; }
+  .act-group .btn-row { flex-direction: column; }
   .btn-row .btn { flex: 1 1 auto; justify-content: center; }
 }
 
@@ -370,8 +376,32 @@ footer { padding-block: 26px 44px; color: var(--muted); font-size: 13px; border-
 @keyframes deal { from { transform: translateY(12px) rotate(-4deg); opacity: .1; } to { transform: none; opacity: 1; } }
 .dealt .slot { animation: deal .35s cubic-bezier(.2,.8,.3,1.25) both; animation-delay: calc(var(--i) * 40ms); }
 @keyframes flash { 0% { filter: brightness(2.2) saturate(0); } 100% { filter: none; } }
-.hero.flash .hero-art img { animation: flash .5s ease-out; }
 .loading { padding: 80px 0; text-align: center; color: var(--muted); font: 900 14px var(--f-tag); text-transform: uppercase; }
+
+/* нажатие: кнопка подпрыгивает, кубик кувыркается */
+@keyframes kick { 0% { transform: rotate(-2deg) scale(1); } 30% { transform: rotate(-4deg) scale(.92) translate(3px, 3px); } 65% { transform: rotate(1deg) scale(1.06); } 100% { transform: rotate(-2deg) scale(1); } }
+@keyframes kick-sm { 0% { transform: none; } 35% { transform: scale(.93) translateY(2px); } 70% { transform: scale(1.04); } 100% { transform: none; } }
+@keyframes dice { from { transform: rotate(0); } to { transform: rotate(540deg); } }
+.btn-main.kick { animation: kick .5s cubic-bezier(.2,.8,.3,1.2); }
+.btn.kick:not(.btn-main) { animation: kick-sm .4s ease-out; }
+.btn.kick .ico { animation: dice .7s cubic-bezier(.2,.8,.3,1); }
+
+/* барабан: плитка крутит случайные иконки и встаёт на место с отскоком и вспышкой */
+@keyframes reel { from { transform: translateY(-18%); } to { transform: translateY(18%); } }
+.slot.spinning .slot-tile img { animation: reel 75ms linear infinite alternate; filter: blur(1.5px) brightness(.8) saturate(.6); }
+.slot.spinning .tier, .slot.spinning .act, .slot.spinning .num, .slot.spinning .slot-name, .slot.spinning .slot-cost { opacity: 0; }
+.slot .tier, .slot .act, .slot .num, .slot .slot-name, .slot .slot-cost { transition: opacity .25s; }
+@keyframes land { 0% { transform: scale(1.14) rotate(-3deg); } 55% { transform: scale(.96) rotate(1deg); } 100% { transform: none; } }
+@keyframes glint { from { opacity: .85; } to { opacity: 0; } }
+.slot.landed .slot-tile { animation: land .38s cubic-bezier(.2,.8,.3,1.3); }
+.slot.landed .slot-tile::after { content: ''; position: absolute; inset: 0; background: #fff; pointer-events: none; animation: glint .4s ease-out both; }
+
+/* новый герой: постер выезжает и вспыхивает */
+@keyframes hero-in { from { transform: rotate(-6deg) scale(.9) translateY(14px); opacity: .2; } to { transform: rotate(-1.2deg); opacity: 1; } }
+.hero.hero-in .hero-art { animation: hero-in .45s cubic-bezier(.2,.8,.3,1.25); }
+.hero.hero-in .hero-art img { animation: flash .55s ease-out; }
+.hero.hero-in .hero-name { animation: deal .4s .1s cubic-bezier(.2,.8,.3,1.25) both; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }

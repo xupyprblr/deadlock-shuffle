@@ -202,6 +202,7 @@ function doRoll(kind = 'all') {
   renderStage(kind !== 'hero');
   state.heroIn = false;
   kick(kind === 'all' ? '#roll-btn' : `[data-act="${kind}"]`);
+  scrollToStage();
   renderSkills();
   ensureAbilities(res.hero);
 }
@@ -373,6 +374,17 @@ function renderStage(dealItems = true) {
       </div>
     </div>`;
   if (dealItems) spinSlots();
+}
+
+// На телефоне кнопки под сборкой — после крутки поднимаем экран к результату
+function scrollToStage() {
+  let mobile = false;
+  try { mobile = matchMedia('(max-width: 820px)').matches; } catch {}
+  const el = document.getElementById('stage');
+  if (!mobile || !el) return;
+  const top = el.getBoundingClientRect().top + window.scrollY - 8;
+  if (window.scrollY <= top) return;
+  window.scrollTo({ top, behavior: reduceMotion() ? 'auto' : 'smooth' });
 }
 
 // ---------- анимации крутки ----------

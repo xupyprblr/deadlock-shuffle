@@ -380,7 +380,7 @@ footer { padding-block: 26px 44px; color: var(--muted); font-size: 13px; border-
 .toast {
   position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%) translateY(20px) rotate(-1.5deg);
   background: var(--yellow); color: var(--ink); padding: 10px 16px 9px; font: 900 14px var(--f-tag); text-transform: uppercase;
-  box-shadow: 4px 4px 0 var(--ink); opacity: 0; pointer-events: none; transition: .25s; z-index: 20; max-width: calc(100% - 32px);
+  box-shadow: 4px 4px 0 var(--ink); opacity: 0; pointer-events: none; transition: .25s; z-index: 70; max-width: calc(100% - 32px);
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0) rotate(-1.5deg); }
 

@@ -10,14 +10,14 @@ const I18N = {
   ru: {
     tagline: 'рандомайзер', loading: 'Загружаю героев и предметы…', patch: 'Патч', fresh: 'данные актуальны', stale: 'снимок данных',
     updated: 'Данные обновлены до свежей версии игры', yourHero: 'Твой герой', build: 'Затар [на матч]',
-    toGame: 'В игру', toGameDone: 'Код скопирован. В игре: Сборки → Создать → Вставить', toGameFail: 'Не удалось собрать код сборки', gameCat: 'Порядок покупки',
+    toGame: 'В игру', toGameDone: 'Код скопирован. В игре: Поиск сборок → Создать сборку → Вставить сборку', toGameFail: 'Не удалось собрать код сборки', gameCat: 'Порядок покупки',
     gameT: 'Перенос в игру', game: ['Нажми <strong>«В игру»</strong> — сайт скопирует код сборки. Дальше в Deadlock: выбери этого же героя → <strong>Поиск сборок</strong> → <strong>Создать сборку</strong> → <strong>Вставить сборку</strong>. Предметы и порядок прокачки встанут сами, без модов и аддонов.'],
-    howBtn: 'Как вставить в игру?', howT: 'Как вставить сборку в игру', howCopied: 'Код сборки скопирован', howCopyAgain: 'Скопировать ещё раз', howOk: 'Понятно', howMute: 'Не открывать это окно после копирования',
+    howBtn: 'Как вставить в игру?', howT: 'Как вставить сборку в игру', howCopied: 'Код сборки скопирован', howCopy: 'Скопировать код сборки', howOk: 'Понятно',
     how1T: 'Выбери в игре героя', how1: 'Сборка вставляется только на того героя, для которого её собрали.',
     how2T: 'Открой сборки и нажми «Поиск сборок»', how2: 'Кнопка справа вверху в окне сборок.',
     how3T: 'Нажми «Создать сборку»', how3: 'Откроется пустая сборка этого героя.',
     how4T: 'Нажми «Вставить сборку»', how4: 'Маленькая квадратная кнопка рядом с «i». Предметы и прокачка встанут сами — останется сохранить.',
-    howWarn: '<b>Нет кнопки «Вставить сборку»?</b> Значит, в игре выбран другой герой или код пропал из буфера обмена. Проверь героя и нажми «Скопировать ещё раз».',
+    howWarn: '<b>Нет кнопки «Вставить сборку»?</b> Значит, в игре выбран другой герой или код пропал из буфера обмена. Проверь героя и скопируй код ещё раз.',
     orderT: 'Порядок покупки', o_chaos: 'Полный рандом', o_pseudo: 'Псевдо-рандом', o_phases: 'По фазам',
     ph_early: 'Ранняя игра', ph_mid: 'Середина', ph_late: 'Поздняя игра', slotHint: 'Слоты по порядку покупки: сверху вниз, затем следующий столбец — как в игре.', copyOrder: 'Порядок покупки',
     souls: 'душ', roll: 'Крутить', newHero: 'Другой герой', newItems: 'Другие предметы',
@@ -49,14 +49,14 @@ const I18N = {
   en: {
     tagline: 'randomizer', loading: 'Loading heroes and items…', patch: 'Patch', fresh: 'data is live', stale: 'data snapshot',
     updated: 'Data updated to the latest game version', yourHero: 'Your hero', build: 'Your [build]',
-    toGame: 'To game', toGameDone: 'Code copied. In game: Builds → Create → Paste', toGameFail: 'Could not build the code', gameCat: 'Purchase order',
+    toGame: 'To game', toGameDone: 'Code copied. In game: Browse builds → Create build → Paste build', toGameFail: 'Could not build the code', gameCat: 'Purchase order',
     gameT: 'Send to the game', game: ['Hit <strong>To game</strong> to copy the build code. Then in Deadlock: pick the same hero → <strong>Browse builds</strong> → <strong>Create build</strong> → <strong>Paste build</strong>. Items and the ability order fill in on their own, no mods or add-ons.'],
-    howBtn: 'How to paste it in game?', howT: 'How to paste the build in game', howCopied: 'Build code copied', howCopyAgain: 'Copy again', howOk: 'Got it', howMute: 'Don’t open this window after copying',
+    howBtn: 'How to paste it in game?', howT: 'How to paste the build in game', howCopied: 'Build code copied', howCopy: 'Copy build code', howOk: 'Got it',
     how1T: 'Pick the hero in game', how1: 'A build can only be pasted for the hero it was made for.',
     how2T: 'Open builds and press “Browse builds”', how2: 'The button in the top right of the builds window. (Screenshots are from the Russian client.)',
     how3T: 'Press “Create build”', how3: 'An empty build for this hero opens.',
     how4T: 'Press “Paste build”', how4: 'The small square button next to the “i”. Items and abilities fill in on their own — just save.',
-    howWarn: '<b>No “Paste build” button?</b> The game has a different hero selected, or the code is no longer in your clipboard. Check the hero and press “Copy again”.',
+    howWarn: '<b>No “Paste build” button?</b> The game has a different hero selected, or the code is no longer in your clipboard. Check the hero and copy the code again.',
     orderT: 'Purchase order', o_chaos: 'Full random', o_pseudo: 'Pseudo-random', o_phases: 'By phase',
     ph_early: 'Early game', ph_mid: 'Mid game', ph_late: 'Late game', slotHint: 'Slots in purchase order: top to bottom, then the next column, as in the game.', copyOrder: 'Purchase order',
     souls: 'souls', roll: 'Shuffle', newHero: 'New hero', newItems: 'New items',
@@ -287,9 +287,9 @@ async function copy(text, msg) {
 async function toGame() {
   const code = gameCode();
   if (!code) { toast(t('toGameFail')); return; }
+  // при нажатии — только короткое уведомление; подробная инструкция — по ссылке «Как вставить в игру?»
   const ok = await copy(code);
-  if (store.get('ds:howMute', false)) { toast(ok ? t('toGameDone') : t('toGameFail')); return; }
-  openHow(ok);
+  toast(ok ? t('toGameDone') : t('toGameFail'));
 }
 function openHow(copied) {
   closeHow();
@@ -310,9 +310,8 @@ function openHow(copied) {
     </ol>
     <p class="how-warn">${t('howWarn')}</p>
     <div class="how-foot">
-      <label class="how-mute"><input type="checkbox" data-how="mute" ${store.get('ds:howMute', false) ? 'checked' : ''}> ${t('howMute')}</label>
       <div class="btn-row">
-        <button class="btn" data-how="again">${ICON.game}<span>${t('howCopyAgain')}</span></button>
+        <button class="btn" data-how="again">${ICON.game}<span>${t('howCopy')}</span></button>
         <button class="btn btn-game" data-how="close">${t('howOk')}</button>
       </div>
     </div>
@@ -335,9 +334,6 @@ document.addEventListener('click', async (e) => {
   if (a === 'close') closeHow();
   else if (a === 'again') { const code = gameCode(); if (code && await copy(code)) toast(t('howCopied')); else toast(t('toGameFail')); }
 });
-document.addEventListener('change', (e) => {
-  if (e.target.matches && e.target.matches('[data-how="mute"]')) store.set('ds:howMute', e.target.checked);
-});
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeHow(); });
 
 let toastTimer;
@@ -347,7 +343,7 @@ function toast(msg) {
   el.textContent = msg;
   el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+  toastTimer = setTimeout(() => el.classList.remove('show'), String(msg).length > 40 ? 4200 : 2200);
 }
 
 // ---------- рендер ----------

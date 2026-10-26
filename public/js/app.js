@@ -689,7 +689,7 @@ app.addEventListener('click', (e) => {
     case 'how': openHow(false); break;
     case 'link': copy(shareUrl(), t('linkCopied')); break;
     case 'lang': if (v !== state.lang) switchLang(v); break;
-    case 'mode': if (o.mode === v) break; o.mode = v; saveOpts(); renderStage(false); break;
+    case 'mode': if (o.mode === v) break; o.mode = v; saveOpts(); doRoll('all'); break;
     case 'order':
       if (o.order === v) break;
       // режимы по-разному подбирают предметы — при переключении сразу новая крутка

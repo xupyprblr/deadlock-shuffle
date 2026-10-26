@@ -82,8 +82,20 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
 
+// Язык браузера: русский для RU и соседних языков (часто знают русский), иначе английский
+function browserLang() {
+  let list = [];
+  try { list = (navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || '']); } catch {}
+  for (const l of list) {
+    const code = String(l || '').toLowerCase().split('-')[0];
+    if (['ru', 'uk', 'be', 'kk', 'ky', 'uz', 'tg', 'hy', 'az', 'ka', 'tk', 'mo'].includes(code)) return 'ru';
+    if (code === 'en') return 'en';
+  }
+  return 'en';
+}
+
 const state = {
-  lang: store.get('ds:lang', 'ru'), // по умолчанию русский; EN — только если зритель сам переключил
+  lang: store.get('ds:lang', browserLang()), // выбор зрителя; если не выбирал — по языку браузера
   // старые сохранённые настройки (слоты, классы, лимит активок) больше не используются
   opts: (({ slots, types, maxActive, ...rest }) => {
     const o = Object.assign({}, DEFAULTS, rest);

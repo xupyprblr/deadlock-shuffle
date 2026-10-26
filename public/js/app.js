@@ -23,7 +23,7 @@ const I18N = {
     scoreT: 'Оценка затара', chanceNote: 'шанс на победу', scoreNone: 'По этому герою пока мало матчей — оценка появится через несколько дней.', vs: 'к соседям по тиру',
     v_meta: 'Мета-затар', v_solid: 'Рабочая сборка', v_risky: 'Рискованно', v_challenge: 'Челлендж', v_troll: 'Чистый троллинг', copyScore: 'Оценка',
     classes: 'Классы героев', all: 'Все', pool: 'Пул героев',
-    poolHint: 'Нажми на портрет, чтобы исключить героя.', reset: 'Сбросить правила',
+    poolHint: 'Нажми на портрет — останется только этот герой. Следующие клики добавляют и убирают героев.', allHeroes: 'Все герои', poolCount: 'в пуле', reset: 'Сбросить правила',
     weapon: 'Оружие', spirit: 'Спиритизм', vitality: 'Живучесть',
     assassin: 'Убийца', brawler: 'Боец', marksman: 'Стрелок', mystic: 'Мистик', unknown: 'Герой',
     complexity: 'Сложность', active: 'активный',
@@ -56,7 +56,7 @@ const I18N = {
     scoreT: 'Build rating', chanceNote: 'win chance', scoreNone: 'Not enough matches on this hero yet — the rating will appear in a few days.', vs: 'vs. same tier',
     v_meta: 'Meta build', v_solid: 'Solid build', v_risky: 'Risky', v_challenge: 'Challenge', v_troll: 'Pure troll', copyScore: 'Rating',
     classes: 'Hero classes', all: 'All', pool: 'Hero pool',
-    poolHint: 'Click a portrait to exclude that hero.', reset: 'Reset rules',
+    poolHint: 'Click a portrait to keep only that hero. Further clicks add or remove heroes.', allHeroes: 'All heroes', poolCount: 'in pool', reset: 'Reset rules',
     weapon: 'Weapon', spirit: 'Spirit', vitality: 'Vitality',
     assassin: 'Assassin', brawler: 'Brawler', marksman: 'Marksman', mystic: 'Mystic', unknown: 'Hero',
     complexity: 'Complexity', active: 'active',
@@ -536,7 +536,8 @@ function renderOpts() {
     <div class="opt" style="margin-top:20px">
       <span class="lbl">${t('pool')}</span>
       <span class="hint">${t('poolHint')}</span>
-      <div class="heroes-pick">
+      ${o.exclude.length ? `<div class="pool-bar"><b>${d.heroes.length - d.heroes.filter((h) => o.exclude.includes(h.id)).length}</b> ${t('poolCount')} <button class="btn btn-mini" data-act="all-heroes">${t('allHeroes')}</button></div>` : ''}
+      <div class="heroes-pick ${o.exclude.length ? 'filtered' : ''}">
         ${d.heroes.map((h) => `<button class="hp" data-act="excl" data-v="${h.id}" aria-pressed="${!o.exclude.includes(h.id)}" title="${esc(h.name)}" aria-label="${esc(h.name)}">${isNewHero(h) ? `<span class="new-badge">${t('newHeroBadge')}</span>` : ''}${h.small ? `<img src="${esc(src(h.small))}" alt="" loading="lazy" width="52" height="52">` : esc(h.name.slice(0, 2))}</button>`).join('')}
       </div>
       <div><button class="btn" data-act="reset" style="margin-top:10px">${t('reset')}</button></div>
@@ -595,9 +596,15 @@ app.addEventListener('click', (e) => {
     }
     case 'excl': {
       const id = +v;
-      o.exclude = o.exclude.includes(id) ? o.exclude.filter((x) => x !== id) : [...o.exclude, id];
-      if (o.exclude.length >= state.data.heroes.length) o.exclude = [];
-      saveOpts(); b.setAttribute('aria-pressed', !o.exclude.includes(id)); break;
+      const all = state.data.heroes.map((h) => h.id);
+      // первый клик при полном пуле — остаётся только этот герой; дальше клики добавляют и убирают
+      if (!o.exclude.length) o.exclude = all.filter((x) => x !== id);
+      else o.exclude = o.exclude.includes(id) ? o.exclude.filter((x) => x !== id) : [...o.exclude, id];
+      if (o.exclude.length >= all.length) o.exclude = []; // убрали последнего — снова все
+      saveOpts(); renderOpts(); break;
+    }
+    case 'all-heroes': {
+      o.exclude = []; saveOpts(); renderOpts(); break;
     }
     case 'reset': state.opts = Object.assign({}, DEFAULTS); saveOpts(); renderOpts(); break;
   }

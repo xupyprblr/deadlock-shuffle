@@ -112,6 +112,24 @@ function categoryPlan(r, opts) {
   return Array(n).fill(null); // chaos
 }
 
+// ---- Псевдо-рандом: скрытая подкрутка под героя (полный рандом её не использует) ----
+// hero.tune.w — множитель шанса предмета на этом герое (из реальных покупок и сборок, см. normalize.tuneHero),
+// hero.tune.t — когда предмет обычно покупают (доля матча). Пользователю это нигде не показываем.
+export const PSEUDO = {
+  sharp: 0.8, // степень для весов: 0 — как полный рандом, больше — ближе к мете
+  tau: 0.19, // «температура» порядка покупки: ниже — строже по времени покупки
+  tries: 4, // сколько раз пересобрать, если сборка не прошла скрытые проверки
+  minVit: 2, // в «Хаосе» минимум предметов живучести
+};
+const tuned = (opts, hero) => opts.order === 'pseudo' && hero && hero.tune && hero.tune.w && hero.tune.w.size;
+function weightedPick(r, arr, wf) {
+  const w = arr.map(wf);
+  let x = r() * w.reduce((a, v) => a + v, 0);
+  for (let k = 0; k < arr.length; k++) if ((x -= w[k]) <= 0) return arr[k];
+  return arr[arr.length - 1];
+}
+const itemWeight = (hero, i) => Math.pow(hero.tune.w.get(i.id >>> 0) || 1, PSEUDO.sharp);
+
 // want: true — нужен активный предмет, false — пассивный, null — любой
 // tiers — ограничение по тирам для слота (режим «по фазам»), null — любые включённые
 export function rollItem(r, items, build, opts, cat, hero, want = null, tiers = null) {
@@ -121,7 +139,7 @@ export function rollItem(r, items, build, opts, cat, hero, want = null, tiers = 
   // сначала строго, потом ослабляем: тир фазы → категория → тип слота
   for (const [c, w, t] of [[cat, want, tiers], [null, want, tiers], [cat, null, tiers], [null, null, tiers], [cat, want, null], [null, want, null], [null, null, null]]) {
     const p = pool.filter((i) => ok(i, c, w, t));
-    if (p.length) return pick(r, p);
+    if (p.length) return tuned(opts, hero) ? weightedPick(r, p, (i) => itemWeight(hero, i)) : pick(r, p);
   }
   return null;
 }
@@ -142,11 +160,21 @@ export function phaseTiers(idx, opts) {
   return t.length ? t : null;
 }
 
-export function orderBuild(r, build, mode) {
+// примерная доля матча, когда покупают предмет тира (если по герою нет данных)
+const TIER_T = { 1: 0.22, 2: 0.33, 3: 0.48, 4: 0.64 };
+export function orderBuild(r, build, mode, hero = null) {
   const b = build.slice();
   if (mode === 'phases') {
     // по возрастанию цены; равные по цене — в случайном порядке
     return shuffle(r, b).sort((x, y) => x.cost - y.cost);
+  }
+  if (mode === 'pseudo' && hero && hero.tune && hero.tune.t && hero.tune.t.size) {
+    // как обычно покупают на этом герое: шанс оказаться следующим ∝ exp(−время покупки / τ).
+    // Ранние предметы обычно раньше, но дорогой предмет может выпасть и в 1–2 слот.
+    const tOf = (i) => (hero.tune.t.has(i.id >>> 0) ? hero.tune.t.get(i.id >>> 0) : TIER_T[i.tier] || 0.4);
+    const out = [];
+    while (b.length) out.push(b.splice(b.indexOf(weightedPick(r, b, (i) => Math.exp(-tOf(i) / PSEUDO.tau))), 1)[0]);
+    return out;
   }
   if (mode === 'pseudo') {
     // взвешенный рандом: шанс оказаться следующим ∝ 1 / цена — дешёвые обычно раньше, но не всегда
@@ -170,6 +198,24 @@ export function activeTarget(r, opts) {
 }
 
 export function rollBuild(r, items, opts, hero, k = activeTarget(r, opts)) {
+  if (!tuned(opts, hero)) return rollBuildOnce(r, items, opts, hero, k);
+  // псевдо-рандом: несколько попыток, берём первую, прошедшую скрытые проверки
+  let best = null, bestScore = -Infinity;
+  for (let a = 0; a < PSEUDO.tries; a++) {
+    const b = rollBuildOnce(r, items, opts, hero, k);
+    const sc = pseudoCheck(b, opts);
+    if (sc >= 0) return b;
+    if (sc > bestScore) { best = b; bestScore = sc; }
+  }
+  return best;
+}
+// ≥ 0 — сборка годится; меньше — насколько не хватило
+function pseudoCheck(build, opts) {
+  if (opts.mode !== 'chaos') return 0; // «Поровну» и «Все в один» и так задают категории
+  return build.filter((i) => i.cat === 'vitality').length - PSEUDO.minVit;
+}
+
+function rollBuildOnce(r, items, opts, hero, k) {
   const plan = categoryPlan(r, opts);
   const activeSlots = new Set(shuffle(r, plan.map((_, i) => i)).slice(0, k));
   // активки выбираем первыми: их меньше, и им важнее не упереться в запреты
@@ -260,7 +306,7 @@ export function roll(data, opts, seed, lockedHero) {
   const hero = lockedHero || (heroes.length ? pick(r, heroes) : pick(r, data.heroes));
   const lane = null; // линию больше не разыгрываем
   const k = activeTarget(r, opts);
-  const build = orderBuild(r, rollBuild(r, data.items, opts, hero, k), opts.order);
+  const build = orderBuild(r, rollBuild(r, data.items, opts, hero, k), opts.order, hero);
   const skills = rollSkillOrder(r, 4, ultIndexOf(hero));
   return { seed, hero, lane, build, skills, actives: k };
 }

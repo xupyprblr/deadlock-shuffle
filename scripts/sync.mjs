@@ -11,7 +11,7 @@ import { mkdir, writeFile, readFile, access } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fetchRaw, buildSnapshot, applyEnglishNames, bannedFromStats, itemScores, STATS } from '../public/js/normalize.js';
+import { fetchRaw, buildSnapshot, applyEnglishNames, bannedFromStats, itemScores, tuneHero, STATS } from '../public/js/normalize.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -130,6 +130,13 @@ try { prevStats = JSON.parse(await readFile(STATS_FILE, 'utf8')); } catch {}
 const statsFresh = prevStats && Date.now() - Date.parse(prevStats.updatedAt) < 20 * 3600e3 && !flag('--force-stats');
 const heroStats = statsFresh ? null : await fetchJson(`https://api.deadlock-api.com/v1/analytics/hero-stats?min_unix_timestamp=${since}`).catch(() => null);
 const scoreOut = { updatedAt: new Date().toISOString(), windowDays: 30, minMatches: 300, heroes: {} };
+// Скрытая подкрутка псевдо-рандома (data/tune.json): покупки за 30 дней + опубликованные сборки за 90 дней
+const TUNE_FILE = path.join(OUT, 'tune.json');
+const BUILD_STATS = 'https://api.deadlock-api.com/v1/analytics/build-item-stats';
+const buildsSince = Math.floor(Date.now() / 1000) - 90 * 86400;
+const globalBuilds = statsFresh ? null : await fetchJson(`${BUILD_STATS}?min_last_updated_unix_timestamp=${buildsSince}`).catch(() => null);
+const globalMatches = (heroStats || []).reduce((a, x) => a + (x.matches || 0), 0);
+const tuneOut = { v: 1, updatedAt: scoreOut.updatedAt, items: enSnap.items.map((i) => (i.id >>> 0).toString(36)), heroes: {} };
 for (let i = 0; i < enSnap.heroes.length; i += 6) {
   await Promise.all(enSnap.heroes.slice(i, i + 6).map(async (h) => {
     try {
@@ -142,6 +149,13 @@ for (let i = 0; i < enSnap.heroes.length; i += 6) {
           matches: hs ? hs.matches : 0,
           items: itemScores(stats, enSnap.items),
         };
+        try {
+          const heroBuilds = await fetchJson(`${BUILD_STATS}?hero_id=${h.id}&min_last_updated_unix_timestamp=${buildsSince}`).catch(() => null);
+          tuneOut.heroes[h.id] = tuneHero({
+            items: enSnap.items, heroItems: stats, globalItems: globalStats, heroBuilds, globalBuilds,
+            heroMatches: hs ? hs.matches : 0, globalMatches, wr: scoreOut.heroes[h.id].items,
+          });
+        } catch (e) { console.warn(`  ${h.name}: подкрутка не посчитана (${e.message})`); }
       }
       bansFound += h.banned.length;
       if (h.banned.length) console.log(`  ${h.name}: нельзя купить ${h.banned.length} — ${h.banned.map((s) => enSnap.items.find((x) => x.slug === s).name).join(', ')}`);
@@ -154,6 +168,10 @@ console.log(`Запреты: ${bansFound} пар герой/предмет`);
 if (!statsFresh) {
   await writeFile(STATS_FILE, JSON.stringify(scoreOut));
   console.log(`Оценки предметов: ${Object.keys(scoreOut.heroes).length} героев`);
+  if (Object.keys(tuneOut.heroes).length >= 10) {
+    await writeFile(TUNE_FILE, JSON.stringify(tuneOut));
+    console.log(`Подкрутка псевдо-рандома: ${Object.keys(tuneOut.heroes).length} героев`);
+  }
 } else {
   console.log('Оценки предметов: свежие (моложе 20 ч), пропускаю');
 }

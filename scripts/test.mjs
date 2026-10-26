@@ -5,6 +5,11 @@ import { roll, DEFAULTS, encodeResult, decodeResult, rollSkillOrder, rng, ultInd
 const stats = JSON.parse(await readFile(new URL('../public/data/stats.json', import.meta.url), 'utf8'));
 
 const data = JSON.parse(await readFile(new URL('../public/data/ru.json', import.meta.url), 'utf8'));
+const plain = JSON.parse(JSON.stringify(data)); // без подкрутки — для сравнения
+const { attachTune } = await import('../public/js/normalize.js');
+let tune = null;
+try { tune = JSON.parse(await readFile(new URL('../public/data/tune.json', import.meta.url), 'utf8')); } catch {}
+attachTune(data, tune);
 const bySlug = Object.fromEntries(data.items.map((i) => [i.slug, i]));
 
 function deep(i, seen = new Set()) {
@@ -21,6 +26,9 @@ const variants = [
   { ...DEFAULTS, actives: 4 },
   { ...DEFAULTS, actives: 0 },
   { ...DEFAULTS, order: 'pseudo' },
+  { ...DEFAULTS, order: 'pseudo', mode: 'balanced', actives: 3 },
+  { ...DEFAULTS, order: 'pseudo', mode: 'mono' },
+  { ...DEFAULTS, order: 'chaos' },
   { ...DEFAULTS, order: 'phases' },
   { ...DEFAULTS, order: 'phases', mode: 'balanced', actives: 4 },
 ];
@@ -120,5 +128,28 @@ for (let k = 0; k < 300; k++) {
 }
 assert.ok(early < 0, 'псевдо: в начале дешевле, чем в конце');
 assert.ok(inversions > 0, 'псевдо: порядок не строго по цене');
+
+// скрытая подкрутка псевдо-рандома
+if (tune) {
+  const withTune = data.heroes.filter((h) => h.tune && h.tune.w.size).length;
+  assert.ok(withTune >= data.heroes.length - 3, `подкрутка есть почти у всех героев (${withTune}/${data.heroes.length})`);
+  // полный рандом от подкрутки не зависит — те же сборки, что и без неё
+  for (let k = 0; k < 200; k++) {
+    const o = { ...DEFAULTS, order: 'chaos' };
+    assert.deepEqual(roll(data, o, 'c' + k).build.map((i) => i.id), roll(plain, o, 'c' + k).build.map((i) => i.id), 'полный рандом не изменился');
+  }
+  // псевдо-рандом заметно чаще выдаёт «родные» герою предметы, но остаётся разнообразным
+  const fit = (o) => {
+    let s = 0, n = 0; const seen = new Set();
+    for (let k = 0; k < 1500; k++) { const r = roll(data, o, 'f' + k); for (const i of r.build) { s += Math.log(r.hero.tune.w.get(i.id >>> 0) || 1); n++; seen.add(r.hero.id + ':' + i.id); } }
+    return { avg: s / n, variety: seen.size };
+  };
+  const a = fit({ ...DEFAULTS, order: 'chaos' }), b = fit({ ...DEFAULTS, order: 'pseudo' });
+  assert.ok(b.avg > a.avg + 0.3, `псевдо ближе к герою (${b.avg.toFixed(2)} против ${a.avg.toFixed(2)})`);
+  assert.ok(b.variety > a.variety * 0.75, `псевдо остаётся разнообразным (${b.variety} против ${a.variety})`);
+  // дорогой предмет может выпасть в 1–2 слот
+  let t4 = 0; for (let k = 0; k < 1000; k++) if (roll(data, { ...DEFAULTS, order: 'pseudo' }, 't' + k).build.slice(0, 2).some((i) => i.tier === 4)) t4++;
+  assert.ok(t4 > 30 && t4 < 400, `T4 в 1–2 слоте: ${t4} из 1000`);
+}
 
 console.log(`OK: ${n} роллов. Пример: ${ex.hero.name} / ${ex.build.map((i) => i.name).join(', ')}`);

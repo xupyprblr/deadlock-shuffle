@@ -21,6 +21,8 @@ for (const p of paths) {
   try { img[p] = 'data:image/webp;base64,' + (await readFile(pub(p))).toString('base64'); } catch {}
 }
 const stats = JSON.parse(await readFile(pub('data/stats.json'), 'utf8'));
+let tune = null;
+try { tune = JSON.parse(await readFile(pub('data/tune.json'), 'utf8')); } catch {}
 const css = await readFile(pub('css/styles.css'), 'utf8');
 const js = [await readFile(pub('js/normalize.js'), 'utf8'), await readFile(pub('js/random.js'), 'utf8'), await readFile(pub('js/buildcode.js'), 'utf8'), await readFile(pub('js/app.js'), 'utf8')].map(strip).join('\n');
 const json = (o) => JSON.stringify(o).replace(/</g, '\\u003c');
@@ -35,6 +37,7 @@ window.DS_CONFIG = { live: false };
 window.DS_SNAPSHOT = { ru: ${json(ru)}, en: ${json(en)} };
 window.DS_IMG = ${json(img)};
 window.DS_STATS = ${json(stats)};
+window.DS_TUNE = ${json(tune)};
 </script>
 <script type="module">
 ${js}

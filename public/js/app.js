@@ -1,5 +1,5 @@
 import { encodeBuildCode, CATEGORY_KEYS } from './buildcode.js';
-import { buildSnapshot, fetchRawLite, fetchHeroAbilities, normalizeAbility, latestPatch, applyEnglishNames, isNewHero, SCHEMA, API, PATCHES } from './normalize.js';
+import { buildSnapshot, fetchRawLite, fetchHeroAbilities, normalizeAbility, latestPatch, applyEnglishNames, isNewHero, attachTune, SCHEMA, API, PATCHES } from './normalize.js';
 import { roll, rng, newSeed, DEFAULTS, rollItem, orderBuild, PHASES, phaseOf, phaseTiers, buildCost, encodeResult, decodeResult, CATS, rollSkillOrder, ultIndexOf, rollHeroFor, scoreBuild, meterPos, MAX_ACTIVE } from './random.js';
 
 const CFG = Object.assign({ live: true, dataUrl: 'data/', cacheHours: 6 }, window.DS_CONFIG || {});
@@ -137,7 +137,21 @@ async function fetchJson(url) {
   return r.json();
 }
 
+// Служебные данные для псевдо-рандома (data/tune.json, раз в сутки). Без них псевдо-рандом
+// работает по-старому, поэтому ошибки загрузки молча игнорируем.
+let tunePromise = null;
+function loadTune() {
+  if (!tunePromise) {
+    tunePromise = window.DS_TUNE ? Promise.resolve(window.DS_TUNE)
+      : fetchJson(CFG.dataUrl + 'tune.json?v=' + Math.floor(Date.now() / 36e5)).catch(() => null);
+  }
+  return tunePromise;
+}
 async function loadData(lang) {
+  const [snap, tune] = await Promise.all([loadSnapshot(lang), loadTune()]);
+  return attachTune(snap, tune);
+}
+async function loadSnapshot(lang) {
   const inline = window.DS_SNAPSHOT && window.DS_SNAPSHOT[lang];
   if (inline) return inline;
   const cached = store.get('ds:data:' + lang, null);
@@ -178,8 +192,8 @@ async function liveCheck() {
     fresh.patch = state.data.patch;
     try { fresh.patch = latestPatch(await fetchJson(PATCHES)) || fresh.patch; } catch {}
     if (lang !== state.lang) return;
-    state.data = fresh;
     store.set('ds:data:' + lang, fresh);
+    state.data = attachTune(fresh, await loadTune());
     renderTop(); renderOpts();
     toast(t('updated'));
   } catch {
@@ -515,7 +529,7 @@ function orderFor(res, mode) {
   res.orders = res.orders || {};
   if (!res.orders[mode]) {
     const base = res.build.slice().sort((a, b) => (a.id >>> 0) - (b.id >>> 0)); // не зависит от текущего порядка
-    res.orders[mode] = orderBuild(rng(String(res.seed) + ':order:' + mode), base, mode);
+    res.orders[mode] = orderBuild(rng(String(res.seed) + ':order:' + mode), base, mode, res.hero);
   }
   return res.orders[mode];
 }

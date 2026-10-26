@@ -267,3 +267,66 @@ export async function fetchHeroAbilities(fetchJson, lang, heroId) {
   const list = await fetchJson(`${API}/items/by-hero-id/${heroId}?language=${l}`);
   return (list || []).filter((i) => i.type === 'ability');
 }
+
+// ---------- Псевдо-рандом: скрытая подкрутка под героя ----------
+// Для каждой пары «герой + предмет» считаем:
+//  • вес w — насколько предмет «родной» герою: лифт покупок (как часто берут на этом герое
+//    относительно всех героев), лифт в опубликованных сборках героя и поправка на винрейт;
+//  • t — когда его обычно покупают на этом герое (доля матча).
+// Храним компактно: по символу base36 на предмет, порядок предметов — tune.items.
+export const TUNE_Z = [-2.5, 1.8]; // диапазон «логарифма веса»: от ×0,08 до ×6
+export const TUNE_MIX = { buy: 0.55, builds: 0.3, wr: 8 }; // wr: +1 п.п. винрейта (wr = 10) → +0,08 к z
+const B36 = '0123456789abcdefghijklmnopqrstuvwxyz';
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+export const encZ = (z) => B36[Math.round(((clamp(z, TUNE_Z[0], TUNE_Z[1]) - TUNE_Z[0]) / (TUNE_Z[1] - TUNE_Z[0])) * 35)];
+export const decZ = (c) => TUNE_Z[0] + (B36.indexOf(c) / 35) * (TUNE_Z[1] - TUNE_Z[0]);
+export const encT = (t) => B36[Math.round(clamp(t, 0, 1) * 35)];
+export const decT = (c) => B36.indexOf(c) / 35;
+
+export function tuneZ({ n, N, ng, Ng, b, B, bg, Bg, wr }) {
+  // сглаживание: редкие предметы и малые выборки тянем к «нейтрально» (лифт 1)
+  const expBuy = N * (ng / Math.max(1, Ng));
+  const buyLift = (n + 40) / (expBuy + 40);
+  const expB = B * (bg / Math.max(1, Bg));
+  const bLift = B > 0 ? (b + 8) / (expB + 8) : 1;
+  return TUNE_MIX.buy * Math.log(buyLift) + TUNE_MIX.builds * Math.log(bLift) + (wr || 0) / 1000 * TUNE_MIX.wr;
+}
+
+// heroItems — item-stats героя, globalItems — item-stats всех героев, heroBuilds/globalBuilds — build-item-stats,
+// heroMatches/globalMatches — матчей героя / всех героев (из hero-stats), wr — itemScores героя (×1000)
+export function tuneHero({ items, heroItems, globalItems, heroBuilds, globalBuilds, heroMatches, globalMatches, wr = {} }) {
+  const hi = new Map((heroItems || []).map((s) => [s.item_id >>> 0, s]));
+  const gi = new Map((globalItems || []).map((s) => [s.item_id >>> 0, s]));
+  const hb = new Map((heroBuilds || []).map((s) => [s.item_id >>> 0, s.builds || 0]));
+  const gb = new Map((globalBuilds || []).map((s) => [s.item_id >>> 0, s.builds || 0]));
+  const B = [...hb.values()].reduce((a, v) => a + v, 0);
+  const Bg = [...gb.values()].reduce((a, v) => a + v, 0);
+  let w = '', t = '';
+  for (const it of items) {
+    const id = it.id >>> 0;
+    const h = hi.get(id), g = gi.get(id);
+    if (!heroMatches || !g) { w += '-'; t += '-'; continue; }
+    w += encZ(tuneZ({ n: h ? h.matches : 0, N: heroMatches, ng: g.matches, Ng: globalMatches, b: hb.get(id) || 0, B, bg: gb.get(id) || 0, Bg, wr: wr[id] }));
+    const rel = h && h.matches >= 200 ? h.avg_buy_time_relative : g.avg_buy_time_relative;
+    t += rel == null ? '-' : encT(rel / 100);
+  }
+  return { w, t };
+}
+
+// Раскладываем tune.json по героям снимка: hero.tune = { w: Map(id → множитель), t: Map(id → доля матча) }
+export function attachTune(data, tune) {
+  if (!data || !tune || !tune.items || !tune.heroes) return data;
+  const ids = tune.items.map((s) => parseInt(s, 36) >>> 0);
+  for (const h of data.heroes) {
+    const row = tune.heroes[h.id];
+    if (!row) { h.tune = null; continue; }
+    const w = new Map(), t = new Map();
+    ids.forEach((id, k) => {
+      const cw = row.w[k], ct = row.t[k];
+      if (cw && cw !== '-') w.set(id, Math.exp(decZ(cw)));
+      if (ct && ct !== '-') t.set(id, decT(ct));
+    });
+    h.tune = { w, t };
+  }
+  return data;
+}

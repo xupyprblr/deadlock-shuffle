@@ -462,3 +462,34 @@ footer { padding-block: 26px 44px; color: var(--muted); font-size: 13px; border-
 #foot .lab-link { margin-right: 12px; text-decoration: none; }
 #foot .lab-sub { color: var(--muted); font-size: 13px; }
 #foot p { margin: 16px 0 0; }
+
+/* --- Соцсети и «Поддержать» в шапке --- */
+.top-side { display: grid; gap: 10px; justify-items: end; }
+.social { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.soc {
+  --sc: var(--fg);
+  display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px 5px 9px; text-decoration: none;
+  border: 2px solid var(--line); background: rgba(0,0,0,.35); color: var(--fg);
+  font: 900 12px/1 var(--f-tag); text-transform: uppercase; letter-spacing: .02em;
+  transition: border-color .15s, color .15s, transform .15s;
+}
+.soc .ico { width: 17px; height: 17px; color: var(--sc); flex: none; }
+.soc:hover { border-color: var(--sc); color: var(--sc); transform: translateY(-2px); }
+.soc-yt { --sc: #ff4e45; }
+.soc-tw { --sc: #a970ff; }
+.soc-tg { --sc: #4fb4ec; }
+.soc-donate {
+  --sc: var(--ink); background: var(--orange); border-color: var(--ink); color: var(--ink);
+  transform: rotate(-2deg); box-shadow: 3px 3px 0 var(--ink); padding-inline: 12px 14px;
+}
+.soc-donate .ico { color: var(--ink); animation: beat 2.4s ease-in-out infinite; }
+.soc-donate:hover { background: var(--yellow); color: var(--ink); border-color: var(--ink); transform: rotate(-2deg) translateY(-2px); }
+@keyframes beat { 0%, 70%, 100% { transform: scale(1); } 78% { transform: scale(1.25); } 86% { transform: scale(.95); } 92% { transform: scale(1.15); } }
+@media (max-width: 760px) {
+  .top-side { justify-items: start; width: 100%; }
+  .social { justify-content: flex-start; }
+}
+@media (max-width: 420px) {
+  .soc { padding: 6px 8px 5px 7px; font-size: 11px; gap: 5px; }
+  .soc .ico { width: 15px; height: 15px; }
+}

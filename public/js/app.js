@@ -42,6 +42,7 @@ const I18N = {
       'Герои, предметы, иконки и номер патча подтягиваются автоматически из открытого <a href="https://deadlock-api.com" target="_blank" rel="noopener">Deadlock API</a>. Сайт сам замечает новую версию игры и обновляет список — новые герои и предметы появляются без ручной правки.',
       'Ссылка «Ссылка» сохраняет конкретный результат: друг увидит ровно ту же сборку.',
     ],
+    socialT: 'Каналы podvalni akrobat', donate: 'Поддержать',
     labLink: 'Лаборатория', labSub: 'сборки игроков, рандом билд и сравнение',
     legal: 'Фанатский проект. Deadlock и все игровые материалы принадлежат Valve Corporation. Сайт не связан с Valve.',
     copyHead: 'RANDOMLOCK', copySkills: 'Прокачка', empty: 'Под эти правила не подошёл ни один герой — сброшу фильтр.',
@@ -82,6 +83,7 @@ const I18N = {
       'Heroes, items, icons and the patch number come straight from the open <a href="https://deadlock-api.com" target="_blank" rel="noopener">Deadlock API</a>. The site notices new game versions on its own, so new heroes and items show up without manual edits.',
       'The Link button saves this exact result, so a friend sees the same build.',
     ],
+    socialT: 'podvalni akrobat channels', donate: 'Support',
     labLink: 'Lab', labSub: 'player builds, random build and compare (in Russian)',
     legal: 'Fan project. Deadlock and all game assets belong to Valve Corporation. Not affiliated with Valve.',
     copyHead: 'RANDOMLOCK', copySkills: 'Ability order', empty: 'No hero matches these rules, resetting the filter.',
@@ -381,12 +383,18 @@ function renderTop() {
   const when = d.fetchedAt ? new Date(d.fetchedAt).toLocaleDateString(state.lang === 'ru' ? 'ru-RU' : 'en-US') : '';
   document.getElementById('top').innerHTML = `
     <a class="brand" href="./" aria-label="RANDOMLOCK by podvalni akrobat"><b>Random<em>lock</em></b><span class="tag">by podvalni akrobat</span></a>
+    <div class="top-side">
+    <nav class="social" aria-label="${t('socialT')}">
+      ${SOCIAL.map((x) => `<a class="soc soc-${x.k}" href="${x.url}" target="_blank" rel="noopener">${ICON[x.icon]}<span>${x.name}</span></a>`).join('')}
+      <a class="soc soc-donate" href="${DONATE}" target="_blank" rel="noopener">${ICON.heart}<span>${t('donate')}</span></a>
+    </nav>
     <div class="top-meta">
       <span class="patch"><i class="dot ${state.live ? '' : 'stale'}"></i>${p ? `${t('patch')} <a href="${esc(p.link)}" target="_blank" rel="noopener">${esc(p.title)}</a> · ` : ''}${state.live ? t('fresh') : `${t('stale')} ${when}`}</span>
       <span class="seg" role="group" aria-label="Language">
         <button data-act="lang" data-v="ru" aria-pressed="${state.lang === 'ru'}">RU</button>
         <button data-act="lang" data-v="en" aria-pressed="${state.lang === 'en'}">EN</button>
       </span>
+    </div>
     </div>`;
 }
 
@@ -536,6 +544,14 @@ function orderFor(res, mode) {
   return res.orders[mode];
 }
 
+// ---------- соцсети podvalni akrobat ----------
+const SOCIAL = [
+  { k: 'yt', name: 'YouTube', icon: 'video', url: 'https://www.youtube.com/@podvalni_akrobat' },
+  { k: 'tw', name: 'Twitch', icon: 'live', url: 'https://www.twitch.tv/podvalni_akrobat' },
+  { k: 'tg', name: 'Telegram', icon: 'chat', url: 'https://t.me/podvalni_akrobat' },
+];
+const DONATE = 'https://www.donationalerts.com/r/podvalni_akrobat';
+
 // ---------- иконки кнопок (inline SVG, цвет — currentColor) ----------
 const svg = (d) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const ICON = {
@@ -543,6 +559,10 @@ const ICON = {
   mask: svg('<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>'),
   cards: svg('<rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/>'),
   game: svg('<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v3h16v-3"/>'),
+  video: svg('<rect x="2.5" y="5" width="19" height="14" rx="4"/><path d="m10 9.2 5 2.8-5 2.8z" fill="currentColor"/>'),
+  live: svg('<circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M8 8a5.6 5.6 0 0 0 0 8M16 8a5.6 5.6 0 0 1 0 8M5.2 5.2a9.6 9.6 0 0 0 0 13.6M18.8 5.2a9.6 9.6 0 0 1 0 13.6"/>'),
+  chat: svg('<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>'),
+  heart: svg('<path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.3 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z" fill="currentColor"/>'),
   flask: svg('<path d="M9 3h6"/><path d="M10 3v6L4.5 18.5A1.7 1.7 0 0 0 6 21h12a1.7 1.7 0 0 0 1.5-2.5L14 9V3"/><path d="M7 15h10"/>'),
   link: svg('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'),
 };

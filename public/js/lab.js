@@ -48,6 +48,7 @@ function classify(rows, base) {
 const root = document.getElementById('lab');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = (n) => Number(n || 0).toLocaleString('ru-RU');
+const num = (v) => (Number.isFinite(+v) ? Math.trunc(+v) : 0); // числовые поля из API — только числа
 const pct = (v, d = 1) => (v * 100).toFixed(d).replace('.', ',') + '%';
 const pp = (v) => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v * 100).toFixed(1).replace('.', ',');
 const day = (t) => (t ? new Date(t * 1000).toLocaleDateString('ru-RU') : '—');
@@ -137,12 +138,17 @@ function api(path, params = {}) {
 const getBuild = (id) => api('/builds', { build_id: id, only_latest: 'true' }).then((r) => (r && r[0] ? r[0].hero_build : null));
 // Свежая версия прямо из игры: база API обновляет сборки с опозданием (бывает на месяцы).
 // Лимит этого запроса — 20/мин с IP, поэтому только для открытых карточек, кэш на час, без долгих повторов.
+// Не больше 12 таких запросов за открытие страницы: общий лимит API — 500/мин на всех,
+// при наплыве зрителей не хотим выбрать его в одиночку (дальше — версия из базы).
+let refetchBudget = 12;
 async function getFreshBuild(id) {
   const old = await getBuild(id);
   if (!old) return null;
-  const key = `${API}/builds/${old.hero_id}/${id}?force_refetch=true`;
+  const key = `${API}/builds/${num(old.hero_id)}/${num(id)}?force_refetch=true`;
   const stored = storeGet(key);
   if (stored !== undefined) return stored;
+  if (refetchBudget <= 0) return old;
+  refetchBudget--;
   try {
     const r = await fetch(key);
     if (!r.ok) return old;
@@ -248,7 +254,7 @@ function heroOut() {
         return `<tr>
           <td class="n muted">${i + 1}</td>
           <td><div class="b-name">${r.kind === 'gem' ? '<span class="kind gem">Самородок</span>' : r.kind === 'anom' ? '<span class="kind anom">Аномалия</span>' : ''}${b ? esc(b.name || 'Без названия') : `<span class="muted">загрузка…</span>`}</div>
-              <div class="b-meta">${idBtn(r.id)}${b ? ` · v${b.version} · обновлена ${day(b.last_updated_timestamp)}` : ''}</div></td>
+              <div class="b-meta">${idBtn(r.id)}${b ? ` · v${esc(b.version)} · обновлена ${day(b.last_updated_timestamp)}` : ''}</div></td>
           <td class="n">${fmt(r.matches)}</td>
           <td class="n">${fmt(r.players)}</td>
           <td class="n wr">${pct(r.wr)}</td>
@@ -272,7 +278,7 @@ async function loadHero() {
       heroBase(hid, state.days, state.badge),
     ]);
     if (hid !== state.heroId) return;
-    const rows = (stats || []).map((x) => ({ id: x.hero_build_id, matches: x.matches, players: x.players, wins: x.wins, wr: x.wins / x.matches, ci: wilson(x.wins, x.matches), build: null }));
+    const rows = (stats || []).map((x) => ({ id: num(x.hero_build_id), matches: x.matches, players: x.players, wins: x.wins, wr: x.wins / x.matches, ci: wilson(x.wins, x.matches), build: null }));
     const { cut } = classify(rows, base);
     state.rows = { rows, base, cut, total: rows.reduce((a, r) => a + r.matches, 0) };
     state.loading = false;
@@ -438,7 +444,7 @@ async function rollRandomBuild() {
     let found = null, poolSize = 0;
     for (const h of heroes) {
       const rows = (await api(`/analytics/hero-build-stats/${h.id}`, { min_unix_timestamp: since(RND.days), min_matches: RND.minMatches })) || [];
-      const pool = rows.map((x) => ({ id: x.hero_build_id, matches: x.matches, players: x.players, wr: x.wins / x.matches }))
+      const pool = rows.map((x) => ({ id: num(x.hero_build_id), matches: x.matches, players: x.players, wr: x.wins / x.matches }))
         .filter((r) => r.players >= RND.minPlayers && inWr(r.wr, rnd.wr));
       poolSize = pool.length;
       // сначала ещё не показанные
@@ -545,7 +551,7 @@ const CAT_NAMES = { '#Citadel_HeroBuilds_EarlyGame': 'Ранний этап', '#
 
 function itemTile(m) {
   const it = itemById[m.ability_id >>> 0];
-  const name = it ? it.name : `#${m.ability_id}`;
+  const name = it ? it.name : `#${num(m.ability_id)}`;
   const cls = it ? `${it.cat} t${it.tier}${it.active ? ' act' : ''}` : 'unk';
   const tip = `${name}${it ? ` · ${it.tier} тир${it.active ? ' · активный' : ''}` : ''}${m.annotation ? ' — ' + m.annotation : ''}`;
   return `<div class="g-item ${cls}" title="${esc(tip)}">
@@ -631,10 +637,10 @@ function buildCard(c, mode) {
       <div class="g-title">
         <h2>${esc(b.name || 'Без названия')}</h2>
         <div class="g-sub">
-          <span>Версия: ${b.version}</span>
+          <span>Версия: ${esc(b.version)}</span>
           <button class="g-id" data-copy-id="${c.id}" title="Нажми, чтобы скопировать">ID сборки: <u>${c.id}</u></button>
         </div>
-        <div class="g-upd">Последнее обновление: ${esc(fullDate(b.last_updated_timestamp))}${b.origin_build_id ? ` · копия ${idBtn(b.origin_build_id)}` : ''}</div>
+        <div class="g-upd">Последнее обновление: ${esc(fullDate(b.last_updated_timestamp))}${num(b.origin_build_id) ? ` · копия ${idBtn(num(b.origin_build_id))}` : ''}</div>
       </div>
     </header>
     <div class="g-actions">

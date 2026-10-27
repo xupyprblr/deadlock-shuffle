@@ -53,8 +53,11 @@ async function exists(p) {
 // Скачивает картинку один раз и возвращает локальный путь (относительно public/)
 async function mirror(url) {
   if (!url || !url.startsWith('http')) return url;
-  const rel = url.split('/assets-api-res/')[1] || path.basename(new URL(url).pathname);
-  const file = path.join(ICON_DIR, rel);
+  let rel;
+  try { rel = decodeURIComponent(new URL(url).pathname).split('/assets-api-res/')[1] || path.basename(new URL(url).pathname); } catch { return url; }
+  const file = path.resolve(ICON_DIR, rel);
+  // защита от подмены данных API: файл только внутри public/icons и только картинка
+  if (!file.startsWith(ICON_DIR + path.sep) || !/\.(webp|png|jpe?g|svg|gif)$/i.test(file)) return url;
   if (!(await exists(file))) {
     for (let i = 0; i < 3; i++) {
       try {

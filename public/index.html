@@ -2,6 +2,8 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com https://mc.yandex.ru https://yastatic.net; connect-src 'self' https://api.deadlock-api.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://mc.yandex.ru https://mc.yandex.com; img-src 'self' data: https://assets-bucket.deadlock-api.com https://*.google-analytics.com https://www.googletagmanager.com https://mc.yandex.ru https://mc.yandex.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; frame-src https://mc.yandex.ru https://mc.yandex.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>RANDOMLOCK by podvalni akrobat — случайный герой и сборка для Deadlock</title>
   <meta name="description" content="Рандомайзер для Deadlock: случайный герой, линия, 12 предметов и порядок прокачки способностей. Данные обновляются автоматически после каждого патча.">
@@ -19,10 +21,7 @@
   <link rel="preconnect" href="https://assets-bucket.deadlock-api.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:wght@800&family=Jost:wght@400;500;600&family=Rubik:wght@700;900&display=swap">
   <link rel="stylesheet" href="css/styles.css">
-  <script>
-    // Настройки сайта. live=true — браузер сам проверяет свежую версию игры в API.
-    window.DS_CONFIG = { live: true, dataUrl: 'data/' };
-  </script>
+  <script src="js/config.js"></script>
 </head>
 <body>
   <div id="app" class="wrap"><div class="loading">Загружаю героев и предметы…</div></div>

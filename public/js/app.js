@@ -131,6 +131,8 @@ const t = (k) => (I18N[state.lang] || I18N.ru)[k] ?? k;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // В демо-сборке картинки встроены в страницу (window.DS_IMG), на сайте — обычные пути
 const src = (p) => (p && window.DS_IMG && window.DS_IMG[p]) || p || '';
+// внешние ссылки из API — только http(s), чтобы подменённые данные не могли подсунуть javascript:
+const safeUrl = (u) => { try { const x = new URL(String(u)); return x.protocol === 'https:' || x.protocol === 'http:' ? x.href : ''; } catch { return ''; } };
 // «Слово в [скобках]» -> выделенная плашка, как «updated» на официальной странице
 const hl = (s) => esc(s).replace(/\[(.+?)\]/g, '<mark>$1</mark>');
 const fmt = (n) => Number(n || 0).toLocaleString(state.lang === 'ru' ? 'ru-RU' : 'en-US');
@@ -393,7 +395,7 @@ function renderTop() {
       <a class="soc soc-donate" href="${DONATE}" target="_blank" rel="noopener" data-track="donate" data-track-v="header">${ICON.heart}<span>${t('donate')}</span></a>
     </nav>
     <div class="top-meta">
-      <span class="patch"><i class="dot ${state.live ? '' : 'stale'}"></i>${p ? `${t('patch')} <a href="${esc(p.link)}" target="_blank" rel="noopener">${esc(p.title)}</a> · ` : ''}${state.live ? t('fresh') : `${t('stale')} ${when}`}</span>
+      <span class="patch"><i class="dot ${state.live ? '' : 'stale'}"></i>${p ? `${t('patch')} ${safeUrl(p.link) ? `<a href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener">${esc(p.title)}</a>` : esc(p.title)} · ` : ''}${state.live ? t('fresh') : `${t('stale')} ${when}`}</span>
       <span class="seg" role="group" aria-label="Language">
         <button data-act="lang" data-v="ru" aria-pressed="${state.lang === 'ru'}">RU</button>
         <button data-act="lang" data-v="en" aria-pressed="${state.lang === 'en'}">EN</button>
@@ -504,9 +506,15 @@ function kick(sel) {
 }
 // иконки всех предметов заранее в кэш браузера — чтобы «барабан» не мигал пустыми плитками
 let pooled = false;
+const REEL_SIZE = 20;
+let reelPool = [];
 function preloadIcons() {
   if (pooled || !state.data) return; pooled = true;
-  const go = () => state.data.items.forEach((i) => { if (i.icon) { const im = new Image(); im.decoding = 'async'; im.src = src(i.icon); } });
+  // под размытием барабана хватает 20 иконок: грузим только их (все 156 — это 3,5 МБ трафика на каждого нового зрителя)
+  const all = state.data.items.filter((i) => i.icon);
+  for (let k = all.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [all[k], all[j]] = [all[j], all[k]]; }
+  reelPool = all.slice(0, REEL_SIZE);
+  const go = () => reelPool.forEach((i) => { const im = new Image(); im.decoding = 'async'; im.src = src(i.icon); });
   (window.requestIdleCallback || ((f) => setTimeout(f, 600)))(go);
 }
 // «Барабан»: каждая плитка прокручивает случайные иконки и останавливается по очереди, 1 → 12
@@ -516,7 +524,7 @@ function spinSlots() {
   const slots = [...document.querySelectorAll('#stage .slot')];
   if (!slots.length) return;
   if (reduceMotion() || !pooled) return; // при первой загрузке — только раздача, иконки ещё не в кэше
-  const pool = state.data.items.filter((i) => i.icon);
+  const pool = reelPool.length ? reelPool : state.data.items.filter((i) => i.icon);
   slots.forEach((el, i) => {
     const img = el.querySelector('.slot-tile img');
     const fin = img && img.getAttribute('src');

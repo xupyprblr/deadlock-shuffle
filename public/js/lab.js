@@ -2,6 +2,7 @@
 // Все данные — напрямую из Deadlock API в браузере (CORS открыт).
 import { encodeBuildCode } from './buildcode.js';
 import { initAnalytics, track } from './analytics.js';
+import { NS, markDev } from './env.js';
 
 const API = 'https://api.deadlock-api.com/v1';
 const DAY = 86400;
@@ -79,7 +80,7 @@ function limited(fn) {
 // Кэш в браузере на час: повторный просмотр той же сборки или героя не тратит запросы к API.
 // localStorage может быть недоступен (приватный режим, переполнение) — тогда работаем без него.
 const STORE_TTL = HOUR * 1000;
-const STORE_PREFIX = 'lab:api:';
+const STORE_PREFIX = NS + 'lab:api:';
 function storeGet(key) {
   try {
     const raw = localStorage.getItem(STORE_PREFIX + key);
@@ -298,7 +299,7 @@ async function loadHero() {
 
 // ---------- сравнение: список ID ----------
 const CMP_MAX = 6;
-const CMP_KEY = 'lab:compare';
+const CMP_KEY = NS + 'lab:compare';
 function loadCompare() {
   try { const v = JSON.parse(localStorage.getItem(CMP_KEY) || '[]'); return Array.isArray(v) ? v.map(Number).filter((n) => n > 0).slice(0, CMP_MAX) : []; } catch { return []; }
 }
@@ -736,6 +737,7 @@ root.addEventListener('submit', (e) => {
 
 // ---------- старт ----------
 (async function boot() {
+  markDev();
   initAnalytics('lab');
   try {
     D = await fetch('../data/ru.json').then((r) => r.json());

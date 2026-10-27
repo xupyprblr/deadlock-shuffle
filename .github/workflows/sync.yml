@@ -2,6 +2,11 @@
 #  • каждые 20 минут — быстрый сторож (scripts/watch.mjs): версия игры + список героев.
 #    Если вышел патч или новый герой — сразу полная синхронизация и деплой;
 #  • каждые 3 часа — полная синхронизация в любом случае (предметы, запреты, картинки).
+# Два окружения в одном сайте Pages:
+#  • main → https://randomlock.com/       (основной)
+#  • dev  → https://randomlock.com/dev/   (тестовый, ветка dev; данные — свежие из main)
+# Публикует всегда запуск от main (правила окружения github-pages). Пуш в dev прогоняет тесты dev-кода
+# и, если они прошли, запускает пересборку от main.
 name: sync-and-deploy
 
 on:
@@ -10,20 +15,37 @@ on:
     - cron: '17 */3 * * *'
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths-ignore: ['README.md']
 
 permissions:
   contents: write
   pages: write
   id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
+  actions: write
 
 jobs:
+  dev-check:
+    if: github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Тесты ветки dev
+        run: node scripts/test.mjs
+      - name: Пересобрать сайт (main + dev) от main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run sync-and-deploy --ref main -R "$GITHUB_REPOSITORY"
+
+
   sync:
+    if: github.ref == 'refs/heads/main'
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     outputs:
       deploy: ${{ steps.decide.outputs.deploy }}
@@ -80,6 +102,22 @@ jobs:
             echo "deploy=yes" >> "$GITHUB_OUTPUT"
           else
             echo "deploy=no" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Собрать тестовый сайт /dev/ из ветки dev
+        if: steps.decide.outputs.deploy == 'yes'
+        run: |
+          if git ls-remote --exit-code --heads origin dev >/dev/null; then
+            git fetch --depth 1 origin dev
+            git worktree add ../devsrc FETCH_HEAD
+            mkdir -p public/dev
+            cp -r ../devsrc/public/. public/dev/
+            # данные и картинки — свежие из main (бот обновляет их только в main)
+            cp -r public/data/. public/dev/data/
+            cp -r public/icons/. public/dev/icons/ 2>/dev/null || true
+            rm -f public/dev/robots.txt public/dev/sitemap.xml
+            echo "dev: $(git -C ../devsrc log -1 --format='%h %s')" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Ветки dev нет — публикую только основной сайт"
           fi
       - uses: actions/upload-pages-artifact@v3
         if: steps.decide.outputs.deploy == 'yes'

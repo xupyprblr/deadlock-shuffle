@@ -493,3 +493,22 @@ footer { padding-block: 26px 44px; color: var(--muted); font-size: 13px; border-
   .soc { padding: 6px 8px 5px 7px; font-size: 11px; gap: 5px; }
   .soc .ico { width: 15px; height: 15px; }
 }
+
+/* --- Плашка cookies (только основной сайт) --- */
+.cookie-bar {
+  position: fixed; left: 16px; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 65; margin: 0 auto; max-width: 860px;
+  display: flex; align-items: center; gap: 14px 20px; flex-wrap: wrap; justify-content: space-between;
+  background: var(--bg-2); border: 2px solid var(--fg); box-shadow: 6px 6px 0 var(--ink); padding: 14px 16px;
+  animation: deal .35s cubic-bezier(.2,.8,.3,1.2); transition: opacity .25s, transform .25s;
+}
+.cookie-bar.hide { opacity: 0; transform: translateY(12px); }
+.cookie-bar p { margin: 0; flex: 1 1 360px; font-size: 14px; color: var(--fg); }
+.cookie-btns { display: flex; gap: 10px; flex: none; }
+@media (max-width: 640px) { .cookie-btns { width: 100%; } .cookie-btns .btn { flex: 1; justify-content: center; } }
+
+/* --- Метка тестового сайта (/dev/) --- */
+.dev-ribbon {
+  position: fixed; top: 14px; left: -38px; z-index: 80; width: 140px; padding: 5px 0 4px; text-align: center;
+  background: var(--yellow); color: var(--ink); font: 900 13px/1 var(--f-tag); letter-spacing: .12em;
+  transform: rotate(-45deg); box-shadow: 0 2px 0 var(--ink); pointer-events: none;
+}

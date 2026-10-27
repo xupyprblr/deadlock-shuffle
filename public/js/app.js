@@ -1,5 +1,6 @@
 import { encodeBuildCode, CATEGORY_KEYS } from './buildcode.js';
 import { initAnalytics, track } from './analytics.js';
+import { NS, markDev } from './env.js';
 import { buildSnapshot, fetchRawLite, fetchHeroAbilities, normalizeAbility, latestPatch, applyEnglishNames, isNewHero, attachTune, SCHEMA, API, PATCHES } from './normalize.js';
 import { roll, rng, newSeed, DEFAULTS, rollItem, orderBuild, PHASES, phaseOf, phaseTiers, buildCost, encodeResult, decodeResult, CATS, rollSkillOrder, ultIndexOf, rollHeroFor, scoreBuild, meterPos, MAX_ACTIVE } from './random.js';
 
@@ -95,8 +96,9 @@ const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V'];
 
 // ---------- storage ----------
 const store = {
-  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
-  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  // на тестовом сайте (/dev/) свои ключи, чтобы не портить настройки основного
+  get(k, d) { try { const v = localStorage.getItem(NS + k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(NS + k, JSON.stringify(v)); } catch {} },
 };
 
 // Язык браузера: русский для RU и соседних языков (часто знают русский), иначе английский
@@ -811,6 +813,7 @@ async function switchLang(lang) {
 
 // ---------- старт ----------
 async function boot() {
+  markDev();
   initAnalytics('roulette');
   try {
     state.data = await loadData(state.lang);

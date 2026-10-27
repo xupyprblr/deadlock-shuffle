@@ -1,4 +1,5 @@
 User-agent: *
 Allow: /
+Disallow: /dev/
 
 Sitemap: https://randomlock.com/sitemap.xml

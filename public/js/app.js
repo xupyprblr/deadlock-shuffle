@@ -572,6 +572,12 @@ const ICON = {
 };
 
 // ---------- код сборки для игры ----------
+// Название сборки в игре: RANDOMLOCK.COM - [оценка затара] - [дата], например «RANDOMLOCK.COM - 50,5% - 27.10.2026»
+function gameBuildName(sc) {
+  const d = new Date();
+  const date = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+  return ['RANDOMLOCK.COM', sc ? `${dec(sc.chance)}%` : null, date].filter(Boolean).join(' - ');
+}
 function gameCode() {
   const r = state.res;
   const order = state.opts.order || 'chaos';
@@ -584,7 +590,7 @@ function gameCode() {
   try {
     return encodeBuildCode({
       heroId: r.hero.id,
-      name: `RANDOMLOCK · ${r.hero.name}`,
+      name: gameBuildName(sc),
       desc,
       categories,
       abilityOrder: ab.length === 4 && ab.every((a) => a.id) ? r.skills : null,

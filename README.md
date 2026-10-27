@@ -160,3 +160,12 @@ DNS на Porkbun: `A` для корня → 185.199.108.153, 185.199.109.153, 18
   «родных» предметов 58% против 26% у полного рандома, на героя выпадает ~150 разных предметов из ~155,
   вердикты «Мета»/«Рабочая» — 83% (у полного рандома 39%), «Чистый троллинг» — 0,2% (у полного 10%).
 - Константы — `PSEUDO` в `random.js`, `TUNE_MIX`/`TUNE_Z` в `normalize.js`.
+
+## Аналитика
+
+`public/js/analytics.js` — Google Analytics 4 и/или Яндекс Метрика (карта кликов, Вебвизор). Включается заполнением
+`ANALYTICS.ga` (`G-…`) и/или `ANALYTICS.ym` (номер счётчика); пока пусто — ничего не загружается.
+
+События: `roll` (kind, src: button/space/setting, order, invest, hero, verdict, chance, actives), `reroll_slot`,
+`to_game` (from: button/howto/lab), `share_link`, `howto_open`, `setting` (name, value), `social`, `donate`, `lab_open`,
+`lab_tab`, `lab_hero`, `lab_open_build`, `lab_compare_add`, `lab_random` (hero, invest, wr, found), `lab_search_ids`.

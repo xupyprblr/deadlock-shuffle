@@ -1,4 +1,5 @@
 import { encodeBuildCode, CATEGORY_KEYS } from './buildcode.js';
+import { initAnalytics, track } from './analytics.js';
 import { buildSnapshot, fetchRawLite, fetchHeroAbilities, normalizeAbility, latestPatch, applyEnglishNames, isNewHero, attachTune, SCHEMA, API, PATCHES } from './normalize.js';
 import { roll, rng, newSeed, DEFAULTS, rollItem, orderBuild, PHASES, phaseOf, phaseTiers, buildCost, encodeResult, decodeResult, CATS, rollSkillOrder, ultIndexOf, rollHeroFor, scoreBuild, meterPos, MAX_ACTIVE } from './random.js';
 
@@ -224,7 +225,7 @@ async function ensureAbilities(hero) {
 }
 
 // ---------- рандом ----------
-function doRoll(kind = 'all') {
+function doRoll(kind = 'all', src = 'button') {
   const d = state.data;
   if (!d) return;
   const seed = newSeed();
@@ -245,6 +246,8 @@ function doRoll(kind = 'all') {
   state.heroIn = false;
   kick(kind === 'all' ? '#roll-btn' : `[data-act="${kind}"]`);
   scrollToStage();
+  const sc = state.stats ? scoreBuild(res.build, heroStats(res.hero)) : null;
+  track('roll', { kind, src, order: state.opts.order, invest: state.opts.mode, hero: res.hero.name, verdict: sc ? sc.verdict : '', chance: sc ? Math.round(sc.chance) : '', actives: res.build.filter((i) => i.active).length });
   renderSkills();
   ensureAbilities(res.hero);
 }
@@ -308,6 +311,7 @@ async function toGame() {
   // при нажатии — только короткое уведомление; подробная инструкция — по ссылке «Как вставить в игру?»
   const ok = await copy(code);
   toast(ok ? t('toGameDone') : t('toGameFail'));
+  track('to_game', { from: 'button', ok: ok ? 1 : 0, hero: state.res && state.res.hero.name, order: state.opts.order });
 }
 function openHow(copied) {
   closeHow();
@@ -350,7 +354,7 @@ document.addEventListener('click', async (e) => {
   if (!b) return;
   const a = b.dataset.how;
   if (a === 'close') closeHow();
-  else if (a === 'again') { const code = gameCode(); if (code && await copy(code)) toast(t('howCopied')); else toast(t('toGameFail')); }
+  else if (a === 'again') { const code = gameCode(); const ok = !!code && await copy(code); toast(ok ? t('howCopied') : t('toGameFail')); track('to_game', { from: 'howto', ok: ok ? 1 : 0, hero: state.res && state.res.hero.name }); }
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeHow(); });
 
@@ -385,8 +389,8 @@ function renderTop() {
     <a class="brand" href="./" aria-label="RANDOMLOCK by podvalni akrobat"><b>Random<em>lock</em></b><span class="tag">by podvalni akrobat</span></a>
     <div class="top-side">
     <nav class="social" aria-label="${t('socialT')}">
-      ${SOCIAL.map((x) => `<a class="soc soc-${x.k}" href="${x.url}" target="_blank" rel="noopener">${ICON[x.icon]}<span>${x.name}</span></a>`).join('')}
-      <a class="soc soc-donate" href="${DONATE}" target="_blank" rel="noopener">${ICON.heart}<span>${t('donate')}</span></a>
+      ${SOCIAL.map((x) => `<a class="soc soc-${x.k}" href="${x.url}" target="_blank" rel="noopener" data-track="social" data-track-v="${x.k}">${ICON[x.icon]}<span>${x.name}</span></a>`).join('')}
+      <a class="soc soc-donate" href="${DONATE}" target="_blank" rel="noopener" data-track="donate" data-track-v="header">${ICON.heart}<span>${t('donate')}</span></a>
     </nav>
     <div class="top-meta">
       <span class="patch"><i class="dot ${state.live ? '' : 'stale'}"></i>${p ? `${t('patch')} <a href="${esc(p.link)}" target="_blank" rel="noopener">${esc(p.title)}</a> · ` : ''}${state.live ? t('fresh') : `${t('stale')} ${when}`}</span>
@@ -680,7 +684,7 @@ function renderAbout() {
       <div><h3>${t('gameT')}</h3>${t('game').map((p) => `<p>${p}</p>`).join('')}<p><button class="how-link" data-act="how">${t('howBtn')}</button></p></div>
       <div><h3>${t('dataT')}</h3>${t('data').map((p) => `<p>${p}</p>`).join('')}</div>
     </div>`;
-  document.getElementById('foot').innerHTML = `<a class="btn lab-link" href="lab/builds.html">${ICON.flask}<span>${t('labLink')}</span></a><span class="lab-sub">${t('labSub')}</span><p>${t('legal')}</p>`;
+  document.getElementById('foot').innerHTML = `<a class="btn lab-link" href="lab/builds.html" data-track="lab_open" data-track-v="footer">${ICON.flask}<span>${t('labLink')}</span></a><span class="lab-sub">${t('labSub')}</span><p>${t('legal')}</p>`;
 }
 
 function renderAll() {
@@ -707,22 +711,23 @@ app.addEventListener('click', (e) => {
     case 'roll': doRoll('all'); break;
     case 'hero': doRoll('hero'); break;
     case 'items': doRoll('items'); break;
-    case 'slot': rerollSlot(+b.dataset.i); break;
+    case 'slot': rerollSlot(+b.dataset.i); track('reroll_slot', { slot: +b.dataset.i + 1, hero: state.res && state.res.hero.name }); break;
     case 'game': toGame(); break;
-    case 'how': openHow(false); break;
-    case 'link': copy(shareUrl(), t('linkCopied')); break;
-    case 'lang': if (v !== state.lang) switchLang(v); break;
-    case 'mode': if (o.mode === v) break; o.mode = v; saveOpts(); doRoll('all'); break;
+    case 'how': openHow(false); track('howto_open'); break;
+    case 'link': copy(shareUrl(), t('linkCopied')); track('share_link', { hero: state.res && state.res.hero.name }); break;
+    case 'lang': if (v !== state.lang) { switchLang(v); track('setting', { name: 'lang', value: v }); } break;
+    case 'mode': if (o.mode === v) break; o.mode = v; saveOpts(); track('setting', { name: 'invest', value: v }); doRoll('all', 'setting'); break;
     case 'order':
       if (o.order === v) break;
       // режимы по-разному подбирают предметы — при переключении сразу новая крутка
       o.order = v; saveOpts();
-      doRoll('all'); break;
+      track('setting', { name: 'order', value: v });
+      doRoll('all', 'setting'); break;
     case 'tier': {
       const n = +v;
       o.tiers = o.tiers.includes(n) ? o.tiers.filter((x) => x !== n) : [...o.tiers, n].sort();
       if (!o.tiers.length) o.tiers = [n];
-      saveOpts(); renderOpts(); break;
+      saveOpts(); renderOpts(); track('setting', { name: 'tiers', value: o.tiers.join('') }); break;
     }
     case 'excl': {
       const id = +v;
@@ -731,13 +736,19 @@ app.addEventListener('click', (e) => {
       if (!o.exclude.length) o.exclude = all.filter((x) => x !== id);
       else o.exclude = o.exclude.includes(id) ? o.exclude.filter((x) => x !== id) : [...o.exclude, id];
       if (o.exclude.length >= all.length) o.exclude = []; // убрали последнего — снова все
-      saveOpts(); renderOpts(); break;
+      saveOpts(); renderOpts(); track('setting', { name: 'hero_pool', value: o.exclude.length ? all.length - o.exclude.length : 'all' }); break;
     }
     case 'all-heroes': {
-      o.exclude = []; saveOpts(); renderOpts(); break;
+      o.exclude = []; saveOpts(); renderOpts(); track('setting', { name: 'hero_pool', value: 'all' }); break;
     }
-    case 'reset': state.opts = Object.assign({}, DEFAULTS); saveOpts(); renderOpts(); break;
+    case 'reset': state.opts = Object.assign({}, DEFAULTS); saveOpts(); renderOpts(); track('setting', { name: 'reset' }); break;
   }
+});
+
+// ползунок шлёт событие один раз — когда отпустили
+app.addEventListener('change', (e) => {
+  const k = e.target.dataset && e.target.dataset.opt;
+  if (k) track('setting', { name: k, value: String(state.opts[k]) });
 });
 
 app.addEventListener('input', (e) => {
@@ -759,7 +770,7 @@ document.addEventListener('keydown', (e) => {
   const tag = (e.target.tagName || '').toLowerCase();
   if (['input', 'textarea', 'select', 'button'].includes(tag)) return;
   e.preventDefault();
-  doRoll('all');
+  doRoll('all', 'space');
 });
 
 async function switchLang(lang) {
@@ -786,6 +797,7 @@ async function switchLang(lang) {
 
 // ---------- старт ----------
 async function boot() {
+  initAnalytics('roulette');
   try {
     state.data = await loadData(state.lang);
   } catch {

@@ -1,6 +1,7 @@
 // Лаборатория: сборки игроков, сравнение, рандомная сборка игрока.
 // Все данные — напрямую из Deadlock API в браузере (CORS открыт).
 import { encodeBuildCode } from './buildcode.js';
+import { initAnalytics, track } from './analytics.js';
 
 const API = 'https://api.deadlock-api.com/v1';
 const DAY = 86400;
@@ -310,7 +311,7 @@ function cmpAdd(id) {
   id = +id;
   if (inCmp(id)) return;
   if (state.compare.length >= CMP_MAX) { toast(`В сравнении максимум ${CMP_MAX} сборок — сначала убери одну`); return; }
-  state.compare.push(id); saveCompare(); toast(`Сборка ${id} добавлена в сравнение`); refresh();
+  state.compare.push(id); saveCompare(); track('lab_compare_add', { build: id }); toast(`Сборка ${id} добавлена в сравнение`); refresh();
 }
 function cmpDel(id) {
   state.compare = state.compare.filter((x) => x !== +id); saveCompare(); refresh();
@@ -454,6 +455,7 @@ async function rollRandomBuild() {
       }
       if (found) { found.pool = poolSize; break; }
     }
+    track('lab_random', { hero: rnd.hero ? heroById[rnd.hero].name : 'any', invest: rnd.lean, wr: rnd.wr, found: found ? 1 : 0, build: found ? found.r.id : '' });
     if (!found) {
       rnd.msg = rnd.hero
         ? `У ${esc(heroById[rnd.hero].name)} нет сборок под эти условия. Попробуй другой винрейт или склонность.`
@@ -691,16 +693,16 @@ document.addEventListener('click', (e) => {
   if (d.cmpAdd) { cmpAdd(d.cmpAdd); return; }
   if (d.cmpDel) { cmpDel(d.cmpDel); return; }
   if (d.cmpClear) { state.compare = []; saveCompare(); refresh(); return; }
-  if (d.tab) { state.tab = d.tab; shell(); return; }
+  if (d.tab) { state.tab = d.tab; shell(); track('lab_tab', { tab: d.tab }); return; }
   if (d.rhero !== undefined) { rnd.hero = +d.rhero || null; renderPanel(); return; }
   if (d.rlean) { rnd.lean = d.rlean; renderPanel(); return; }
   if (d.rwr) { rnd.wr = d.rwr; renderPanel(); return; }
   if (d.rroll) { rollRandomBuild(); return; }
-  if (d.hero) { state.heroId = +d.hero; renderPanel(); loadHero(); return; }
-  if (d.open) { state.modal = +d.open; renderModal(); return; }
+  if (d.hero) { state.heroId = +d.hero; renderPanel(); loadHero(); track('lab_hero', { hero: heroById[state.heroId] && heroById[state.heroId].name }); return; }
+  if (d.open) { state.modal = +d.open; renderModal(); track('lab_open_build', { build: d.open }); return; }
   if (d.game) {
     const c = cardFor(+d.game);
-    try { copy(gameCode(c), 'Код скопирован. В игре: Поиск сборок → Создать сборку → Вставить сборку'); } catch { toast('Не удалось собрать код сборки'); }
+    try { copy(gameCode(c), 'Код скопирован. В игре: Поиск сборок → Создать сборку → Вставить сборку'); track('to_game', { from: 'lab', build: d.game }); } catch { toast('Не удалось собрать код сборки'); }
   }
 });
 document.addEventListener('keydown', (e) => {
@@ -721,12 +723,14 @@ root.addEventListener('submit', (e) => {
   if (e.target.id !== 'ids-form') return;
   e.preventDefault();
   state.ids = document.getElementById('ids-input').value;
+  track('lab_search_ids', { count: parseIds(state.ids).length });
   syncUrl();
   renderLists();
 });
 
 // ---------- старт ----------
 (async function boot() {
+  initAnalytics('lab');
   try {
     D = await fetch('../data/ru.json').then((r) => r.json());
   } catch {

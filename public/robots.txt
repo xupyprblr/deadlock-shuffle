@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://randomlock.com/sitemap.xml

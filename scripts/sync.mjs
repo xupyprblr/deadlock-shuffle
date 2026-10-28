@@ -124,6 +124,9 @@ await writeFile(ROSTER, JSON.stringify(roster, null, 2));
 
 // Запреты на покупку по статистике матчей за 30 дней (по 6 героев параллельно)
 const since = Math.floor(Date.now() / 1000) - 30 * 86400;
+// Если аналитика API лежит (504 и т. п.), берём запреты из прошлого снимка, а не оставляем пустыми
+let prevBans = {};
+try { prevBans = Object.fromEntries(JSON.parse(await readFile(path.join(OUT, 'en.json'), 'utf8')).heroes.map((h) => [h.slug, h.banned || []])); } catch {}
 let bansFound = 0;
 const globalStats = await fetchJson(`${STATS}?min_unix_timestamp=${since}`).catch(() => null);
 // Оценки предметов для «Оценки затара»: тот же запрос статистики, считаем раз в сутки
@@ -144,6 +147,7 @@ for (let i = 0; i < enSnap.heroes.length; i += 6) {
   await Promise.all(enSnap.heroes.slice(i, i + 6).map(async (h) => {
     try {
       const stats = await fetchJson(`${STATS}?hero_id=${h.id}&min_unix_timestamp=${since}`);
+      if (!globalStats) throw new Error('нет общей статистики предметов');
       h.banned = bannedFromStats(stats, enSnap.items, globalStats);
       if (!statsFresh) {
         const hs = (heroStats || []).find((x) => x.hero_id === h.id);
@@ -163,15 +167,21 @@ for (let i = 0; i < enSnap.heroes.length; i += 6) {
       bansFound += h.banned.length;
       if (h.banned.length) console.log(`  ${h.name}: нельзя купить ${h.banned.length} — ${h.banned.map((s) => enSnap.items.find((x) => x.slug === s).name).join(', ')}`);
     } catch (e) {
-      console.warn(`  ${h.name}: статистика недоступна, запреты не применены (${e.message})`);
+      h.banned = prevBans[h.slug] || [];
+      bansFound += h.banned.length;
+      console.warn(`  ${h.name}: статистика недоступна, запреты из прошлого снимка: ${h.banned.length} (${e.message})`);
     }
   }));
 }
 console.log(`Запреты: ${bansFound} пар герой/предмет`);
-if (!statsFresh) {
+// перезаписываем оценки и подкрутку, только если статистика пришла почти по всем героям — иначе оставляем прошлые
+const enough = (o) => Object.keys(o.heroes).length >= Math.ceil(enSnap.heroes.length * 0.8) && Object.values(o.heroes).some((h) => h.base || h.w);
+if (!statsFresh && !enough(scoreOut)) {
+  console.warn(`Оценки предметов: статистика пришла по ${Object.keys(scoreOut.heroes).length} из ${enSnap.heroes.length} героев — оставляю прошлые stats.json и tune.json`);
+} else if (!statsFresh) {
   await writeFile(STATS_FILE, JSON.stringify(scoreOut));
   console.log(`Оценки предметов: ${Object.keys(scoreOut.heroes).length} героев`);
-  if (Object.keys(tuneOut.heroes).length >= 10) {
+  if (enough(tuneOut)) {
     await writeFile(TUNE_FILE, JSON.stringify(tuneOut));
     console.log(`Подкрутка псевдо-рандома: ${Object.keys(tuneOut.heroes).length} героев`);
   }

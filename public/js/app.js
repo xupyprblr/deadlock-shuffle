@@ -707,11 +707,13 @@ function renderOpts() {
     <div class="opt" style="margin-top:20px">
       <span class="lbl">${t('pool')}</span>
       <span class="hint">${t('poolHint')}</span>
-      ${o.exclude.length ? `<div class="pool-bar"><b>${d.heroes.length - d.heroes.filter((h) => o.exclude.includes(h.id)).length}</b> ${t('poolCount')} <button class="btn btn-mini" data-act="all-heroes">${t('allHeroes')}</button></div>` : ''}
       <div class="heroes-pick ${o.exclude.length ? 'filtered' : ''}">
         ${d.heroes.map((h) => `<button class="hp" data-act="excl" data-v="${h.id}" aria-pressed="${!o.exclude.includes(h.id)}" title="${esc(h.name)}" aria-label="${esc(h.name)}">${isNewHero(h) ? `<span class="new-badge">${t('newHeroBadge')}</span>` : ''}${h.small ? `<img src="${esc(src(h.small))}" alt="" loading="lazy" width="52" height="52">` : esc(h.name.slice(0, 2))}</button>`).join('')}
       </div>
-      <div><button class="btn" data-act="reset" style="margin-top:10px">${t('reset')}</button></div>
+      <div class="opts-foot">
+        <button class="btn" data-act="reset">${t('reset')}</button>
+        ${o.exclude.length ? `<span class="pool-bar"><b>${d.heroes.length - d.heroes.filter((h) => o.exclude.includes(h.id)).length}</b> ${t('poolCount')} <button class="btn" data-act="all-heroes">${t('allHeroes')}</button></span>` : ''}
+      </div>
     </div>`;
 }
 

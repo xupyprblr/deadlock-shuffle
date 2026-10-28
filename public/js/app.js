@@ -627,7 +627,7 @@ function renderScore(hero, build) {
         <span class="tag v-tag">${t('v_' + sc.verdict)}</span>
       </div>
       <div class="v-body">
-        <div class="v-chance" title="${esc(t('realNote'))}: ≈${dec(sc.realChance)}%"><b>≈${dec(sc.chance)}%</b><span>${t('chanceNote')}</span></div>
+        <div class="v-chance" title="${esc(t('realNote'))}: ≈${dec(sc.realChance)}%"><b>≈${dec(sc.chance)}%</b></div>
         <div class="v-meter" aria-hidden="true"><span class="z-troll"></span><span class="z-challenge"></span><span class="z-risky"></span><span class="z-solid"></span><span class="z-meta"></span><i style="left:${pos}%"></i></div>
       </div>
     </div>`;

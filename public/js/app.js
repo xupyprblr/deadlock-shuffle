@@ -231,7 +231,7 @@ async function ensureAbilities(hero) {
 // ---------- рандом ----------
 function doRoll(kind = 'all', src = 'button') {
   const d = state.data;
-  if (!d) return;
+  if (!d || spinning) return;
   const seed = newSeed();
   const prev = state.res;
   const keepHero = kind === 'items' && prev ? prev.hero : null;
@@ -258,7 +258,7 @@ function doRoll(kind = 'all', src = 'button') {
 
 function rerollSlot(idx) {
   const res = state.res;
-  if (!res) return;
+  if (!res || spinning) return;
   const r = rng(res.seed + ':' + idx + ':' + ++state.rerolls + ':' + Math.random());
   const others = res.build.filter((_, i) => i !== idx);
   const cur = res.build[idx];
@@ -521,16 +521,34 @@ function preloadIcons() {
 }
 // «Барабан»: каждая плитка прокручивает случайные иконки и останавливается по очереди, 1 → 12
 let spinToken = 0;
+let spinning = false; // пока крутится барабан, новые крутки и переключатели не принимаем
+const SPIN_STEP = 85, SPIN_FIRST = 420;
+function setSpinning(on) {
+  spinning = on;
+  document.body.classList.toggle('is-spinning', on);
+}
 function spinSlots() {
   const token = ++spinToken;
   const slots = [...document.querySelectorAll('#stage .slot')];
   if (!slots.length) return;
   if (reduceMotion() || !pooled) return; // при первой загрузке — только раздача, иконки ещё не в кэше
   const pool = reelPool.length ? reelPool : state.data.items.filter((i) => i.icon);
+  setSpinning(true);
+  // конец анимации: снимаем блокировку и на всякий случай ставим каждой плитке её настоящую иконку
+  setTimeout(() => {
+    if (token !== spinToken) return;
+    document.querySelectorAll('#stage .slot').forEach((el, i) => {
+      const it = state.res && state.res.build[i];
+      const img = el.querySelector('.slot-tile img');
+      if (it && img && it.icon) img.src = src(it.icon);
+      el.classList.remove('spinning'); el.classList.add('landed');
+    });
+    setSpinning(false);
+  }, SPIN_FIRST + (slots.length - 1) * SPIN_STEP + 160);
   slots.forEach((el, i) => {
     const img = el.querySelector('.slot-tile img');
     const fin = img && img.getAttribute('src');
-    const stopAt = 420 + i * 85;
+    const stopAt = SPIN_FIRST + i * SPIN_STEP;
     const t0 = performance.now();
     el.classList.add('spinning');
     const tick = () => {
@@ -732,9 +750,9 @@ app.addEventListener('click', (e) => {
     case 'how': openHow(false); track('howto_open'); break;
     case 'link': copy(shareUrl(), t('linkCopied')); track('share_link', { hero: state.res && state.res.hero.name }); break;
     case 'lang': if (v !== state.lang) { switchLang(v); track('setting', { name: 'lang', value: v }); } break;
-    case 'mode': if (o.mode === v) break; o.mode = v; saveOpts(); track('setting', { name: 'invest', value: v }); doRoll('all', 'setting'); break;
+    case 'mode': if (o.mode === v || spinning) break; o.mode = v; saveOpts(); track('setting', { name: 'invest', value: v }); doRoll('all', 'setting'); break;
     case 'order':
-      if (o.order === v) break;
+      if (o.order === v || spinning) break;
       // режимы по-разному подбирают предметы — при переключении сразу новая крутка
       o.order = v; saveOpts();
       track('setting', { name: 'order', value: v });

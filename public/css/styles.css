@@ -512,3 +512,9 @@ footer { padding-block: 26px 44px; color: var(--muted); font-size: 13px; border-
   background: var(--yellow); color: var(--ink); font: 900 13px/1 var(--f-tag); letter-spacing: .12em;
   transform: rotate(-45deg); box-shadow: 0 2px 0 var(--ink); pointer-events: none;
 }
+
+/* пока крутится барабан — кнопки крутки неактивны */
+.is-spinning [data-act="roll"], .is-spinning [data-act="hero"], .is-spinning [data-act="items"],
+.is-spinning [data-act="order"], .is-spinning [data-act="mode"], .is-spinning .slot { cursor: wait; }
+.is-spinning [data-act="roll"], .is-spinning [data-act="hero"], .is-spinning [data-act="items"] { opacity: .55; }
+.is-spinning .btn-main:hover { background: var(--orange); transform: rotate(-2deg); }

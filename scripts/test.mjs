@@ -52,7 +52,7 @@ for (const opts of variants) {
     if (typeof opts.actives === 'number') assert.equal(res.actives, opts.actives, 'фиксированное число активок');
     const sc = scoreBuild(res.build, stats.heroes[res.hero.id]);
     if (sc) { const zone = Math.min(4, Math.floor(meterPos(sc.mean * 10) / 20)); assert.equal(['troll', 'challenge', 'risky', 'solid', 'meta'][zone], sc.verdict, `шкала: ${sc.mean} п.п.`); }
-    if (sc) assert.ok(sc.chance >= 25 && sc.chance <= 75 && ['meta', 'solid', 'risky', 'challenge', 'troll'].includes(sc.verdict), 'оценка');
+    if (sc) assert.ok(sc.chance >= 12 && sc.chance <= 62 && sc.realChance >= 25 && sc.realChance <= 75 && ['meta', 'solid', 'risky', 'challenge', 'troll'].includes(sc.verdict), 'оценка');
     if (opts.mode === 'mono') assert.equal(new Set(res.build.map((i) => i.cat)).size, 1, 'моно-категория');
     if (opts.mode === 'balanced') {
       const c = {}; for (const i of res.build) c[i.cat] = (c[i.cat] || 0) + 1;

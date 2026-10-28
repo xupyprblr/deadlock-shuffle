@@ -29,8 +29,8 @@ const I18N = {
     ult: 'ульта', settings: 'Правила [рандома]', settingsSub: 'Настройки запоминаются в этом браузере.',
     slots: 'Слотов в сборке', mode: 'Баланс инвеста', chaos: 'Хаос', balanced: 'Поровну', mono: 'Все в один', grpReroll: 'Перекрутить', grpTake: 'Забрать', heroShort: 'Героя', itemsShort: 'Предметы',
     tiers: 'Тиры предметов', actives: 'Активные предметы', activesRandom: 'Случайно 0–4', activesHint: 'В игре максимум 4 активных слота. Крайнее левое положение — каждую крутку случайно.',
-    scoreT: 'Оценка затара', chanceNote: 'шанс на победу', scoreNone: 'По этому герою пока мало матчей — оценка появится через несколько дней.', vs: 'к соседям по тиру',
-    v_meta: 'Мета-затар', v_solid: 'Рабочая сборка', v_risky: 'Рискованно', v_challenge: 'Челлендж', v_troll: 'Чистый троллинг', copyScore: 'Оценка',
+    scoreT: 'Шанс на победу', chanceNote: 'твой вклад в победу', realNote: 'Средний винрейт с такими предметами на этом герое', scoreNone: 'По этому герою пока мало матчей — шанс на победу появится через несколько дней.', vs: 'к соседям по тиру',
+    v_meta: 'Мета-затар', v_solid: 'Рабочая сборка', v_risky: 'Рискованно', v_challenge: 'Челлендж', v_troll: 'Чистый троллинг', copyScore: 'Шанс на победу',
     classes: 'Классы героев', all: 'Все', pool: 'Пул героев',
     poolHint: 'Нажми на портрет — останется только этот герой. Следующие клики добавляют и убирают героев.', allHeroes: 'Все герои', poolCount: 'в пуле', reset: 'Сбросить правила',
     weapon: 'Оружие', spirit: 'Спиритизм', vitality: 'Живучесть',
@@ -62,7 +62,7 @@ const I18N = {
     how3T: 'Press “Create build”', how3: 'An empty build for this hero opens.',
     how4T: 'Press “Paste build”', how4: 'The small square button next to the “i”. Items and abilities fill in on their own — just save.',
     howWarn: '<b>No “Paste build” button?</b> The game has a different hero selected, or the code is no longer in your clipboard. Check the hero and copy the code again.',
-    orderT: 'Purchase order', o_chaos: 'Full random', o_pseudo: 'Pseudo-random', o_phases: 'By phase',
+    orderT: 'Purchase order', o_chaos: 'Full random', o_pseudo: 'Smart Random', o_phases: 'By phase',
     ph_early: 'Early game', ph_mid: 'Mid game', ph_late: 'Late game', slotHint: 'Slots in purchase order: top to bottom, then the next column, as in the game.', copyOrder: 'Purchase order',
     souls: 'souls', roll: 'Shuffle', newHero: 'New hero', newItems: 'New items',
     copy: 'Copy', link: 'Link', copied: 'Copied', linkCopied: 'Link copied', rerollSlot: 'Replace item',
@@ -70,8 +70,8 @@ const I18N = {
     ult: 'ult', settings: 'Shuffle [rules]', settingsSub: 'Settings are saved in this browser.',
     slots: 'Build slots', mode: 'Investment balance', chaos: 'Chaos', balanced: 'Even', mono: 'All in one', grpReroll: 'Reroll', grpTake: 'Take it', heroShort: 'Hero', itemsShort: 'Items',
     tiers: 'Item tiers', actives: 'Active items', activesRandom: 'Random 0–4', activesHint: 'The game has 4 active slots at most. Far left — random on every shuffle.',
-    scoreT: 'Build rating', chanceNote: 'win chance', scoreNone: 'Not enough matches on this hero yet — the rating will appear in a few days.', vs: 'vs. same tier',
-    v_meta: 'Meta build', v_solid: 'Solid build', v_risky: 'Risky', v_challenge: 'Challenge', v_troll: 'Pure troll', copyScore: 'Rating',
+    scoreT: 'Build Win Rate', chanceNote: 'your impact on the win', realNote: 'Average win rate with these items on this hero', scoreNone: 'Not enough matches on this hero yet — the build win rate will appear in a few days.', vs: 'vs. same tier',
+    v_meta: 'Meta build', v_solid: 'Solid build', v_risky: 'Risky', v_challenge: 'Challenge', v_troll: 'Pure troll', copyScore: 'Build win rate',
     classes: 'Hero classes', all: 'All', pool: 'Hero pool',
     poolHint: 'Click a portrait to keep only that hero. Further clicks add or remove heroes.', allHeroes: 'All heroes', poolCount: 'in pool', reset: 'Reset rules',
     weapon: 'Weapon', spirit: 'Spirit', vitality: 'Vitality',
@@ -232,7 +232,7 @@ async function ensureAbilities(hero) {
 // ---------- рандом ----------
 function doRoll(kind = 'all', src = 'button') {
   const d = state.data;
-  if (!d) return;
+  if (!d || spinning) return;
   const seed = newSeed();
   const prev = state.res;
   const keepHero = kind === 'items' && prev ? prev.hero : null;
@@ -259,7 +259,7 @@ function doRoll(kind = 'all', src = 'button') {
 
 function rerollSlot(idx) {
   const res = state.res;
-  if (!res) return;
+  if (!res || spinning) return;
   const r = rng(res.seed + ':' + idx + ':' + ++state.rerolls + ':' + Math.random());
   const others = res.build.filter((_, i) => i !== idx);
   const cur = res.build[idx];
@@ -534,16 +534,34 @@ function preloadIcons() {
 }
 // «Барабан»: каждая плитка прокручивает случайные иконки и останавливается по очереди, 1 → 12
 let spinToken = 0;
+let spinning = false; // пока крутится барабан, новые крутки и переключатели не принимаем
+const SPIN_STEP = 85, SPIN_FIRST = 420;
+function setSpinning(on) {
+  spinning = on;
+  document.body.classList.toggle('is-spinning', on);
+}
 function spinSlots() {
   const token = ++spinToken;
   const slots = [...document.querySelectorAll('#stage .slot')];
   if (!slots.length) return;
   if (reduceMotion() || !pooled) return; // при первой загрузке — только раздача, иконки ещё не в кэше
   const pool = reelPool.length ? reelPool : state.data.items.filter((i) => i.icon);
+  setSpinning(true);
+  // конец анимации: снимаем блокировку и на всякий случай ставим каждой плитке её настоящую иконку
+  setTimeout(() => {
+    if (token !== spinToken) return;
+    document.querySelectorAll('#stage .slot').forEach((el, i) => {
+      const it = state.res && state.res.build[i];
+      const img = el.querySelector('.slot-tile img');
+      if (it && img && it.icon) img.src = src(it.icon);
+      el.classList.remove('spinning'); el.classList.add('landed');
+    });
+    setSpinning(false);
+  }, SPIN_FIRST + (slots.length - 1) * SPIN_STEP + 160);
   slots.forEach((el, i) => {
     const img = el.querySelector('.slot-tile img');
     const fin = img && img.getAttribute('src');
-    const stopAt = 420 + i * 85;
+    const stopAt = SPIN_FIRST + i * SPIN_STEP;
     const t0 = performance.now();
     el.classList.add('spinning');
     const tick = () => {
@@ -640,7 +658,7 @@ function renderScore(hero, build) {
         <span class="tag v-tag">${t('v_' + sc.verdict)}</span>
       </div>
       <div class="v-body">
-        <div class="v-chance"><b>≈${dec(sc.chance)}%</b><span>${t('chanceNote')}</span></div>
+        <div class="v-chance" title="${esc(t('realNote'))}: ≈${dec(sc.realChance)}%"><b>≈${dec(sc.chance)}%</b></div>
         <div class="v-meter" aria-hidden="true"><span class="z-troll"></span><span class="z-challenge"></span><span class="z-risky"></span><span class="z-solid"></span><span class="z-meta"></span><i style="left:${pos}%"></i></div>
       </div>
     </div>`;
@@ -745,9 +763,9 @@ app.addEventListener('click', (e) => {
     case 'how': openHow(false); track('howto_open'); break;
     case 'link': copy(shareUrl(), t('linkCopied')); track('share_link', { hero: state.res && state.res.hero.name }); break;
     case 'lang': if (v !== state.lang) { switchLang(v); track('setting', { name: 'lang', value: v }); } break;
-    case 'mode': if (o.mode === v) break; o.mode = v; saveOpts(); track('setting', { name: 'invest', value: v }); doRoll('all', 'setting'); break;
+    case 'mode': if (o.mode === v || spinning) break; o.mode = v; saveOpts(); track('setting', { name: 'invest', value: v }); doRoll('all', 'setting'); break;
     case 'order':
-      if (o.order === v) break;
+      if (o.order === v || spinning) break;
       // режимы по-разному подбирают предметы — при переключении сразу новая крутка
       o.order = v; saveOpts();
       track('setting', { name: 'order', value: v });

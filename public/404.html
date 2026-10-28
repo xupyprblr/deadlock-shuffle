@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <title>404 — RANDOMLOCK</title>
+  <meta name="theme-color" content="#100e0e">
+  <!-- 404 отдаётся с любого адреса, поэтому все пути — от корня сайта -->
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon/icon-32.png">
+  <link rel="apple-touch-icon" href="/favicon/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:wght@800&family=Jost:wght@400;500;600&family=Rubik:wght@700;900&display=swap">
+  <link rel="stylesheet" href="/css/styles.css">
+  <style>
+    .nf { min-height: 62vh; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 30px 56px; align-items: center; padding-block: 30px 40px; }
+    .nf .nf-code { font: 900 clamp(110px, 20vw, 220px)/.85 var(--f-tag); color: var(--orange); text-shadow: 8px 8px 0 var(--ink); letter-spacing: -.02em; margin: 0; }
+    .nf h1 { font: 800 clamp(34px, 5vw, 56px)/1.05 var(--f-display); margin: 18px 0 14px; text-wrap: balance; }
+    .nf p { color: var(--muted); font-size: 17px; max-width: 46ch; margin: 0 0 8px; }
+    .nf p.en { font-size: 14px; }
+    .nf-actions { display: flex; flex-wrap: wrap; gap: 14px 18px; align-items: center; margin-top: 26px; }
+    .nf-actions .btn-main { text-decoration: none; }
+    .nf-actions a.btn { text-decoration: none; }
+    .nf-frog { width: clamp(180px, 26vw, 300px); height: auto; transform: rotate(-8deg); filter: drop-shadow(0 12px 30px rgba(0,0,0,.6)); animation: nf-wobble 4s ease-in-out infinite; }
+    @keyframes nf-wobble { 0%, 100% { transform: rotate(-8deg); } 50% { transform: rotate(6deg) translateY(-6px); } }
+    @media (max-width: 760px) { .nf { grid-template-columns: minmax(0, 1fr); } .nf-frog { order: -1; width: 160px; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <a class="brand" href="/" aria-label="RANDOMLOCK by podvalni akrobat"><b>Random<em>lock</em></b><span class="tag">by podvalni akrobat</span></a>
+    </header>
+    <main class="nf">
+      <div>
+        <p class="nf-code">404</p>
+        <h1>Сюда рандом <mark>не выпадал</mark></h1>
+        <p>Такой страницы нет. Зато герой и затар на матч всегда найдутся.</p>
+        <p class="en">Page not found — but a random hero and build are always one click away.</p>
+        <div class="nf-actions">
+          <a class="btn btn-main" href="/"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none"/><circle cx="16" cy="8" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="8" cy="16" r="1.4" fill="currentColor" stroke="none"/><circle cx="16" cy="16" r="1.4" fill="currentColor" stroke="none"/></svg><span>Крутить</span></a>
+          <a class="btn" href="/lab/builds.html">Лаборатория</a>
+        </div>
+      </div>
+      <img class="nf-frog" src="/favicon/icon-512.png" alt="" width="300" height="300">
+    </main>
+    <footer><p>Фанатский проект. Deadlock и все игровые материалы принадлежат Valve Corporation. Сайт не связан с Valve.</p></footer>
+  </div>
+</body>
+</html>

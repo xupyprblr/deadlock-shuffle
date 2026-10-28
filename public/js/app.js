@@ -320,6 +320,7 @@ async function toGame() {
   track('to_game', { from: 'button', ok: ok ? 1 : 0, hero: state.res && state.res.hero.name, order: state.opts.order });
 }
 // Журнал круток (фаза 2): что игрок забрал в игру и когда
+document.addEventListener('ds:theme', (e) => track('setting', { name: 'theme', value: e.detail }));
 function logTaken() {
   try {
     const r = state.res;
@@ -415,8 +416,10 @@ function renderTop() {
         <button data-act="lang" data-v="ru" aria-pressed="${state.lang === 'ru'}">RU</button>
         <button data-act="lang" data-v="en" aria-pressed="${state.lang === 'en'}">EN</button>
       </span>
+      ${window.DS_THEME ? window.DS_THEME.button() : ''}
     </div>
     </div>`;
+  if (window.DS_THEME) window.DS_THEME.sync();
 }
 
 function renderStage(dealItems = true) {

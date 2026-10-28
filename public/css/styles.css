@@ -9,6 +9,8 @@
   --fg: #f7e9d5;
   --muted: rgba(247, 233, 213, .58);
   --ink: #070707;
+  --on-fg: #070707; /* текст на плашке цвета --fg (нажатые переключатели, кнопки при наведении) */
+  --on-ink: #f7e9d5; /* текст на чёрных плашках — одинаковый в обеих темах */
   --orange: #dd6638;
   --teal: #60cde3;
   --green: #97da79;
@@ -79,7 +81,7 @@ mark {
 .dot.stale { background: var(--yellow); box-shadow: none; }
 .seg { display: inline-flex; border: 2px solid var(--fg); }
 .seg button { background: none; border: 0; padding: 4px 10px; cursor: pointer; color: var(--fg); font: 900 12px var(--f-tag); }
-.seg button[aria-pressed="true"] { background: var(--fg); color: var(--ink); }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--on-fg); }
 
 /* --- Сцена --- */
 .stage {
@@ -112,12 +114,12 @@ mark {
 .lane-pill {
   --lc: var(--teal);
   display: inline-flex; align-items: center; gap: 8px; padding: 3px 14px 3px 3px; border-radius: 99px;
-  background: var(--ink); border: 3px solid var(--lc); color: var(--fg);
+  background: var(--ink); border: 3px solid var(--lc); color: var(--on-ink);
   font: 900 15px/1 var(--f-tag); text-transform: uppercase; letter-spacing: .02em; transform: rotate(-1.5deg);
 }
 .lane-pill i {
   font-style: normal; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--fg); color: var(--ink); box-shadow: inset 0 0 0 3px var(--lc); font-size: 14px;
+  background: var(--fg); color: var(--on-fg); box-shadow: inset 0 0 0 3px var(--lc); font-size: 14px;
 }
 
 /* бейдж «Новинка», как на экране выбора героя в игре */
@@ -291,7 +293,7 @@ mark {
   transition: background .12s, color .12s, transform .12s;
 }
 .btn .ico { width: 17px; height: 17px; flex: none; }
-.btn:hover { background: var(--fg); color: var(--ink); }
+.btn:hover { background: var(--fg); color: var(--on-fg); }
 .btn:active { transform: translateY(1px); }
 .btn-game { background: var(--teal); color: var(--ink); }
 .btn-game:hover { background: var(--yellow); color: var(--ink); }
@@ -430,7 +432,7 @@ footer { padding-block: 26px 44px; color: var(--muted); font-size: 13px; border-
   box-shadow: 8px 8px 0 var(--ink); padding: 26px 26px 22px; display: grid; gap: 16px; animation: deal .3s cubic-bezier(.2,.8,.3,1.2);
 }
 .how-box h2 { margin: 0; font: 800 clamp(26px, 3.4vw, 34px)/1.1 var(--f-display); padding-right: 40px; }
-.how-x { position: absolute; top: 10px; right: 10px; width: 36px; height: 36px; border: 2px solid var(--line); background: var(--ink); color: var(--fg); font-size: 16px; cursor: pointer; }
+.how-x { position: absolute; top: 10px; right: 10px; width: 36px; height: 36px; border: 2px solid var(--line); background: var(--ink); color: var(--on-ink); font-size: 16px; cursor: pointer; }
 .how-x:hover { border-color: var(--fg); }
 .how-ok { margin: 0; justify-self: start; display: inline-flex; align-items: center; gap: 8px; background: var(--teal); color: var(--ink); font: 900 14px/1 var(--f-tag); text-transform: uppercase; padding: 8px 12px 7px; transform: rotate(-1.5deg); box-shadow: 3px 3px 0 var(--ink); }
 .how-ok .ico { width: 18px; height: 18px; }
@@ -440,7 +442,7 @@ footer { padding-block: 26px 44px; color: var(--muted); font-size: 13px; border-
 .how-step h3 { margin: 2px 0 4px; font: 800 20px/1.15 var(--f-display); }
 .how-step p { margin: 0; color: var(--muted); font-size: 15px; }
 .how-shot { display: block; margin-top: 10px; width: auto; max-width: 100%; height: auto; border: 2px solid var(--ink); box-shadow: 4px 4px 0 rgba(0,0,0,.5); }
-.how-hero { display: inline-flex; align-items: center; gap: 10px; margin-top: 10px; padding: 4px 14px 4px 4px; background: var(--ink); border: 2px solid var(--teal); }
+.how-hero { display: inline-flex; align-items: center; gap: 10px; margin-top: 10px; padding: 4px 14px 4px 4px; background: var(--ink); color: var(--on-ink); border: 2px solid var(--teal); }
 .how-hero img { width: 56px; height: 56px; object-fit: cover; }
 .how-hero b { font: 800 22px var(--f-display); }
 .how-warn { margin: 0; padding: 12px 14px; border-left: 5px solid var(--orange); background: rgba(221, 102, 56, .12); font-size: 15px; }
@@ -518,3 +520,85 @@ footer { padding-block: 26px 44px; color: var(--muted); font-size: 13px; border-
 .is-spinning [data-act="order"], .is-spinning [data-act="mode"], .is-spinning .slot { cursor: wait; }
 .is-spinning [data-act="roll"], .is-spinning [data-act="hero"], .is-spinning [data-act="items"] { opacity: .55; }
 .is-spinning .btn-main:hover { background: var(--orange); transform: rotate(-2deg); }
+
+/* --- Переключатель темы --- */
+.theme-btn {
+  display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 0; cursor: pointer;
+  border: 2px solid var(--fg); background: none; color: var(--fg); transition: background .12s, color .12s;
+}
+.theme-btn .ico { width: 17px; height: 17px; }
+.theme-btn:hover { background: var(--fg); color: var(--on-fg); }
+.theme-btn .i-moon { display: none; }
+:root[data-theme="light"] .theme-btn .i-sun { display: none; }
+:root[data-theme="light"] .theme-btn .i-moon { display: inline; }
+.theme-slot { display: flex; justify-content: flex-end; }
+@media (max-width: 760px) { .theme-slot { justify-content: flex-start; } }
+
+/* ==========================================================================
+   Светлая тема (data-theme="light" на <html>; по умолчанию сайт тёмный).
+   «Дневная» версия того же стиля: бумага вместо угля, тёмный текст, те же стикеры и чёрные тени.
+   Плитки предметов, дорожка прокачки и игровые плашки остаются тёмными — как в игре.
+   ========================================================================== */
+:root[data-theme="light"] {
+  --bg: #efe6d6;
+  --bg-2: #fbf6ec;
+  --night: #d9cdb8;
+  --line: rgba(28, 22, 20, .16);
+  --fg: #1c1714;
+  --muted: rgba(28, 22, 20, .64);
+  --on-fg: #fbf6ec;
+  --orange: #d6582a;
+  --teal: #2c9db5;
+  --green: #5ea83f;
+  --yellow: #ffd83a;
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .06 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+  --tile-bg: #2a2421;
+  color-scheme: light;
+}
+:root[data-theme="light"] :focus-visible { outline-color: var(--orange); }
+/* :where — без лишней специфичности, чтобы не перебить цвет логотипа и кнопок-ссылок */
+:where(:root[data-theme="light"]) a { color: #1b7d93; }
+:root[data-theme="light"] .slot-cost { color: #2c8a66; }
+:root[data-theme="light"] .top::after { opacity: .22; }
+:root[data-theme="light"] .brand b { text-shadow: 3px 3px 0 rgba(7, 7, 7, .14); }
+:root[data-theme="light"] .patch a { color: var(--fg); }
+/* плитки предметов: иконки светлые, поэтому подложка остаётся тёмной */
+:root[data-theme="light"] .slot-tile { background: color-mix(in srgb, var(--c) 40%, var(--tile-bg)); box-shadow: 3px 3px 0 rgba(0, 0, 0, .3); }
+:root[data-theme="light"] .hp { background: var(--tile-bg); }
+:root[data-theme="light"] .hp[aria-pressed="false"] img { filter: grayscale(1) brightness(.55); opacity: .7; }
+:root[data-theme="light"] .hero-art { box-shadow: 0 0 0 2px var(--ink), 8px 10px 0 rgba(0, 0, 0, .18); }
+:root[data-theme="light"] .souls { box-shadow: 3px 3px 0 rgba(0, 0, 0, .25); }
+:root[data-theme="light"] .souls small { color: rgba(247, 233, 213, .6); }
+/* полупрозрачные подложки: были тёмные — делаем светлые */
+:root[data-theme="light"] .btn { background: rgba(255, 255, 255, .55); }
+:root[data-theme="light"] .btn:hover { background: var(--fg); }
+:root[data-theme="light"] .btn-game { background: var(--teal); }
+:root[data-theme="light"] .btn-game:hover { background: var(--yellow); }
+:root[data-theme="light"] .btn-main, :root[data-theme="light"] .is-spinning .btn-main:hover { background: var(--orange); }
+:root[data-theme="light"] .btn-main:hover { background: var(--yellow); }
+:root[data-theme="light"] .seg-order button:hover { background: rgba(28, 22, 20, .07); }
+:root[data-theme="light"] .verdict { background: rgba(255, 255, 255, .5); }
+:root[data-theme="light"] .v-meter span { opacity: .3; }
+:root[data-theme="light"] .soc { background: rgba(255, 255, 255, .5); }
+:root[data-theme="light"] .soc-donate { background: var(--orange); }
+:root[data-theme="light"] .soc-donate:hover { background: var(--yellow); }
+:root[data-theme="light"] .soc-tg { --sc: #1d8fd0; }
+:root[data-theme="light"] .soc-tw { --sc: #8a4ef0; }
+:root[data-theme="light"] .soc-yt { --sc: #e5332a; }
+:root[data-theme="light"] .how-step { background: rgba(28, 22, 20, .04); }
+:root[data-theme="light"] .how-modal { background: rgba(28, 22, 20, .55); }
+:root[data-theme="light"] .how-shot { box-shadow: 4px 4px 0 rgba(0, 0, 0, .2); }
+/* жёлтый текст на бумаге не читается — оранжевый */
+:root[data-theme="light"] .range output,
+:root[data-theme="light"] .how-link:hover { color: var(--orange); }
+:root[data-theme="light"] .how-link { color: #1b7d93; }
+:root[data-theme="light"] .pool-bar b { color: #1b7d93; }
+/* прокачка: светлая дорожка, плашки улучшений — в тон */
+:root[data-theme="light"] .cell { background: rgba(28, 22, 20, .08); }
+:root[data-theme="light"] .pip.up { background: #d6cebf; color: var(--fg); }
+:root[data-theme="light"] .pip.up .gem path { fill: #6c6457; }
+:root[data-theme="light"] .pip.up .gem .gem-in { fill: #d6cebf; }
+:root[data-theme="light"] .pip.open { background: #5b3f8c; color: #fff; }
+:root[data-theme="light"] .pip.open .gem .gem-in { fill: #5b3f8c; }
+:root[data-theme="light"] .v-chance b { color: color-mix(in srgb, var(--vc) 68%, #000); }
+:root[data-theme="light"] .dot { box-shadow: 0 0 6px var(--green); }

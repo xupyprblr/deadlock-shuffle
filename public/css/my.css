@@ -49,3 +49,9 @@
 @media (max-width: 560px) {
   .my-items { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
+
+/* --- Светлая тема --- */
+:root[data-theme="light"] .my-status.err, :root[data-theme="light"] .my-res.loss { color: #c4392b; }
+:root[data-theme="light"] .my-res.win { color: #3f8a25; }
+:root[data-theme="light"] .my-it { background: var(--tile-bg); }
+:root[data-theme="light"] .my-it b { color: rgba(247, 233, 213, .7); }

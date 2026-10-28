@@ -180,3 +180,14 @@ a.lab-note:hover { color: var(--fg); }
 .rnd-roll { font-size: 26px; padding: 14px 30px 12px; }
 .rnd-roll[disabled] { opacity: .7; cursor: progress; }
 @media (max-width: 640px) { .rnd-roll { width: 100%; justify-content: center; } .rnd-seg { grid-auto-flow: row; grid-template-columns: 1fr 1fr; } .rnd-seg button + button { border-left: 0; } .rnd-seg button { border: 1px solid var(--fg); } }
+
+/* --- Светлая тема (окно сборки в стиле игры остаётся тёмным) --- */
+:root[data-theme="light"] .lab-note,
+:root[data-theme="light"] .chip-item i,
+:root[data-theme="light"] .id-copy:hover, :root[data-theme="light"] .g-id:hover u { color: var(--orange); }
+:root[data-theme="light"] .lab-error, :root[data-theme="light"] .sig.down { color: #c4392b; }
+:root[data-theme="light"] .b-card { background: rgba(255, 255, 255, .5); }
+:root[data-theme="light"] .ab-step { color: #f7e9d5; }
+:root[data-theme="light"] .lab-modal { background: rgba(28, 22, 20, .55); }
+:root[data-theme="light"] .chip-item img { background: var(--tile-bg); }
+:root[data-theme="light"] .lab-pick .hp[aria-pressed="false"] img { filter: none; opacity: 1; }

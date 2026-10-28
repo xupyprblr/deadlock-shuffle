@@ -284,6 +284,8 @@ mark {
 .act-lbl { font: 800 17px/1 var(--f-display); color: var(--muted); }
 /* кнопки группы склеены в одну плашку, как переключатели */
 .btn-row { display: flex; flex-wrap: wrap; box-shadow: 4px 4px 0 var(--ink); }
+/* тень — ровно по кнопкам: в колонке групп ряд не должен растягиваться шире своих кнопок */
+.act-group .btn-row { justify-self: start; width: max-content; max-width: 100%; }
 .btn-row .btn + .btn { border-left-width: 0; }
 
 .btn {
@@ -319,6 +321,7 @@ mark {
   .act-main, .act-group { width: 100%; }
   .btn-main { width: 100%; justify-content: center; font-size: 30px; padding: 18px 20px 15px; }
   .btn-row .btn { flex: 1 1 auto; justify-content: center; }
+  .act-group .btn-row { justify-self: stretch; width: auto; }
 }
 
 /* --- Блоки --- */

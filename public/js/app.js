@@ -28,7 +28,7 @@ const I18N = {
     ult: 'ульта', settings: 'Правила [рандома]', settingsSub: 'Настройки запоминаются в этом браузере.',
     slots: 'Слотов в сборке', mode: 'Баланс инвеста', chaos: 'Хаос', balanced: 'Поровну', mono: 'Все в один', grpReroll: 'Перекрутить', grpTake: 'Забрать', heroShort: 'Героя', itemsShort: 'Предметы',
     tiers: 'Тиры предметов', actives: 'Активные предметы', activesRandom: 'Случайно 0–4', activesHint: 'В игре максимум 4 активных слота. Крайнее левое положение — каждую крутку случайно.',
-    scoreT: 'Оценка затара', chanceNote: 'шанс на победу', scoreNone: 'По этому герою пока мало матчей — оценка появится через несколько дней.', vs: 'к соседям по тиру',
+    scoreT: 'Оценка затара', chanceNote: 'твой вклад в победу', realNote: 'Средний винрейт с такими предметами на этом герое', scoreNone: 'По этому герою пока мало матчей — оценка появится через несколько дней.', vs: 'к соседям по тиру',
     v_meta: 'Мета-затар', v_solid: 'Рабочая сборка', v_risky: 'Рискованно', v_challenge: 'Челлендж', v_troll: 'Чистый троллинг', copyScore: 'Оценка',
     classes: 'Классы героев', all: 'Все', pool: 'Пул героев',
     poolHint: 'Нажми на портрет — останется только этот герой. Следующие клики добавляют и убирают героев.', allHeroes: 'Все герои', poolCount: 'в пуле', reset: 'Сбросить правила',
@@ -69,7 +69,7 @@ const I18N = {
     ult: 'ult', settings: 'Shuffle [rules]', settingsSub: 'Settings are saved in this browser.',
     slots: 'Build slots', mode: 'Investment balance', chaos: 'Chaos', balanced: 'Even', mono: 'All in one', grpReroll: 'Reroll', grpTake: 'Take it', heroShort: 'Hero', itemsShort: 'Items',
     tiers: 'Item tiers', actives: 'Active items', activesRandom: 'Random 0–4', activesHint: 'The game has 4 active slots at most. Far left — random on every shuffle.',
-    scoreT: 'Build rating', chanceNote: 'win chance', scoreNone: 'Not enough matches on this hero yet — the rating will appear in a few days.', vs: 'vs. same tier',
+    scoreT: 'Build rating', chanceNote: 'your impact on the win', realNote: 'Average win rate with these items on this hero', scoreNone: 'Not enough matches on this hero yet — the rating will appear in a few days.', vs: 'vs. same tier',
     v_meta: 'Meta build', v_solid: 'Solid build', v_risky: 'Risky', v_challenge: 'Challenge', v_troll: 'Pure troll', copyScore: 'Rating',
     classes: 'Hero classes', all: 'All', pool: 'Hero pool',
     poolHint: 'Click a portrait to keep only that hero. Further clicks add or remove heroes.', allHeroes: 'All heroes', poolCount: 'in pool', reset: 'Reset rules',
@@ -627,7 +627,7 @@ function renderScore(hero, build) {
         <span class="tag v-tag">${t('v_' + sc.verdict)}</span>
       </div>
       <div class="v-body">
-        <div class="v-chance"><b>≈${dec(sc.chance)}%</b><span>${t('chanceNote')}</span></div>
+        <div class="v-chance" title="${esc(t('realNote'))}: ≈${dec(sc.realChance)}%"><b>≈${dec(sc.chance)}%</b><span>${t('chanceNote')}</span></div>
         <div class="v-meter" aria-hidden="true"><span class="z-troll"></span><span class="z-challenge"></span><span class="z-risky"></span><span class="z-solid"></span><span class="z-meta"></span><i style="left:${pos}%"></i></div>
       </div>
     </div>`;

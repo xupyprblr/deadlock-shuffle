@@ -255,6 +255,23 @@ export function meterPos(mean10) {
   return Math.min(99.5, Math.max(0.5, ((z + frac) / zones) * 100));
 }
 
+// Игровая шкала «вклад в победу». Реальная разница между затарами — единицы процентов
+// (46% против 50% выглядят одинаково), поэтому для человека растягиваем её по зонам вердиктов:
+// «Мета» ≈ 50–62%, «Рабочая» 41–50%, «Рискованно» 33–41%, «Челлендж» 25–33%, «Троллинг» 12–25%.
+// Узлы совпадают с порогами вердиктов, поэтому число всегда в своей зоне шкалы. Честная оценка — realChance.
+export const IMPACT_POINTS = [[-60, 12], [-32, 25], [-20, 33], [-10, 41], [0, 50], [20, 62]];
+export function impactChance(mean10) {
+  const P = IMPACT_POINTS;
+  const x = Math.max(P[0][0], Math.min(P[P.length - 1][0], mean10));
+  for (let i = 1; i < P.length; i++) {
+    if (x <= P[i][0]) {
+      const [x0, y0] = P[i - 1], [x1, y1] = P[i];
+      return y0 + ((x - x0) / (x1 - x0)) * (y1 - y0);
+    }
+  }
+  return P[P.length - 1][1];
+}
+
 export function scoreBuild(build, heroStats) {
   if (!heroStats || !heroStats.items) return null;
   const known = build.filter((i) => heroStats.items[i.id >>> 0] !== undefined);
@@ -263,9 +280,10 @@ export function scoreBuild(build, heroStats) {
   const base = heroStats.base || 500;
   // Шанс сборки при «среднем» герое: 50% + вклад предметов. Силу героя (base) не добавляем,
   // иначе сильный герой с плохим затаром показывал бы больше, чем слабый с хорошим.
-  const chance = Math.max(250, Math.min(750, 500 + mean)) / 10; // в процентах
+  const realChance = Math.max(250, Math.min(750, 500 + mean)) / 10; // честная оценка, в процентах
+  const chance = Math.round(impactChance(mean) * 10) / 10; // то, что видит игрок
   const verdict = VERDICTS.find((v) => mean >= v.min).key;
-  return { mean: mean / 10, chance, base: base / 10, verdict, known: known.length, total: build.length };
+  return { mean: mean / 10, chance, realChance, base: base / 10, verdict, known: known.length, total: build.length };
 }
 
 // Порядок прокачки как в игре: у каждой способности 4 шага — открытие и 3 улучшения

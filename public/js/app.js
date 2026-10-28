@@ -317,6 +317,8 @@ async function toGame() {
   toast(ok ? t('toGameDone') : t('toGameFail'));
   track('to_game', { from: 'button', ok: ok ? 1 : 0, hero: state.res && state.res.hero.name, order: state.opts.order });
 }
+// смена темы (js/theme.js) — в аналитику как настройка
+document.addEventListener('ds:theme', (e) => track('setting', { name: 'theme', value: e.detail }));
 function openHow(copied) {
   closeHow();
   const h = state.res && state.res.hero;
@@ -402,8 +404,10 @@ function renderTop() {
         <button data-act="lang" data-v="ru" aria-pressed="${state.lang === 'ru'}">RU</button>
         <button data-act="lang" data-v="en" aria-pressed="${state.lang === 'en'}">EN</button>
       </span>
+      ${window.DS_THEME ? window.DS_THEME.button() : ''}
     </div>
     </div>`;
+  if (window.DS_THEME) window.DS_THEME.sync();
 }
 
 function renderStage(dealItems = true) {

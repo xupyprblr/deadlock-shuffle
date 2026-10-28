@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; connect-src 'self' https://api.deadlock-api.com; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Мои рандомы — RANDOMLOCK</title>
+  <!-- Фаза 2.0 (разведка): журнал забранных сборок и сопоставление с матчами. Пока только в dev. -->
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#100e0e">
+  <link rel="icon" href="favicon.ico" sizes="48x48">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon/icon-32.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:wght@800&family=Jost:wght@400;500;600&family=Rubik:wght@700;900&display=swap">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/lab.css">
+  <link rel="stylesheet" href="css/my.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <a class="brand" href="./"><b>Random<em>lock</em></b><span class="tag my-tag">мои</span></a>
+      <div class="top-side"><a class="lab-note" href="./">← К рандомайзеру</a></div>
+    </header>
+    <main id="my" class="lab"><div class="loading">Загружаю героев и предметы…</div></main>
+    <footer><p>Данные матчей: <a href="https://deadlock-api.com" target="_blank" rel="noopener">Deadlock API</a>. Журнал хранится только в этом браузере. Учитываются матчи, начавшиеся после того, как сборка забрана, в течение 7 дней.</p></footer>
+  </div>
+  <script type="module" src="js/my.js"></script>
+</body>
+</html>

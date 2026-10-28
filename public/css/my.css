@@ -1,0 +1,51 @@
+/* «Мои рандомы» (фаза 2.0) — поверх styles.css и lab.css */
+.my-tag { background: var(--yellow); color: var(--ink); }
+.my-lead { margin: 0; color: var(--muted); max-width: 70ch; }
+.my-box { display: grid; gap: 12px; border: 2px solid var(--line); background: var(--bg-2); padding: 16px; }
+.my-box h2 { font: 800 22px/1.1 var(--f-display); margin: 0; }
+.my-steam { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+.my-steam label { display: grid; gap: 6px; font: 800 16px/1.1 var(--f-display); flex: 1 1 320px; }
+.my-steam input {
+  background: var(--bg); color: var(--fg); border: 2px solid var(--line); padding: 9px 10px;
+  font: 600 14px var(--f-body); min-width: 0; width: 100%;
+}
+.my-steam input:focus { border-color: var(--teal); outline: none; }
+.my-who { margin: 0; font-size: 14px; color: var(--muted); }
+.my-who b { color: var(--fg); }
+.my-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.my-status { margin: 0; font-size: 14px; color: var(--muted); }
+.my-status.err { color: #ff7a6b; }
+
+.my-list { display: grid; gap: 14px; }
+.my-entry { border: 2px solid var(--line); padding: 14px; display: grid; gap: 10px; }
+.my-head { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; }
+.my-hero { font: 800 22px/1 var(--f-display); }
+.my-meta { font-size: 13px; color: var(--muted); }
+.my-del { margin-left: auto; background: none; border: 0; color: var(--muted); cursor: pointer; font: 600 13px var(--f-body); text-decoration: underline; }
+.my-del:hover { color: var(--fg); }
+.my-items { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 4px; max-width: 640px; }
+.my-it { position: relative; aspect-ratio: 1; border: 2px solid var(--line); background: var(--bg-2); display: grid; place-items: center; }
+.my-it img { width: 78%; height: 78%; object-fit: contain; }
+.my-it b { position: absolute; left: 2px; top: 1px; font: 900 10px/1 var(--f-tag); color: var(--muted); }
+.my-it.weapon { border-color: color-mix(in srgb, var(--weapon) 55%, transparent); }
+.my-it.spirit { border-color: color-mix(in srgb, var(--spirit) 55%, transparent); }
+.my-it.vitality { border-color: color-mix(in srgb, var(--vitality) 55%, transparent); }
+.my-it.got { box-shadow: inset 0 0 0 2px var(--green); }
+.my-it.miss { opacity: .38; }
+
+.my-matches { display: grid; gap: 8px; }
+.my-match { display: grid; gap: 6px; border-top: 1px dashed var(--line); padding-top: 8px; font-size: 14px; }
+.my-mrow { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; }
+.my-res { font: 900 13px/1 var(--f-tag); text-transform: uppercase; letter-spacing: .04em; }
+.my-res.win { color: var(--green); }
+.my-res.loss { color: #ff7a6b; }
+.my-badge { font: 900 11px/1 var(--f-tag); text-transform: uppercase; padding: 4px 6px; background: var(--line); color: var(--fg); }
+.my-badge.full { background: var(--yellow); color: var(--ink); }
+.my-badge.rand { background: var(--teal); color: var(--ink); }
+.my-wait { color: var(--muted); font-size: 14px; margin: 0; }
+.my-none { color: var(--muted); margin: 0; font-size: 14px; }
+.my-diag { font-size: 13px; color: var(--muted); margin: 0; }
+
+@media (max-width: 560px) {
+  .my-items { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}

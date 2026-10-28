@@ -1,6 +1,7 @@
 import { encodeBuildCode, CATEGORY_KEYS } from './buildcode.js';
 import { initAnalytics, track } from './analytics.js';
-import { NS, markDev } from './env.js';
+import { NS, IS_DEV, markDev } from './env.js';
+import { addEntry, entryFrom } from './journal.js';
 import { buildSnapshot, fetchRawLite, fetchHeroAbilities, normalizeAbility, latestPatch, applyEnglishNames, isNewHero, attachTune, SCHEMA, API, PATCHES } from './normalize.js';
 import { roll, rng, newSeed, DEFAULTS, rollItem, orderBuild, PHASES, phaseOf, phaseTiers, buildCost, encodeResult, decodeResult, CATS, rollSkillOrder, ultIndexOf, rollHeroFor, scoreBuild, meterPos, MAX_ACTIVE } from './random.js';
 
@@ -45,7 +46,7 @@ const I18N = {
       'Ссылка «Ссылка» сохраняет конкретный результат: друг увидит ровно ту же сборку.',
     ],
     socialT: 'Каналы podvalni akrobat', donate: 'Поддержать',
-    labLink: 'Лаборатория', labSub: 'сборки игроков, рандом билд и сравнение',
+    labLink: 'Лаборатория', myLink: 'Мои рандомы', labSub: 'сборки игроков, рандом билд и сравнение',
     legal: 'Фанатский проект. Deadlock и все игровые материалы принадлежат Valve Corporation. Сайт не связан с Valve.',
     copyHead: 'RANDOMLOCK', copySkills: 'Прокачка', empty: 'Под эти правила не подошёл ни один герой — сброшу фильтр.',
     error: 'Не удалось загрузить данные. Проверь соединение и обнови страницу.',
@@ -86,7 +87,7 @@ const I18N = {
       'The Link button saves this exact result, so a friend sees the same build.',
     ],
     socialT: 'podvalni akrobat channels', donate: 'Support',
-    labLink: 'Lab', labSub: 'player builds, random build and compare (in Russian)',
+    labLink: 'Lab', myLink: 'My randoms', labSub: 'player builds, random build and compare (in Russian)',
     legal: 'Fan project. Deadlock and all game assets belong to Valve Corporation. Not affiliated with Valve.',
     copyHead: 'RANDOMLOCK', copySkills: 'Ability order', empty: 'No hero matches these rules, resetting the filter.',
     error: 'Could not load data. Check your connection and refresh the page.',
@@ -315,7 +316,19 @@ async function toGame() {
   // при нажатии — только короткое уведомление; подробная инструкция — по ссылке «Как вставить в игру?»
   const ok = await copy(code);
   toast(ok ? t('toGameDone') : t('toGameFail'));
+  if (ok) logTaken();
   track('to_game', { from: 'button', ok: ok ? 1 : 0, hero: state.res && state.res.hero.name, order: state.opts.order });
+}
+// Журнал круток (фаза 2): что игрок забрал в игру и когда
+function logTaken() {
+  try {
+    const r = state.res;
+    const sc = scoreBuild(r.build, heroStats(r.hero));
+    addEntry(entryFrom(r, {
+      order: state.opts.order, invest: state.opts.mode, code: encodeResult(r),
+      score: sc ? { verdict: sc.verdict, chance: Math.round(sc.chance * 10) / 10 } : null,
+    }));
+  } catch {}
 }
 function openHow(copied) {
   closeHow();
@@ -358,7 +371,7 @@ document.addEventListener('click', async (e) => {
   if (!b) return;
   const a = b.dataset.how;
   if (a === 'close') closeHow();
-  else if (a === 'again') { const code = gameCode(); const ok = !!code && await copy(code); toast(ok ? t('howCopied') : t('toGameFail')); track('to_game', { from: 'howto', ok: ok ? 1 : 0, hero: state.res && state.res.hero.name }); }
+  else if (a === 'again') { const code = gameCode(); const ok = !!code && await copy(code); toast(ok ? t('howCopied') : t('toGameFail')); if (ok) logTaken(); track('to_game', { from: 'howto', ok: ok ? 1 : 0, hero: state.res && state.res.hero.name }); }
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeHow(); });
 
@@ -700,7 +713,7 @@ function renderAbout() {
       <div><h3>${t('gameT')}</h3>${t('game').map((p) => `<p>${p}</p>`).join('')}<p><button class="how-link" data-act="how">${t('howBtn')}</button></p></div>
       <div><h3>${t('dataT')}</h3>${t('data').map((p) => `<p>${p}</p>`).join('')}</div>
     </div>`;
-  document.getElementById('foot').innerHTML = `<a class="btn lab-link" href="lab/builds.html" data-track="lab_open" data-track-v="footer">${ICON.flask}<span>${t('labLink')}</span></a><span class="lab-sub">${t('labSub')}</span><p>${t('legal')}</p>`;
+  document.getElementById('foot').innerHTML = `<a class="btn lab-link" href="lab/builds.html" data-track="lab_open" data-track-v="footer">${ICON.flask}<span>${t('labLink')}</span></a>${IS_DEV ? `<a class="btn lab-link" href="my.html">${ICON.game}<span>${t('myLink')}</span></a>` : ''}<span class="lab-sub">${t('labSub')}</span><p>${t('legal')}</p>`;
 }
 
 function renderAll() {

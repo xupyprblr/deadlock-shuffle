@@ -153,3 +153,4 @@ if (tune) {
 }
 
 console.log(`OK: ${n} роллов. Пример: ${ex.hero.name} / ${ex.build.map((i) => i.name).join(', ')}`);
+await import("./test-match.mjs");

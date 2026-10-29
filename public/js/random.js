@@ -121,7 +121,7 @@ export const PSEUDO = {
   tries: 4, // сколько раз пересобрать, если сборка не прошла скрытые проверки
   minVit: 2, // в «Хаосе» минимум предметов живучести
 };
-const tuned = (opts, hero) => opts.order === 'pseudo' && hero && hero.tune && hero.tune.w && hero.tune.w.size;
+const tuned = (opts, hero) => (opts.order === 'pseudo' || opts.order === 'curve') && hero && hero.tune && hero.tune.w && hero.tune.w.size;
 function weightedPick(r, arr, wf) {
   const w = arr.map(wf);
   let x = r() * w.reduce((a, v) => a + v, 0);
@@ -132,13 +132,23 @@ const itemWeight = (hero, i) => Math.pow(hero.tune.w.get(i.id >>> 0) || 1, PSEUD
 
 // want: true — нужен активный предмет, false — пассивный, null — любой
 // tiers — ограничение по тирам для слота (режим «по фазам»), null — любые включённые
-export function rollItem(r, items, build, opts, cat, hero, want = null, tiers = null) {
+// pred — доп. условие для слота (режим «Баланс рандом»: апгрейд, собираемый из дешёвого компонента)
+// widen — сначала соседний тир той же категории, и только потом другая категория («Баланс рандом»)
+// onlyPred — вернуть null, если предмета под условие слота нет (тогда слот берёт обычную полку)
+export function rollItem(r, items, build, opts, cat, hero, want = null, tiers = null, pred = null, widen = false, onlyPred = false) {
   const bySlug = Object.fromEntries(items.map((i) => [i.slug, i]));
-  const ok = (i, c, w, t) => (!c || i.cat === c) && (w === null || i.active === w) && (!t || t.includes(i.tier)) && compatible(i, build, opts, bySlug, hero);
+  const ok = (i, c, w, t, pr) => (!c || i.cat === c) && (w === null || i.active === w) && (!t || t.includes(i.tier)) && (!pr || pr(i, bySlug)) && compatible(i, build, opts, bySlug, hero);
   const pool = itemPool(items, opts);
-  // сначала строго, потом ослабляем: тир фазы → категория → тип слота
-  for (const [c, w, t] of [[cat, want, tiers], [null, want, tiers], [cat, null, tiers], [null, null, tiers], [cat, want, null], [null, want, null], [null, null, null]]) {
-    const p = pool.filter((i) => ok(i, c, w, t));
+  // сначала строго, потом ослабляем: условие слота → тир → категория → тип слота
+  const wide = widen && tiers ? [...new Set(tiers.flatMap((x) => [x - 1, x, x + 1]))].filter((x) => opts.tiers.includes(x)) : null;
+  // в «Баланс рандоме» категория слота («Поровну», «Все в один») и ценовая полка важнее, чем активка
+  const steps = wide
+    ? [[cat, want, tiers], [cat, want, wide], [cat, null, tiers], [cat, null, wide], [null, want, tiers], [null, null, tiers], [cat, want, null], [null, want, null], [null, null, null]]
+    : [[cat, want, tiers], [null, want, tiers], [cat, null, tiers], [null, null, tiers], [cat, want, null], [null, want, null], [null, null, null]];
+  // «скачок» на апгрейд — только в категории слота; не нашёлся — слот получает обычную полку
+  const predSteps = pred ? (wide ? [[cat, want, tiers, pred], [cat, null, tiers, pred]] : [[cat, want, tiers, pred], [null, want, tiers, pred], [cat, null, tiers, pred]]) : [];
+  for (const [c, w, t, pr] of onlyPred ? predSteps : [...predSteps, ...steps]) {
+    const p = pool.filter((i) => ok(i, c, w, t, pr));
     if (p.length) return tuned(opts, hero) ? weightedPick(r, p, (i) => itemWeight(hero, i)) : pick(r, p);
   }
   return null;
@@ -160,10 +170,50 @@ export function phaseTiers(idx, opts) {
   return t.length ? t : null;
 }
 
+// ---- «Баланс рандом»: порядок покупки по кривой стоимости ----
+// Подбор предметов — как в псевдо-рандоме (под героя), но каждый слот имеет свою «ценовую полку»:
+// дешёвый старт без накоплений, дорогое — в конце. Иногда слот «прыгает» на апгрейд, который
+// собирается из дешёвого компонента (его можно купить сразу, а доплатить позже).
+// up.from — максимальный тир компонентов апгрейда, up.p — шанс такого слота.
+export const CURVE = [
+  { t: [1] },
+  { t: [1], up: { t: [2], from: 1, p: 0.3 } },
+  { t: [1, 2] },
+  { t: [2] },
+  { t: [2], up: { t: [3], from: 2, p: 0.3 } },
+  { t: [3], up: { t: [4], from: 2, p: 0.35 } },
+  { t: [3] },
+  { t: [3, 4] },
+  { t: [4] },
+  { t: [4] },
+  { t: [4] },
+  { t: [4] },
+];
+const fromCheap = (maxTier) => (i, bySlug) => i.from.length > 0 && i.from.every((sl) => bySlug[sl] && bySlug[sl].tier <= maxTier);
+// тиры и условие для слота idx с учётом включённых в настройках тиров
+function curveSlot(r, idx, opts) {
+  const c = CURVE[Math.min(idx, CURVE.length - 1)];
+  const useUp = c.up && r() < c.up.p;
+  const t = (useUp ? c.up.t : c.t).filter((x) => opts.tiers.includes(x));
+  const base = c.t.filter((x) => opts.tiers.includes(x));
+  if (!t.length) return { tiers: base.length ? base : null, base: base.length ? base : null, pred: null };
+  return { tiers: t, base: base.length ? base : t, pred: useUp ? fromCheap(c.up.from) : null };
+}
+// для перекрута одного слота: его обычная полка + тир текущего предмета
+export function curveTiers(idx, opts, cur) {
+  const c = CURVE[Math.min(idx, CURVE.length - 1)];
+  const t = [...new Set([...c.t, ...(c.up ? c.up.t : []), ...(cur ? [cur.tier] : [])])].filter((x) => opts.tiers.includes(x));
+  return t.length ? t : null;
+}
+
 // примерная доля матча, когда покупают предмет тира (если по герою нет данных)
 const TIER_T = { 1: 0.22, 2: 0.33, 3: 0.48, 4: 0.64 };
 export function orderBuild(r, build, mode, hero = null) {
   const b = build.slice();
+  if (mode === 'curve') {
+    // запасной вариант (обычно «Баланс рандом» сразу собирается в нужном порядке): по цене, равные — случайно
+    return shuffle(r, b).sort((x, y) => x.cost - y.cost);
+  }
   if (mode === 'phases') {
     // по возрастанию цены; равные по цене — в случайном порядке
     return shuffle(r, b).sort((x, y) => x.cost - y.cost);
@@ -217,16 +267,24 @@ function pseudoCheck(build, opts) {
 
 function rollBuildOnce(r, items, opts, hero, k) {
   const plan = categoryPlan(r, opts);
-  const activeSlots = new Set(shuffle(r, plan.map((_, i) => i)).slice(0, k));
+  const curve = opts.order === 'curve';
+  const slotRule = curve ? plan.map((_, i) => curveSlot(r, i, opts)) : null;
+  // в «Баланс рандоме» активки — со 3-го слота: активных предметов за 800 в игре всего 4
+  const activeFrom = curve ? 2 : 0;
+  const activeSlots = new Set(shuffle(r, plan.map((_, i) => i).filter((i) => i >= activeFrom)).slice(0, k));
   // активки выбираем первыми: их меньше, и им важнее не упереться в запреты
   const order = [...activeSlots, ...plan.map((_, i) => i).filter((i) => !activeSlots.has(i))];
   const build = [];
+  const bySlot = [];
   for (const idx of order) {
-    const tiers = opts.order === 'phases' ? phaseTiers(idx, opts) : null;
-    const it = rollItem(r, items, build, opts, plan[idx], hero, activeSlots.has(idx), tiers);
-    if (it) build.push(it);
+    const tiers = curve ? slotRule[idx].tiers : opts.order === 'phases' ? phaseTiers(idx, opts) : null;
+    let it = null;
+    if (curve && slotRule[idx].pred) it = rollItem(r, items, build, opts, plan[idx], hero, activeSlots.has(idx), tiers, slotRule[idx].pred, true, true);
+    if (!it) it = rollItem(r, items, build, opts, plan[idx], hero, activeSlots.has(idx), curve ? slotRule[idx].base : tiers, null, curve);
+    if (it) { build.push(it); bySlot[idx] = it; }
   }
-  return build;
+  // «Баланс рандом»: предметы стоят в слотах своей полки — порядок покупки уже готов
+  return curve ? bySlot.filter(Boolean) : build;
 }
 
 // ---- Оценка затара ----
@@ -324,7 +382,8 @@ export function roll(data, opts, seed, lockedHero) {
   const hero = lockedHero || (heroes.length ? pick(r, heroes) : pick(r, data.heroes));
   const lane = null; // линию больше не разыгрываем
   const k = activeTarget(r, opts);
-  const build = orderBuild(r, rollBuild(r, data.items, opts, hero, k), opts.order, hero);
+  const built = rollBuild(r, data.items, opts, hero, k);
+  const build = opts.order === 'curve' ? built : orderBuild(r, built, opts.order, hero);
   const skills = rollSkillOrder(r, 4, ultIndexOf(hero));
   return { seed, hero, lane, build, skills, actives: k };
 }

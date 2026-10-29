@@ -2,7 +2,7 @@ import { encodeBuildCode, CATEGORY_KEYS } from './buildcode.js';
 import { initAnalytics, track } from './analytics.js';
 import { NS, markDev } from './env.js';
 import { buildSnapshot, fetchRawLite, fetchHeroAbilities, normalizeAbility, latestPatch, applyEnglishNames, isNewHero, attachTune, SCHEMA, API, PATCHES } from './normalize.js';
-import { roll, rng, newSeed, DEFAULTS, rollItem, orderBuild, PHASES, phaseOf, phaseTiers, buildCost, encodeResult, decodeResult, CATS, rollSkillOrder, ultIndexOf, rollHeroFor, scoreBuild, meterPos, MAX_ACTIVE } from './random.js';
+import { roll, rng, newSeed, DEFAULTS, rollItem, orderBuild, PHASES, phaseOf, phaseTiers, curveTiers, buildCost, encodeResult, decodeResult, CATS, rollSkillOrder, ultIndexOf, rollHeroFor, scoreBuild, meterPos, MAX_ACTIVE } from './random.js';
 
 const CFG = Object.assign({ live: true, dataUrl: 'data/', cacheHours: 6 }, window.DS_CONFIG || {});
 const app = document.getElementById('app');
@@ -20,7 +20,7 @@ const I18N = {
     how3T: 'Нажми «Создать сборку»', how3: 'Откроется пустая сборка этого героя.',
     how4T: 'Нажми «Вставить сборку»', how4: 'Маленькая квадратная кнопка рядом с «i». Предметы и прокачка встанут сами — останется сохранить.',
     howWarn: '<b>Нет кнопки «Вставить сборку»?</b> Значит, в игре выбран другой герой или код пропал из буфера обмена. Проверь героя и скопируй код ещё раз.',
-    orderT: 'Порядок покупки', o_chaos: 'Полный рандом', o_pseudo: 'Псевдо-рандом', o_phases: 'По фазам',
+    orderT: 'Порядок покупки', o_chaos: 'Полный рандом', o_pseudo: 'Псевдо-рандом', o_curve: 'Баланс рандом', o_phases: 'По фазам',
     ph_early: 'Ранняя игра', ph_mid: 'Середина', ph_late: 'Поздняя игра', slotHint: 'Слоты по порядку покупки: сверху вниз, затем следующий столбец — как в игре.', copyOrder: 'Порядок покупки',
     souls: 'душ', roll: 'Крутить', newHero: 'Другой герой', newItems: 'Другие предметы',
     copy: 'Скопировать', link: 'Ссылка', copied: 'Скопировано', linkCopied: 'Ссылка скопирована', rerollSlot: 'Заменить предмет',
@@ -61,7 +61,7 @@ const I18N = {
     how3T: 'Press “Create build”', how3: 'An empty build for this hero opens.',
     how4T: 'Press “Paste build”', how4: 'The small square button next to the “i”. Items and abilities fill in on their own — just save.',
     howWarn: '<b>No “Paste build” button?</b> The game has a different hero selected, or the code is no longer in your clipboard. Check the hero and copy the code again.',
-    orderT: 'Purchase order', o_chaos: 'Full random', o_pseudo: 'Smart Random', o_phases: 'By phase',
+    orderT: 'Purchase order', o_chaos: 'Full random', o_pseudo: 'Smart Random', o_curve: 'Balanced Random', o_phases: 'By phase',
     ph_early: 'Early game', ph_mid: 'Mid game', ph_late: 'Late game', slotHint: 'Slots in purchase order: top to bottom, then the next column, as in the game.', copyOrder: 'Purchase order',
     souls: 'souls', roll: 'Shuffle', newHero: 'New hero', newItems: 'New items',
     copy: 'Copy', link: 'Link', copied: 'Copied', linkCopied: 'Link copied', rerollSlot: 'Replace item',
@@ -265,7 +265,7 @@ function rerollSlot(idx) {
   const opts = state.opts;
   const cat = state.opts.mode === 'chaos' ? null : cur.cat;
   // замена сохраняет тип слота: активка меняется на активку, пассивка на пассивку
-  const tiers = opts.order === 'phases' ? phaseTiers(idx, opts) : null;
+  const tiers = opts.order === 'phases' ? phaseTiers(idx, opts) : opts.order === 'curve' ? curveTiers(idx, opts, cur) : null;
   const next = rollItem(r, state.data.items, [...others, cur], opts, cat, res.hero, cur.active, tiers) || rollItem(r, state.data.items, others, opts, cat, res.hero, cur.active, tiers);
   if (!next) return;
   // замена встаёт на место старого предмета во всех уже показанных порядках покупки
@@ -457,7 +457,7 @@ function renderStage(dealItems = true) {
       <div class="order-switch">
         <span class="lbl">${t('orderT')}</span>
         <div class="seg-order" role="radiogroup" aria-label="${t('orderT')}">
-          ${['pseudo', 'chaos'].map((m) => `<button data-act="order" data-v="${m}" role="radio" aria-checked="${order === m}" aria-pressed="${order === m}">${t('o_' + m)}</button>`).join('')}
+          ${['pseudo', 'curve', 'chaos'].map((m) => `<button data-act="order" data-v="${m}" role="radio" aria-checked="${order === m}" aria-pressed="${order === m}">${t('o_' + m)}</button>`).join('')}
         </div>
       </div>
       <div class="order-switch">

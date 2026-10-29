@@ -29,6 +29,9 @@ const variants = [
   { ...DEFAULTS, order: 'pseudo', mode: 'balanced', actives: 3 },
   { ...DEFAULTS, order: 'pseudo', mode: 'mono' },
   { ...DEFAULTS, order: 'chaos' },
+  { ...DEFAULTS, order: 'curve' },
+  { ...DEFAULTS, order: 'curve', mode: 'balanced', actives: 4 },
+  { ...DEFAULTS, order: 'curve', mode: 'mono' },
   { ...DEFAULTS, order: 'phases' },
   { ...DEFAULTS, order: 'phases', mode: 'balanced', actives: 4 },
 ];
@@ -57,6 +60,16 @@ for (const opts of variants) {
     if (opts.mode === 'balanced') {
       const c = {}; for (const i of res.build) c[i.cat] = (c[i.cat] || 0) + 1;
       assert.ok(Math.max(...Object.values(c)) - Math.min(...Object.values(c)) <= 1, 'баланс категорий');
+    }
+    if (opts.order === 'curve' && opts.tiers.length === 4) {
+      // «Баланс рандом»: дешёвый старт, дорогое в конце; вход в слот 2 — максимум 800, в слоты 1–5 нет 6400
+      const entry = (i) => (i.from.length ? Math.min(...i.from.map((sl) => (bySlug[sl] ? bySlug[sl].cost : i.cost))) : i.cost);
+      assert.ok(entry(res.build[0]) <= 800, `баланс: слот 1 — ${res.build[0].name}`);
+      assert.ok(entry(res.build[1]) <= 800, `баланс: слот 2 — ${res.build[1].name}`);
+      for (let i = 0; i < 5; i++) assert.ok(res.build[i].tier < 4, `баланс: 6400 в слоте ${i + 1}`);
+      if (res.build[5].tier === 4) assert.ok(entry(res.build[5]) <= 1600, `баланс: слот 6 — 6400 без дешёвого компонента (${res.build[5].name})`);
+      // в «Все в один» дешёвые предметы категории блокируют часть своих же апгрейдов — дорогих в конце может быть меньше
+      assert.ok(res.build.slice(8).filter((i) => i.tier === 4).length >= (opts.mode === 'mono' ? 2 : 3), 'баланс: в конце дорогие предметы');
     }
     if (opts.order === 'phases') {
       for (let i = 1; i < 12; i++) assert.ok(res.build[i - 1].cost <= res.build[i].cost, 'по фазам: цены по возрастанию');

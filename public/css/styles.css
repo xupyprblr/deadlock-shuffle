@@ -606,3 +606,48 @@ footer { padding-block: 26px 44px; color: var(--muted); font-size: 13px; border-
 :root[data-theme="light"] .pip.open .gem .gem-in { fill: #5b3f8c; }
 :root[data-theme="light"] .v-chance b { color: color-mix(in srgb, var(--vc) 68%, #000); }
 :root[data-theme="light"] .dot { box-shadow: 0 0 6px var(--green); }
+
+/* --- Карточка предмета (как подсказка в игре) --- */
+.tipcard { --c: var(--weapon); width: 300px; max-width: 100%; color: #f4ead8; background: color-mix(in srgb, var(--c) 22%, #15110d); border: 2px solid color-mix(in srgb, var(--c) 70%, #000); box-shadow: 6px 6px 0 rgba(0,0,0,.55); font: 500 14px/1.4 var(--f-body); text-align: left; }
+.tipcard.spirit { --c: var(--spirit); }
+.tipcard.vitality { --c: var(--vitality); }
+.tc-head { padding: 12px 14px 10px; background: linear-gradient(135deg, color-mix(in srgb, var(--c) 78%, #000) 0%, color-mix(in srgb, var(--c) 45%, #120d08) 100%); }
+.tc-title { font: 800 22px/1.1 var(--f-display); color: #fff3e0; text-shadow: 2px 2px 0 rgba(0,0,0,.35); }
+.tc-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 6px; }
+.tc-cost { font: 900 17px/1 var(--f-tag); color: var(--mint); }
+.tc-tier, .tc-act { font: 900 10px/1 var(--f-tag); text-transform: uppercase; letter-spacing: .04em; padding: 3px 5px 2px; background: rgba(0,0,0,.45); color: #f4ead8; }
+.tc-act { background: var(--yellow); color: var(--ink); }
+.tc-body { padding: 10px 12px 12px; display: grid; gap: 10px; }
+.tc-innate { display: grid; gap: 2px; font-size: 14px; color: #e9dcc5; }
+.tc-innate b { color: #fff; font-weight: 700; }
+.tc-sec { display: grid; gap: 8px; }
+.tc-sec-h { font: italic 600 14px/1 var(--f-body); color: #e9dcc5; background: rgba(0,0,0,.28); padding: 7px 10px; }
+.tc-text { margin: 0; color: #eadfcb; font-size: 14px; }
+.tc-text b { color: #fff; font-weight: 700; }
+.tc-muted { color: #b9ad98; }
+.tc-big { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 4px; }
+.tc-bigcell { display: grid; justify-items: center; align-content: center; gap: 2px; padding: 10px 6px; background: rgba(0,0,0,.25); text-align: center; }
+.tc-bigcell b { font: 800 20px/1 var(--f-body); color: #fff; display: inline-flex; align-items: center; gap: 4px; }
+.tc-bigcell { grid-template-columns: auto; }
+.tc-bigcell img { width: 20px; height: 20px; }
+.tc-bigcell span { font-size: 13px; color: #e9dcc5; }
+.tc-small { display: grid; gap: 4px; }
+.tc-smallcell { display: flex; align-items: center; gap: 6px; padding: 7px 10px; background: rgba(0,0,0,.2); font-size: 13px; color: #e9dcc5; }
+.tc-smallcell b { color: #fff; font-weight: 700; }
+.tc-smallcell img, .tc-bigcell img { filter: drop-shadow(0 0 1px rgba(0,0,0,.6)); }
+/* плавающая карточка на компьютере */
+.tip-float { position: fixed; left: 0; top: 0; z-index: 55; pointer-events: none; opacity: 0; transition: opacity .12s; }
+.tip-float.show { opacity: 1; }
+/* телефон: нижняя панель */
+.tip-sheet { position: fixed; inset: 0; z-index: 62; background: rgba(5, 4, 4, .7); display: grid; align-items: end; justify-items: center; padding: 12px 10px calc(12px + env(safe-area-inset-bottom, 0px)); overflow-y: auto; animation: tip-fade .15s ease-out; }
+.tip-sheet-in { width: min(420px, 100%); display: grid; gap: 10px; animation: deal .25s cubic-bezier(.2,.8,.3,1.2); }
+.tip-sheet .tipcard { width: 100%; }
+.tip-sheet-btns { display: flex; gap: 10px; }
+.tip-sheet-btns .btn { flex: 1; justify-content: center; }
+@keyframes tip-fade { from { opacity: 0; } }
+/* подсказка «тап по предмету» и значки перекрута: на телефоне — подсказка, на компьютере — значок при наведении */
+.tap-hint { display: none; margin: -6px 0 0; font-size: 13px; color: var(--muted); }
+@media (hover: none), (pointer: coarse) {
+  .tap-hint { display: block; }
+  .slot .reroll { display: none; }
+}

@@ -1,6 +1,7 @@
 import { encodeBuildCode, CATEGORY_KEYS } from './buildcode.js';
 import { initAnalytics, track } from './analytics.js';
 import { NS, markDev } from './env.js';
+import { loadTips, tipCard } from './tips.js';
 import { buildSnapshot, fetchRawLite, fetchHeroAbilities, normalizeAbility, latestPatch, applyEnglishNames, isNewHero, attachTune, SCHEMA, API, PATCHES } from './normalize.js';
 import { roll, rng, newSeed, DEFAULTS, rollItem, orderBuild, PHASES, phaseOf, phaseTiers, curveTiers, curveUpgrade, buildCost, encodeResult, decodeResult, CATS, rollSkillOrder, ultIndexOf, rollHeroFor, scoreBuild, meterPos, MAX_ACTIVE } from './random.js';
 
@@ -23,7 +24,7 @@ const I18N = {
     orderT: 'Порядок покупки', o_chaos: 'Полный рандом', o_pseudo: 'Псевдо-рандом', o_curve: 'Баланс рандом', o_phases: 'По фазам',
     ph_early: 'Ранняя игра', ph_mid: 'Середина', ph_late: 'Поздняя игра', slotHint: 'Слоты по порядку покупки: сверху вниз, затем следующий столбец — как в игре.', copyOrder: 'Порядок покупки',
     souls: 'душ', roll: 'Крутить', newHero: 'Другой герой', newItems: 'Другие предметы',
-    copy: 'Скопировать', link: 'Ссылка', copied: 'Скопировано', linkCopied: 'Ссылка скопирована', rerollSlot: 'Заменить предмет',
+    copy: 'Скопировать', link: 'Ссылка', copied: 'Скопировано', linkCopied: 'Ссылка скопирована', rerollSlot: 'Заменить предмет', tapHint: 'Тап по предмету — описание и перекрут', rerollBtn: 'Перекрутить предмет', closeBtn: 'Закрыть',
     skills: 'Порядок [прокачки]', unlock: 'Открыть', newHeroBadge: 'Новинка',
     ult: 'ульта', settings: 'Правила [рандома]', settingsSub: 'Настройки запоминаются в этом браузере.',
     slots: 'Слотов в сборке', mode: 'Баланс инвеста', chaos: 'Хаос', balanced: 'Поровну', mono: 'Все в один', grpReroll: 'Перекрутить', grpTake: 'Забрать', heroShort: 'Героя', itemsShort: 'Предметы',
@@ -64,7 +65,7 @@ const I18N = {
     orderT: 'Purchase order', o_chaos: 'Full random', o_pseudo: 'Smart Random', o_curve: 'Balanced Random', o_phases: 'By phase',
     ph_early: 'Early game', ph_mid: 'Mid game', ph_late: 'Late game', slotHint: 'Slots in purchase order: top to bottom, then the next column, as in the game.', copyOrder: 'Purchase order',
     souls: 'souls', roll: 'Shuffle', newHero: 'New hero', newItems: 'New items',
-    copy: 'Copy', link: 'Link', copied: 'Copied', linkCopied: 'Link copied', rerollSlot: 'Replace item',
+    copy: 'Copy', link: 'Link', copied: 'Copied', linkCopied: 'Link copied', rerollSlot: 'Replace item', tapHint: 'Tap an item for info and reroll', rerollBtn: 'Reroll item', closeBtn: 'Close',
     skills: 'Ability [order]', unlock: 'Unlock', newHeroBadge: 'New',
     ult: 'ult', settings: 'Shuffle [rules]', settingsSub: 'Settings are saved in this browser.',
     slots: 'Build slots', mode: 'Investment balance', chaos: 'Chaos', balanced: 'Even', mono: 'All in one', grpReroll: 'Reroll', grpTake: 'Take it', heroShort: 'Hero', itemsShort: 'Items',
@@ -438,9 +439,10 @@ function renderStage(dealItems = true) {
         <span class="souls">${fmt(cost)}<small>${t('souls')}</small></span>
       </div>
       ${order === 'phases' ? `<div class="phase-head" aria-hidden="true">${PHASES.map((p) => `<span class="ph-${p.key}">${t('ph_' + p.key)}<small>${p.from + 1}–${p.to}</small></span>`).join('')}</div>` : ''}
-      <div class="slots ${dealItems ? 'dealt' : ''} ${order === 'phases' ? 'by-phase' : ''}" title="${t('slotHint')}">
+      <p class="tap-hint">${t('tapHint')}</p>
+      <div class="slots ${dealItems ? 'dealt' : ''} ${order === 'phases' ? 'by-phase' : ''}">
         ${build.map((i, idx) => `
-          <button class="slot ${i.cat}" style="--i:${idx}" data-act="slot" data-i="${idx}" title="${esc(i.name)} — ${t(i.cat)}, ${ROMAN[i.tier]}${i.active ? ', ' + t('active') : ''}" aria-label="${t('rerollSlot')}: ${esc(i.name)}">
+          <button class="slot ${i.cat}" style="--i:${idx}" data-act="slot" data-i="${idx}" aria-label="${esc(i.name)} — ${t(i.cat)}, ${ROMAN[i.tier]}${i.active ? ', ' + t('active') : ''}. ${t('rerollSlot')}">
             <span class="slot-tile">
               ${i.icon ? `<img src="${esc(src(i.icon))}" alt="" loading="lazy" width="200" height="200">` : ''}
               <span class="tier">${ROMAN[i.tier]}</span>${i.active ? `<span class="act" title="${t('active')}">A</span>` : ''}<span class="num ${order === 'phases' ? 'ph-' + phaseOf(idx).key : ''}">${idx + 1}</span>
@@ -504,6 +506,78 @@ function scrollToStage() {
   if (window.scrollY <= top) return;
   window.scrollTo({ top, behavior: reduceMotion() ? 'auto' : 'smooth' });
 }
+
+// ---------- карточка предмета (как в игре) ----------
+const isTouch = () => { try { return !matchMedia('(hover: hover) and (pointer: fine)').matches; } catch { return false; } };
+let tipEl = null, tipFor = -1;
+function tipData() { return loadTips(CFG.dataUrl, state.lang); }
+function cardFor(idx, data) {
+  const it = state.res && state.res.build[idx];
+  return it ? tipCard(it, data, state.lang, src, fmt) : '';
+}
+function placeTip(slot) {
+  if (!tipEl || !slot.isConnected) return;
+  const r = slot.getBoundingClientRect(), w = tipEl.offsetWidth, h = tipEl.offsetHeight, gap = 12;
+  let x = r.right + gap;
+  if (x + w > innerWidth - 8) x = r.left - gap - w;
+  if (x < 8) x = Math.max(8, Math.min(innerWidth - w - 8, r.left));
+  let y = Math.min(Math.max(8, r.top), innerHeight - h - 8);
+  tipEl.style.transform = `translate(${Math.round(x)}px, ${Math.round(Math.max(8, y))}px)`;
+}
+async function showTip(slot) {
+  const idx = +slot.dataset.i;
+  if (spinning || slot.classList.contains('spinning')) return;
+  if (!tipEl) { tipEl = document.createElement('div'); tipEl.className = 'tip-float'; tipEl.setAttribute('role', 'tooltip'); document.body.appendChild(tipEl); }
+  tipFor = idx;
+  tipEl.innerHTML = cardFor(idx, null);
+  tipEl.classList.add('show'); placeTip(slot);
+  const data = await tipData();
+  if (tipFor !== idx || !tipEl.classList.contains('show')) return;
+  tipEl.innerHTML = cardFor(idx, data); placeTip(slot);
+}
+function hideTip() { tipFor = -1; if (tipEl) tipEl.classList.remove('show'); }
+app.addEventListener('mouseover', (e) => {
+  if (isTouch()) return;
+  const slot = e.target.closest && e.target.closest('.slot');
+  if (slot && +slot.dataset.i !== tipFor) showTip(slot);
+});
+app.addEventListener('mouseout', (e) => {
+  const slot = e.target.closest && e.target.closest('.slot');
+  if (slot && !(e.relatedTarget && slot.contains(e.relatedTarget))) hideTip();
+});
+app.addEventListener('focusin', (e) => { const slot = e.target.closest && e.target.closest('.slot'); if (slot && !isTouch()) showTip(slot); });
+app.addEventListener('focusout', (e) => { if (e.target.closest && e.target.closest('.slot')) hideTip(); });
+addEventListener('scroll', hideTip, { passive: true });
+
+// телефон: нижняя панель с карточкой и кнопкой перекрута
+async function openTipSheet(idx) {
+  closeTipSheet();
+  const el = document.createElement('div');
+  el.className = 'tip-sheet'; el.id = 'tip-sheet'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
+  const paint = (data) => {
+    el.innerHTML = `<div class="tip-sheet-in">${cardFor(idx, data)}<div class="tip-sheet-btns">
+      <button class="btn" data-sheet="close">${t('closeBtn')}</button>
+      <button class="btn btn-game" data-sheet="reroll">${ICON.cards}<span>${t('rerollBtn')}</span></button></div></div>`;
+  };
+  paint(null);
+  el.addEventListener('click', (e) => {
+    if (e.target === el) { closeTipSheet(); return; }
+    const b = e.target.closest('[data-sheet]');
+    if (!b) return;
+    if (b.dataset.sheet === 'close') closeTipSheet();
+    else { closeTipSheet(); rerollSlot(idx); track('reroll_slot', { slot: idx + 1, hero: state.res && state.res.hero.name, from: 'sheet' }); }
+  });
+  document.body.appendChild(el);
+  document.body.classList.add('noscroll');
+  track('item_info', { slot: idx + 1 });
+  const data = await tipData();
+  if (el.isConnected) paint(data);
+}
+function closeTipSheet() {
+  const el = document.getElementById('tip-sheet');
+  if (el) { el.remove(); document.body.classList.remove('noscroll'); }
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeTipSheet(); hideTip(); } });
 
 // ---------- анимации крутки ----------
 const reduceMotion = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } };
@@ -753,7 +827,10 @@ app.addEventListener('click', (e) => {
     case 'roll': doRoll('all'); break;
     case 'hero': doRoll('hero'); break;
     case 'items': doRoll('items'); break;
-    case 'slot': rerollSlot(+b.dataset.i); track('reroll_slot', { slot: +b.dataset.i + 1, hero: state.res && state.res.hero.name }); break;
+    case 'slot':
+      // на телефоне тап открывает карточку предмета, перекрут — кнопкой в ней
+      if (isTouch()) { openTipSheet(+b.dataset.i); break; }
+      hideTip(); rerollSlot(+b.dataset.i); track('reroll_slot', { slot: +b.dataset.i + 1, hero: state.res && state.res.hero.name }); break;
     case 'game': toGame(); break;
     case 'how': openHow(false); track('howto_open'); break;
     case 'link': copy(shareUrl(), t('linkCopied')); track('share_link', { hero: state.res && state.res.hero.name }); break;

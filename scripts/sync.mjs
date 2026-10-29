@@ -11,7 +11,7 @@ import { mkdir, writeFile, readFile, access } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fetchRaw, buildSnapshot, applyEnglishNames, bannedFromStats, itemScores, tuneHero, STATS } from '../public/js/normalize.js';
+import { fetchRaw, buildSnapshot, applyEnglishNames, bannedFromStats, itemScores, tuneHero, buildTips, STATS } from '../public/js/normalize.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -83,6 +83,26 @@ async function mirror(url) {
   return 'icons/' + rel.replace(/\\/g, '/');
 }
 
+// Карточки предметов (data/tips.{lang}.json): иконки свойств — общей таблицей, при --icons скачаны к себе
+async function writeTips(raw, snap, lang) {
+  const tips = buildTips(raw.upgrades, snap.items, lang);
+  if (Object.keys(tips).length < snap.items.length * 0.9) { console.warn(`tips.${lang}: мало данных, оставляю прошлый файл`); return; }
+  const icons = [];
+  const at = new Map();
+  const ref = (u) => { if (!u) return -1; if (!at.has(u)) { at.set(u, icons.length); icons.push(u); } return at.get(u); };
+  const pack = (rows) => rows.map(([ic, v, l]) => [ref(ic), v, l]);
+  for (const t of Object.values(tips)) {
+    t.innate = pack(t.innate);
+    for (const sec of t.sections) { sec.small = pack(sec.small); sec.big = pack(sec.big); }
+  }
+  for (let i = 0; i < icons.length; i++) icons[i] = ICONS ? await mirror(icons[i]) : icons[i];
+  const body = JSON.stringify({ v: 1, lang, icons, items: tips });
+  const file = path.join(OUT, `tips.${lang}.json`);
+  let prev = '';
+  try { prev = await readFile(file, 'utf8'); } catch {}
+  if (prev !== body) { await writeFile(file, body); changed = true; console.log(`tips.${lang}: ${Object.keys(tips).length} карточек, ${icons.length} иконок свойств`); }
+}
+
 async function mirrorAll(snap) {
   const jobs = [];
   for (const h of snap.heroes) {
@@ -101,7 +121,8 @@ let changed = false;
 const meta = { updatedAt: new Date().toISOString(), langs: {} };
 
 // Английский снимок нужен всегда: из него берутся имена героев, предметов и способностей
-const enSnap = buildSnapshot(await fetchRaw(fetchJson, 'en'));
+const enRaw = await fetchRaw(fetchJson, 'en');
+const enSnap = buildSnapshot(enRaw);
 
 // Журнал героев: когда каждый появился в пуле. Новые герои логируются и получают дату —
 // по ней сайт показывает бейдж «Новинка».
@@ -237,11 +258,13 @@ if (statsFresh) {
 }
 
 for (const lang of LANGS_TO_SYNC) {
-  const snap = lang === 'en' ? enSnap : applyEnglishNames(buildSnapshot(await fetchRaw(fetchJson, lang)), enSnap);
+  const raw = lang === 'en' ? enRaw : await fetchRaw(fetchJson, lang);
+  const snap = lang === 'en' ? enSnap : applyEnglishNames(buildSnapshot(raw), enSnap);
   if (snap.heroes.length < 10 || snap.items.length < 50) {
     throw new Error(`Подозрительно мало данных (${lang}): героев ${snap.heroes.length}, предметов ${snap.items.length}`);
   }
   if (ICONS) await mirrorAll(snap);
+  await writeTips(raw, snap, lang);
 
   const { fetchedAt, ...stable } = snap;
   const h = hash(stable);

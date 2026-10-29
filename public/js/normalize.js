@@ -330,3 +330,69 @@ export function attachTune(data, tune) {
   }
   return data;
 }
+
+// ---------- Карточка предмета как в игре (data/tips.{lang}.json) ----------
+// Из сырых данных API берём только то, что показывает игровая подсказка:
+// базовые бонусы, блоки «Пассивное»/«Активное» с текстом, крупные и мелкие значения, иконки свойств.
+// Текст описаний — без HTML: выделение игры превращаем в маркеры **…**, всё остальное вырезаем.
+export function tipText(html) {
+  return String(html || '')
+    .replace(/<svg[\s\S]*?<\/svg>/gi, '') // встроенные значки игры — целиком
+    .replace(/<img[^>]*>/gi, '')
+    .replace(/[\r\n]+/g, ' ') // переносы строк в исходнике — не смысловые; смысловые — только <br>
+    .replace(/<span[^>]*class="(?:highlight|inlineattributename|inline-attribute-label)[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, '**$1**')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\{[^}]*\}/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/\*\*\s*\*\*/g, '')
+    .trim();
+}
+function tipValue(p, lang) {
+  if (!p) return null;
+  let raw = String(p.value ?? '').trim().replace(/m$/i, '');
+  const n = parseFloat(raw);
+  if (!Number.isFinite(n) || n === 0) return null;
+  const pre = String(p.prefix || '');
+  const sign = pre.includes('{s:sign}') ? (n > 0 ? '+' : '') : pre === '-' ? '-' : '';
+  const num = Number.isInteger(n) ? String(n) : (Math.round(n * 10) / 10).toFixed(1);
+  const post = String(p.postfix || '').replace(/\{[^}]*\}/g, '');
+  return sign + (lang === 'ru' ? num.replace('.', ',') : num) + post;
+}
+function tipProp(props, key, lang) {
+  const p = props && props[key];
+  const v = tipValue(p, lang);
+  if (!v) return null;
+  return [p.icon || '', v, String(p.postvalue_label || p.label || key).replace(/\{[^}]*\}/g, '').trim()];
+}
+export function buildTips(upgrades, shopItems, lang) {
+  const want = new Set(shopItems.map((i) => i.id >>> 0));
+  const out = {};
+  for (const it of upgrades || []) {
+    const id = it.id >>> 0;
+    if (!want.has(id)) continue;
+    const props = it.properties || {};
+    const tip = { innate: [], sections: [] };
+    for (const sec of it.tooltip_sections || []) {
+      for (const at of sec.section_attributes || []) {
+        if (sec.section_type === 'innate') {
+          for (const k of [...(at.properties || []), ...(at.elevated_properties || [])]) { const x = tipProp(props, k, lang); if (x) tip.innate.push(x); }
+          continue;
+        }
+        const text = tipText(at.loc_string);
+        const small = (at.properties || []).map((k) => tipProp(props, k, lang)).filter(Boolean);
+        const big = (at.important_properties || []).map((k) => tipProp(props, k, lang)).filter(Boolean);
+        if (!text && !small.length && !big.length) continue;
+        tip.sections.push({ type: sec.section_type === 'active' ? 'active' : 'passive', text, small, big });
+      }
+    }
+    if (!tip.innate.length && !tip.sections.length && it.description && it.description.desc) {
+      tip.sections.push({ type: it.is_active_item ? 'active' : 'passive', text: tipText(it.description.desc), small: [], big: [] });
+    }
+    out[id] = tip;
+  }
+  return out;
+}

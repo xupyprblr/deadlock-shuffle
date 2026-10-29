@@ -173,4 +173,12 @@ if (tune) {
   assert.ok(t4 > 30 && t4 < 400, `T4 в 1–2 слоте: ${t4} из 1000`);
 }
 
+// карточки предметов: есть почти у всех, тексты без HTML
+for (const lang of ['ru', 'en']) {
+  const tips = JSON.parse(await readFile(new URL(`../public/data/tips.${lang}.json`, import.meta.url), 'utf8'));
+  const have = data.items.filter((i) => tips.items[i.id >>> 0]).length;
+  assert.ok(have >= data.items.length * 0.9, `tips.${lang}: карточки у ${have} из ${data.items.length}`);
+  for (const t of Object.values(tips.items)) for (const sec of t.sections) assert.ok(!/[<>]/.test(sec.text), `tips.${lang}: HTML в тексте`);
+}
+
 console.log(`OK: ${n} роллов. Пример: ${ex.hero.name} / ${ex.build.map((i) => i.name).join(', ')}`);

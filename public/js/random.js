@@ -56,6 +56,7 @@ export const DEFAULTS = {
   actives: 'random', // сколько активных предметов: 'random' (0–4 каждую крутку) или число 0–4
   types: [], // фильтр по классам героев (в интерфейсе убран); пусто = все
   exclude: [], // id героев, которых не выдавать
+  lane: false, // разыгрывать линию на матч (флажок в «Правилах рандома»)
 };
 
 // Проверка: можно ли добавить item в текущую сборку героя
@@ -402,11 +403,12 @@ export function roll(data, opts, seed, lockedHero) {
   const r = rng(seed);
   const heroes = heroPool(data.heroes, opts);
   const hero = lockedHero || (heroes.length ? pick(r, heroes) : pick(r, data.heroes));
-  const lane = null; // линию больше не разыгрываем
   const k = activeTarget(r, opts);
   const built = rollBuild(r, data.items, opts, hero, k);
   const build = opts.order === 'curve' ? built : orderBuild(r, built, opts.order, hero);
   const skills = rollSkillOrder(r, 4, ultIndexOf(hero));
+  // линию разыгрываем последней, чтобы флажок не менял героя и сборку при том же сиде
+  const lane = opts.lane && data.lanes && data.lanes.length ? pick(r, data.lanes) : null;
   return { seed, hero, lane, build, skills, actives: k };
 }
 

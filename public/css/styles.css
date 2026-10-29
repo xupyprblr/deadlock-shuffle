@@ -666,3 +666,40 @@ footer { padding-block: 26px 44px; color: var(--muted); font-size: 13px; border-
   .tap-hint { display: block; }
   .slot .reroll { display: none; }
 }
+
+/* --- Режим крутки: свой цвет у выбранного режима --- */
+.seg-modes button.m-curve[aria-pressed="true"] { background: var(--green); color: var(--ink); }
+.seg-modes button.m-pseudo[aria-pressed="true"] { background: var(--yellow); color: var(--ink); }
+.seg-modes button.m-chaos[aria-pressed="true"] { background: #ff5b4a; color: var(--ink); }
+
+/* --- Значок «i» с коротким описанием --- */
+.lbl .info { margin-left: 8px; }
+.order-switch { position: relative; }
+.info { position: static; display: inline-flex; vertical-align: 2px; }
+.info-btn {
+  width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--muted); background: transparent; color: var(--muted);
+  font: italic 900 11px/1 Georgia, serif; display: grid; place-items: center; cursor: pointer; padding: 0;
+}
+.info-btn:hover, .info.open .info-btn { border-color: var(--fg); color: var(--fg); }
+.info-pop {
+  position: absolute; left: 0; top: 30px; z-index: 30; width: min(380px, 100%); box-sizing: border-box;
+  background: var(--bg-2); border: 2px solid var(--fg); box-shadow: 5px 5px 0 var(--ink); padding: 10px 12px;
+  font: 500 13px/1.4 var(--f-body); color: var(--fg); text-transform: none; letter-spacing: 0;
+  display: none;
+}
+.info-pop ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.info-pop li { padding-left: 12px; border-left: 4px solid var(--line); }
+.info-pop li.m-curve { border-color: var(--green); }
+.info-pop li.m-pseudo { border-color: var(--yellow); }
+.info-pop li.m-chaos { border-color: #ff5b4a; }
+.info-pop b { font-weight: 700; }
+.info.open .info-pop { display: block; animation: tip-fade .15s ease-out; }
+@media (hover: hover) and (pointer: fine) { .info:hover .info-pop { display: block; } }
+
+/* --- Флажок «Выбирать линию на матч» --- */
+.opt-lane { margin-top: 20px; }
+.check { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; font: 800 17px/1.2 var(--f-display); }
+.check input { appearance: none; width: 22px; height: 22px; border: 2px solid var(--fg); background: transparent; display: grid; place-items: center; cursor: pointer; margin: 0; flex: none; }
+.check input:checked { background: var(--teal); border-color: var(--teal); }
+.check input:checked::after { content: ""; width: 6px; height: 11px; border: solid var(--ink); border-width: 0 3px 3px 0; transform: translateY(-1px) rotate(45deg); }
+.check input:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }

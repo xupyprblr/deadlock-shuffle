@@ -21,10 +21,13 @@ const I18N = {
     how3T: 'Нажми «Создать сборку»', how3: 'Откроется пустая сборка этого героя.',
     how4T: 'Нажми «Вставить сборку»', how4: 'Маленькая квадратная кнопка рядом с «i». Предметы и прокачка встанут сами — останется сохранить.',
     howWarn: '<b>Нет кнопки «Вставить сборку»?</b> Значит, в игре выбран другой герой или код пропал из буфера обмена. Проверь героя и скопируй код ещё раз.',
-    orderT: 'Порядок покупки', o_chaos: 'Полный рандом', o_pseudo: 'Псевдо-рандом', o_curve: 'Баланс рандом', o_phases: 'По фазам',
+    orderT: 'Режим крутки', o_chaos: 'Полный рандом', o_pseudo: 'Псевдо-рандом', o_curve: 'Баланс рандом', o_phases: 'По фазам',
     ph_early: 'Ранняя игра', ph_mid: 'Середина', ph_late: 'Поздняя игра', slotHint: 'Слоты по порядку покупки: сверху вниз, затем следующий столбец — как в игре.', copyOrder: 'Порядок покупки',
     souls: 'душ', roll: 'Крутить', newHero: 'Другой герой', newItems: 'Другие предметы',
-    copy: 'Скопировать', link: 'Ссылка', copied: 'Скопировано', linkCopied: 'Ссылка скопирована', rerollSlot: 'Заменить предмет', tapHint: 'Тап по предмету — описание и перекрут', rerollBtn: 'Перекрутить предмет', closeBtn: 'Закрыть',
+    copy: 'Скопировать', link: 'Ссылка', copied: 'Скопировано', linkCopied: 'Ссылка скопирована', rerollSlot: 'Заменить предмет', infoT: 'Что это?',
+    info_order: [['curve', 'Баланс рандом', 'Самый удобный: дешёвые предметы в начале, дорогие в конце — не нужно копить на первый слот.'], ['pseudo', 'Псевдо-рандом', 'Случайная сборка в разумных рамках: играть ей реально, но порядок покупки свободный — дорогой предмет может выпасть рано.'], ['chaos', 'Полный рандом', 'Никаких правил: любые предметы в любом порядке. Для любителей челленджа.']],
+    info_mode: [['chaos', 'Хаос', 'Оружие, спиритизм и живучесть — как выпадет.'], ['balanced', 'Поровну', 'Каждой категории по 4 предмета.'], ['mono', 'Все в один', 'Все 12 предметов из одной категории.']],
+    laneOpt: 'Выбирать линию на матч', laneHint: 'С каждой круткой сайт подскажет, на какую линию идти.', laneT: 'Линия', tapHint: 'Тап по предмету — описание и перекрут', rerollBtn: 'Перекрутить предмет', closeBtn: 'Закрыть',
     skills: 'Порядок [прокачки]', unlock: 'Открыть', newHeroBadge: 'Новинка',
     ult: 'ульта', settings: 'Правила [рандома]', settingsSub: 'Настройки запоминаются в этом браузере.',
     slots: 'Слотов в сборке', mode: 'Баланс инвеста', chaos: 'Хаос', balanced: 'Поровну', mono: 'Все в один', grpReroll: 'Перекрутить', grpTake: 'Забрать', heroShort: 'Героя', itemsShort: 'Предметы',
@@ -62,10 +65,13 @@ const I18N = {
     how3T: 'Press “Create build”', how3: 'An empty build for this hero opens.',
     how4T: 'Press “Paste build”', how4: 'The small square button next to the “i”. Items and abilities fill in on their own — just save.',
     howWarn: '<b>No “Paste build” button?</b> The game has a different hero selected, or the code is no longer in your clipboard. Check the hero and copy the code again.',
-    orderT: 'Purchase order', o_chaos: 'Full random', o_pseudo: 'Smart Random', o_curve: 'Balanced Random', o_phases: 'By phase',
+    orderT: 'Roll mode', o_chaos: 'Full Random', o_pseudo: 'Smart Random', o_curve: 'Balanced Random', o_phases: 'By phase',
     ph_early: 'Early game', ph_mid: 'Mid game', ph_late: 'Late game', slotHint: 'Slots in purchase order: top to bottom, then the next column, as in the game.', copyOrder: 'Purchase order',
     souls: 'souls', roll: 'Shuffle', newHero: 'New hero', newItems: 'New items',
-    copy: 'Copy', link: 'Link', copied: 'Copied', linkCopied: 'Link copied', rerollSlot: 'Replace item', tapHint: 'Tap an item for info and reroll', rerollBtn: 'Reroll item', closeBtn: 'Close',
+    copy: 'Copy', link: 'Link', copied: 'Copied', linkCopied: 'Link copied', rerollSlot: 'Replace item', infoT: 'What is this?',
+    info_order: [['curve', 'Balanced Random', 'The most comfortable: cheap items first, expensive ones at the end — no saving up for slot one.'], ['pseudo', 'Smart Random', 'A random build within reason: playable, but the purchase order is loose — an expensive item can come early.'], ['chaos', 'Full Random', 'No rules: any items in any order. For challenge lovers.']],
+    info_mode: [['chaos', 'Chaos', 'Weapon, spirit and vitality — whatever drops.'], ['balanced', 'Even', '4 items from each category.'], ['mono', 'All in one', 'All 12 items from a single category.']],
+    laneOpt: 'Pick a lane for the match', laneHint: 'Every roll also tells you which lane to take.', laneT: 'Lane', tapHint: 'Tap an item for info and reroll', rerollBtn: 'Reroll item', closeBtn: 'Close',
     skills: 'Ability [order]', unlock: 'Unlock', newHeroBadge: 'New',
     ult: 'ult', settings: 'Shuffle [rules]', settingsSub: 'Settings are saved in this browser.',
     slots: 'Build slots', mode: 'Investment balance', chaos: 'Chaos', balanced: 'Even', mono: 'All in one', grpReroll: 'Reroll', grpTake: 'Take it', heroShort: 'Hero', itemsShort: 'Items',
@@ -429,6 +435,7 @@ function renderStage(dealItems = true) {
         ${hero.role ? `<p class="hero-role">${esc(hero.role)}</p>` : ''}
         <div class="chips">
           <span class="tag">${esc(t(hero.type))}</span>
+          ${state.opts.lane && state.res.lane ? lanePill(state.res.lane) : ''}
         </div>
         ${hero.complexity ? `<span class="complex">${t('complexity')}: <b>${'◆'.repeat(hero.complexity)}${'◇'.repeat(Math.max(0, 3 - hero.complexity))}</b></span>` : ''}
       </div>
@@ -459,13 +466,13 @@ function renderStage(dealItems = true) {
     <div class="actions">
     <div class="hero-opts act-left">
       <div class="order-switch">
-        <span class="lbl">${t('orderT')}</span>
-        <div class="seg-order" role="radiogroup" aria-label="${t('orderT')}">
-          ${['pseudo', 'curve', 'chaos'].map((m) => `<button data-act="order" data-v="${m}" role="radio" aria-checked="${order === m}" aria-pressed="${order === m}">${t('o_' + m)}</button>`).join('')}
+        <span class="lbl">${t('orderT')}${infoBtn('order')}</span>
+        <div class="seg-order seg-modes" role="radiogroup" aria-label="${t('orderT')}">
+          ${['curve', 'pseudo', 'chaos'].map((m) => `<button class="m-${m}" data-act="order" data-v="${m}" role="radio" aria-checked="${order === m}" aria-pressed="${order === m}">${t('o_' + m)}</button>`).join('')}
         </div>
       </div>
       <div class="order-switch">
-        <span class="lbl">${t('mode')}</span>
+        <span class="lbl">${t('mode')}${infoBtn('mode')}</span>
         <div class="seg-order" role="radiogroup" aria-label="${t('mode')}">
           ${['chaos', 'balanced', 'mono'].map((m) => `<button data-act="mode" data-v="${m}" role="radio" aria-checked="${state.opts.mode === m}" aria-pressed="${state.opts.mode === m}">${t(m)}</button>`).join('')}
         </div>
@@ -505,6 +512,23 @@ function scrollToStage() {
   const top = el.getBoundingClientRect().top + window.scrollY - 8;
   if (window.scrollY <= top) return;
   window.scrollTo({ top, behavior: reduceMotion() ? 'auto' : 'smooth' });
+}
+
+// ---------- значок «i» с описанием режимов ----------
+function infoBtn(key) {
+  const rows = t('info_' + key).map(([m, name, text]) => `<li class="m-${m}"><b>${esc(name)}</b> — ${esc(text)}</li>`).join('');
+  return `<span class="info"><button type="button" class="info-btn" data-info="${key}" aria-expanded="false" aria-label="${esc(t('infoT'))}">i</button><span class="info-pop" role="tooltip"><ul>${rows}</ul></span></span>`;
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest && e.target.closest('.info-btn');
+  document.querySelectorAll('.info.open').forEach((x) => { if (!b || !x.contains(b)) { x.classList.remove('open'); x.querySelector('.info-btn').setAttribute('aria-expanded', 'false'); } });
+  if (b) { const box = b.parentElement; const on = !box.classList.contains('open'); box.classList.toggle('open', on); b.setAttribute('aria-expanded', String(on)); if (on) track('info_open', { key: b.dataset.info }); }
+});
+
+// ---------- линия на матч ----------
+const safeColor = (c) => (/^#[0-9a-f]{3,8}$/i.test(String(c || '')) ? c : '#60cde3');
+function lanePill(lane) {
+  return `<span class="lane-pill" style="--lc:${safeColor(lane.color)}"><i>${esc(String(lane.name || '?').charAt(0))}</i>${esc(t('laneT'))}: ${esc(lane.name)}</span>`;
 }
 
 // ---------- карточка предмета (как в игре) ----------
@@ -780,6 +804,10 @@ function renderOpts() {
         <span class="hint">${t('activesHint')}</span>
       </div>
     </div>
+    <div class="opt opt-lane">
+      <label class="check"><input type="checkbox" data-opt="lane" ${o.lane ? 'checked' : ''}><span>${t('laneOpt')}</span></label>
+      <span class="hint">${t('laneHint')}</span>
+    </div>
     <div class="opt" style="margin-top:20px">
       <span class="lbl">${t('pool')}</span>
       <span class="hint">${t('poolHint')}</span>
@@ -867,6 +895,10 @@ app.addEventListener('click', (e) => {
 // ползунок шлёт событие один раз — когда отпустили
 app.addEventListener('change', (e) => {
   const k = e.target.dataset && e.target.dataset.opt;
+  if (k === 'lane' && state.res) {
+    if (state.opts.lane && !state.res.lane && state.data.lanes && state.data.lanes.length) state.res.lane = state.data.lanes[Math.floor(Math.random() * state.data.lanes.length)];
+    renderStage(false); syncUrl();
+  }
   if (k) track('setting', { name: k, value: String(state.opts[k]) });
 });
 

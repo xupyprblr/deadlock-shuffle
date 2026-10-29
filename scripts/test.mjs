@@ -67,7 +67,15 @@ for (const opts of variants) {
       assert.ok(entry(res.build[0]) <= 800, `баланс: слот 1 — ${res.build[0].name}`);
       assert.ok(entry(res.build[1]) <= 800, `баланс: слот 2 — ${res.build[1].name}`);
       for (let i = 0; i < 5; i++) assert.ok(res.build[i].tier < 4, `баланс: 6400 в слоте ${i + 1}`);
-      if (res.build[5].tier === 4) assert.ok(entry(res.build[5]) <= 1600, `баланс: слот 6 — 6400 без дешёвого компонента (${res.build[5].name})`);
+      if (res.build[5].tier === 4) assert.ok(entry(res.build[5]) <= 3200, `баланс: слот 6 — 6400 без компонента (${res.build[5].name})`);
+      // слоты 1, 5, 6: предмет, у которого есть подходящий апгрейд на тир выше, должен быть показан апгрейдом
+      for (const [idx, max] of [[0, 2], [4, 3], [5, 4]]) {
+        const it = res.build[idx];
+        if (it.tier + 1 > max) continue;
+        const others = res.build.filter((x) => x !== it);
+        const canUp = data.items.some((u) => u.tier === it.tier + 1 && u.from.includes(it.slug) && u.active === it.active && (opts.mode === 'chaos' || u.cat === it.cat) && !res.hero.banned.includes(u.slug) && !others.some((o) => o.slug === u.slug || deep(u).has(o.slug) || deep(o).has(u.slug)) && !(u.active && others.filter((o) => o.active).length >= 4));
+        assert.ok(!canUp, `баланс: слот ${idx + 1} — ${it.name} можно было показать апгрейдом`);
+      }
       // в «Все в один» дешёвые предметы категории блокируют часть своих же апгрейдов — дорогих в конце может быть меньше
       assert.ok(res.build.slice(8).filter((i) => i.tier === 4).length >= (opts.mode === 'mono' ? 2 : 3), 'баланс: в конце дорогие предметы');
     }

@@ -2,7 +2,7 @@ import { encodeBuildCode, CATEGORY_KEYS } from './buildcode.js';
 import { initAnalytics, track } from './analytics.js';
 import { NS, markDev } from './env.js';
 import { buildSnapshot, fetchRawLite, fetchHeroAbilities, normalizeAbility, latestPatch, applyEnglishNames, isNewHero, attachTune, SCHEMA, API, PATCHES } from './normalize.js';
-import { roll, rng, newSeed, DEFAULTS, rollItem, orderBuild, PHASES, phaseOf, phaseTiers, curveTiers, buildCost, encodeResult, decodeResult, CATS, rollSkillOrder, ultIndexOf, rollHeroFor, scoreBuild, meterPos, MAX_ACTIVE } from './random.js';
+import { roll, rng, newSeed, DEFAULTS, rollItem, orderBuild, PHASES, phaseOf, phaseTiers, curveTiers, curveUpgrade, buildCost, encodeResult, decodeResult, CATS, rollSkillOrder, ultIndexOf, rollHeroFor, scoreBuild, meterPos, MAX_ACTIVE } from './random.js';
 
 const CFG = Object.assign({ live: true, dataUrl: 'data/', cacheHours: 6 }, window.DS_CONFIG || {});
 const app = document.getElementById('app');
@@ -266,8 +266,10 @@ function rerollSlot(idx) {
   const cat = state.opts.mode === 'chaos' ? null : cur.cat;
   // замена сохраняет тип слота: активка меняется на активку, пассивка на пассивку
   const tiers = opts.order === 'phases' ? phaseTiers(idx, opts) : opts.order === 'curve' ? curveTiers(idx, opts, cur) : null;
-  const next = rollItem(r, state.data.items, [...others, cur], opts, cat, res.hero, cur.active, tiers) || rollItem(r, state.data.items, others, opts, cat, res.hero, cur.active, tiers);
+  let next = rollItem(r, state.data.items, [...others, cur], opts, cat, res.hero, cur.active, tiers) || rollItem(r, state.data.items, others, opts, cat, res.hero, cur.active, tiers);
   if (!next) return;
+  // «Баланс рандом»: в слотах 1, 5, 6 предмет с апгрейдом показываем сразу апгрейдом
+  if (opts.order === 'curve') next = curveUpgrade(r, state.data.items, [...others, next], idx, next, opts, res.hero);
   // замена встаёт на место старого предмета во всех уже показанных порядках покупки
   for (const m of Object.keys(res.orders || {})) {
     const arr = res.orders[m].map((i) => (i === cur ? next : i));

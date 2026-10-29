@@ -199,6 +199,20 @@ function curveSlot(r, idx, opts) {
   if (!t.length) return { tiers: base.length ? base : null, base: base.length ? base : null, pred: null };
   return { tiers: t, base: base.length ? base : t, pred: useUp ? fromCheap(c.up.from) : null };
 }
+// Слоты 1, 5 и 6: если у выпавшего предмета есть апгрейд на тир выше — показываем сразу апгрейд
+// (дешёвую часть покупают на старте, доводят позже). Выбор между апгрейдами — с подкруткой под героя.
+// Потолок: слот 1 — до 1600 (тир II), слот 5 — до 3200 (III), слот 6 — до 6400 (IV); «скачки» выше не поднимаем.
+export const CURVE_UPGRADE_MAX = { 0: 2, 4: 3, 5: 4 };
+export const CURVE_UPGRADE_SLOTS = Object.keys(CURVE_UPGRADE_MAX).map(Number);
+export function curveUpgrade(r, items, build, idx, item, opts, hero) {
+  if (!item || !(idx in CURVE_UPGRADE_MAX) || item.tier + 1 > CURVE_UPGRADE_MAX[idx] || !opts.tiers.includes(item.tier + 1)) return item;
+  const bySlug = Object.fromEntries(items.map((i) => [i.slug, i]));
+  const rest = build.filter((b) => b !== item);
+  const ups = items.filter((u) => u.tier === item.tier + 1 && u.from.includes(item.slug) && u.active === item.active && (opts.mode === 'chaos' || u.cat === item.cat) && compatible(u, rest, opts, bySlug, hero));
+  if (!ups.length) return item;
+  return tuned(opts, hero) ? weightedPick(r, ups, (u) => itemWeight(hero, u)) : pick(r, ups);
+}
+
 // для перекрута одного слота: его обычная полка + тир текущего предмета
 export function curveTiers(idx, opts, cur) {
   const c = CURVE[Math.min(idx, CURVE.length - 1)];
@@ -284,7 +298,15 @@ function rollBuildOnce(r, items, opts, hero, k) {
     if (it) { build.push(it); bySlot[idx] = it; }
   }
   // «Баланс рандом»: предметы стоят в слотах своей полки — порядок покупки уже готов
-  return curve ? bySlot.filter(Boolean) : build;
+  if (curve) {
+    for (const idx of CURVE_UPGRADE_SLOTS) {
+      const cur = bySlot[idx];
+      const up = curveUpgrade(r, items, bySlot.filter(Boolean), idx, cur, opts, hero);
+      if (up !== cur) bySlot[idx] = up;
+    }
+    return bySlot.filter(Boolean);
+  }
+  return build;
 }
 
 // ---- Оценка затара ----

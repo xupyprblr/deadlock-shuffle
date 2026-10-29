@@ -32,7 +32,7 @@ const I18N = {
     ult: 'ульта', settings: 'Правила [рандома]', settingsSub: 'Настройки запоминаются в этом браузере.',
     slots: 'Слотов в сборке', mode: 'Баланс инвеста', chaos: 'Хаос', balanced: 'Поровну', mono: 'Все в один', grpReroll: 'Перекрутить', grpTake: 'Забрать', heroShort: 'Героя', itemsShort: 'Предметы',
     tiers: 'Тиры предметов', actives: 'Активные предметы', activesRandom: 'Случайно 0–4', activesHint: 'В игре максимум 4 активных слота. Крайнее левое положение — каждую крутку случайно.',
-    scoreT: 'Оценка затара', chanceNote: 'шанс на победу', realNote: 'Средний винрейт с такими предметами на этом герое', scoreNone: 'По этому герою пока мало матчей — оценка появится через несколько дней.', vs: 'к соседям по тиру',
+    scoreT: 'Оценка затара', gapNote: 'Без категории «{c}» герою тяжело — оценка снижена', gapNoteN: 'Без категорий {c} герою тяжело — оценка снижена', chanceNote: 'шанс на победу', realNote: 'Средний винрейт с такими предметами на этом герое', scoreNone: 'По этому герою пока мало матчей — оценка появится через несколько дней.', vs: 'к соседям по тиру',
     v_meta: 'Мета-затар', v_solid: 'Рабочая сборка', v_risky: 'Рискованно', v_challenge: 'Челлендж', v_troll: 'Чистый троллинг', copyScore: 'Оценка затара',
     classes: 'Классы героев', all: 'Все', pool: 'Пул героев',
     poolHint: 'Нажми на портрет — останется только этот герой. Следующие клики добавляют и убирают героев.', allHeroes: 'Все герои', poolCount: 'в пуле', reset: 'Сбросить правила',
@@ -76,7 +76,7 @@ const I18N = {
     ult: 'ult', settings: 'Shuffle [rules]', settingsSub: 'Settings are saved in this browser.',
     slots: 'Build slots', mode: 'Investment balance', chaos: 'Chaos', balanced: 'Even', mono: 'All in one', grpReroll: 'Reroll', grpTake: 'Take it', heroShort: 'Hero', itemsShort: 'Items',
     tiers: 'Item tiers', actives: 'Active items', activesRandom: 'Random 0–4', activesHint: 'The game has 4 active slots at most. Far left — random on every shuffle.',
-    scoreT: 'Build Rating', chanceNote: 'build win rate', realNote: 'Average win rate with these items on this hero', scoreNone: 'Not enough matches on this hero yet — the rating will appear in a few days.', vs: 'vs. same tier',
+    scoreT: 'Build Rating', gapNote: 'Missing {c} items hurts this hero — rating lowered', gapNoteN: 'Missing {c} items hurts this hero — rating lowered', chanceNote: 'build win rate', realNote: 'Average win rate with these items on this hero', scoreNone: 'Not enough matches on this hero yet — the rating will appear in a few days.', vs: 'vs. same tier',
     v_meta: 'Meta build', v_solid: 'Solid build', v_risky: 'Risky', v_challenge: 'Challenge', v_troll: 'Pure troll', copyScore: 'Build rating',
     classes: 'Hero classes', all: 'All', pool: 'Hero pool',
     poolHint: 'Click a portrait to keep only that hero. Further clicks add or remove heroes.', allHeroes: 'All heroes', poolCount: 'in pool', reset: 'Reset rules',
@@ -752,7 +752,18 @@ function renderScore(hero, build) {
         <div class="v-chance" title="${esc(t('realNote'))}: ≈${dec(sc.realChance)}%"><b>≈${dec(sc.chance)}%</b><span>${t('chanceNote')}</span></div>
         <div class="v-meter" aria-hidden="true"><span class="z-troll"></span><span class="z-challenge"></span><span class="z-risky"></span><span class="z-solid"></span><span class="z-meta"></span><i style="left:${pos}%"></i></div>
       </div>
+      ${gapLine(sc)}
     </div>`;
+}
+// подпись, если в затаре нет категории, без которой герою обычно тяжело (см. mixPenalty)
+function gapLine(sc) {
+  if (!sc.gaps || !sc.gaps.length) return '';
+  const ru = state.lang === 'ru';
+  const names = sc.gaps.map((c) => (ru ? `«${t(c)}»` : t(c).toLowerCase()));
+  const txt = sc.gaps.length === 1
+    ? t('gapNote').replace('{c}', ru ? t(sc.gaps[0]) : names[0])
+    : t('gapNoteN').replace('{c}', names.join(ru ? ' и ' : ' and '));
+  return `<p class="v-gap">${esc(txt)}</p>`;
 }
 
 async function loadStats() {

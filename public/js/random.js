@@ -353,18 +353,40 @@ export function impactChance(mean10) {
   return P[P.length - 1][1];
 }
 
+// Поправка за состав затара. Сила предметов считается по отдельности, поэтому 12 сильных предметов
+// одного цвета давали завышенный шанс, хотя герой без живучести умирает, а стрелок без оружия не наносит урон.
+// mix — как игроки на этом герое обычно делят души (stats.json, считает sync). Штраф ×1000, как и оценки:
+//  • перекос: расстояние между долями душ затара и типичными долями героя сверх допуска;
+//  • пустая категория, в которую герой обычно вкладывает заметную долю (gaps — для подписи).
+export const MIX = { tol: 0.25, k: 40, miss: { vitality: 40, weapon: 30, spirit: 20 }, missMin: 0.15, def: { weapon: 0.3, spirit: 0.45, vitality: 0.25 } };
+export function mixPenalty(build, mix) {
+  const m = mix || MIX.def;
+  const souls = { weapon: 0, spirit: 0, vitality: 0 };
+  let total = 0;
+  for (const i of build) if (souls[i.cat] !== undefined) { souls[i.cat] += i.cost || 0; total += i.cost || 0; }
+  if (!total) return { penalty: 0, gaps: [] };
+  let dist = 0;
+  for (const c of CATS) dist += Math.abs(souls[c] / total - (m[c] || 0));
+  let penalty = Math.max(0, dist / 2 - MIX.tol) * MIX.k;
+  const gaps = [];
+  for (const c of CATS) if (!souls[c] && (m[c] || 0) >= MIX.missMin) { penalty += MIX.miss[c] * m[c]; gaps.push(c); }
+  return { penalty: Math.round(penalty * 10) / 10, gaps };
+}
+
 export function scoreBuild(build, heroStats) {
   if (!heroStats || !heroStats.items) return null;
   const known = build.filter((i) => heroStats.items[i.id >>> 0] !== undefined);
   if (known.length < Math.ceil(build.length / 2)) return null; // мало данных — например, совсем новый герой
-  const mean = known.reduce((a, i) => a + heroStats.items[i.id >>> 0], 0) / known.length; // ×1000
+  const avg = known.reduce((a, i) => a + heroStats.items[i.id >>> 0], 0) / known.length; // ×1000
+  const { penalty, gaps } = mixPenalty(build, heroStats.mix);
+  const mean = Math.round(avg - penalty); // целые ×1000: процент и вердикт меняются вместе, без споров округления на границах
   const base = heroStats.base || 500;
   // Шанс сборки при «среднем» герое: 50% + вклад предметов. Силу героя (base) не добавляем,
   // иначе сильный герой с плохим затаром показывал бы больше, чем слабый с хорошим.
   const realChance = Math.max(250, Math.min(750, 500 + mean)) / 10; // честная оценка, в процентах
   const chance = Math.round(impactChance(mean) * 10) / 10; // то, что видит игрок
   const verdict = VERDICTS.find((v) => mean >= v.min).key;
-  return { mean: mean / 10, chance, realChance, base: base / 10, verdict, known: known.length, total: build.length };
+  return { mean: mean / 10, chance, realChance, base: base / 10, verdict, known: known.length, total: build.length, penalty: penalty / 10, gaps };
 }
 
 // Порядок прокачки как в игре: у каждой способности 4 шага — открытие и 3 улучшения

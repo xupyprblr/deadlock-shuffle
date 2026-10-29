@@ -135,6 +135,20 @@ assert.ok(es.from.includes(data.items.find((i) => i.name === 'Sprint Boots').slu
   for (let i = 1; i < xs.length; i++) assert.ok(rank[xs[i].verdict] >= rank[xs[i - 1].verdict], `шанс ${xs[i].chance} при вердикте ${xs[i].verdict} ниже ${xs[i - 1].verdict}`);
 }
 
+// затар одного цвета: без нужных герою категорий оценка не бывает «мета»
+{
+  let n = 0;
+  for (let k = 0; k < 600; k++) {
+    const r = roll(data, { ...DEFAULTS, mode: 'mono' }, 'm' + k);
+    const sc = scoreBuild(r.build, stats.heroes[r.hero.id]);
+    if (!sc) continue;
+    n++;
+    assert.ok(sc.gaps.length >= 1 && sc.penalty > 0, `моно без штрафа: ${r.hero.name}`);
+    assert.ok(sc.chance < 55, `моно ${r.hero.name}: ${sc.chance}%`);
+  }
+  assert.ok(n > 300, 'моно-оценки посчитаны');
+}
+
 // детерминизм сида
 assert.deepEqual(roll(data, DEFAULTS, 'abc').build.map((i) => i.id), roll(data, DEFAULTS, 'abc').build.map((i) => i.id));
 assert.equal(rollSkillOrder(rng('x')).length, 16);

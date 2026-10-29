@@ -262,6 +262,7 @@ mark {
   position: absolute; top: -6px; width: 6px; height: 22px; margin-left: -3px; background: var(--fg);
   box-shadow: 0 0 0 2px var(--ink); transition: left .4s cubic-bezier(.2,.8,.3,1.2);
 }
+.v-gap { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
 .v-sub { margin: 0; font-size: 14px; color: var(--muted); max-width: 70ch; }
 
 /* --- Кнопки --- */

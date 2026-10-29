@@ -11,7 +11,7 @@ import { mkdir, writeFile, readFile, access } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fetchRaw, buildSnapshot, applyEnglishNames, bannedFromStats, itemScores, tuneHero, buildTips, STATS } from '../public/js/normalize.js';
+import { fetchRaw, buildSnapshot, applyEnglishNames, bannedFromStats, itemScores, tuneHero, buildTips, heroMix, STATS } from '../public/js/normalize.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -213,6 +213,7 @@ for (let i = 0; i < enSnap.heroes.length; i += PAR) {
           base: hs && hs.matches ? Math.round((hs.wins / hs.matches) * 1000) : null,
           matches: hs ? hs.matches : 0,
           items: itemScores(stats, enSnap.items),
+          mix: heroMix(stats, enSnap.items),
         };
         freshHeroes++;
         try {

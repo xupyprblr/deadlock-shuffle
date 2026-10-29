@@ -400,3 +400,17 @@ export function buildTips(upgrades, shopItems, lang) {
   }
   return out;
 }
+
+// Типичный инвест героя: доля душ, которую игроки на этом герое вкладывают в оружие / спиритизм / живучесть
+// (покупки за 30 дней × цена предмета). Нужна оценке затара, чтобы штрафовать перекос по категориям.
+export function heroMix(stats, items) {
+  const byId = new Map(items.map((i) => [i.id >>> 0, i]));
+  const sum = { weapon: 0, spirit: 0, vitality: 0 };
+  for (const s of stats || []) {
+    const it = byId.get(s.item_id >>> 0);
+    if (it && sum[it.cat] !== undefined) sum[it.cat] += (s.matches || 0) * (it.cost || 0);
+  }
+  const total = sum.weapon + sum.spirit + sum.vitality;
+  if (!total) return null;
+  return { weapon: +(sum.weapon / total).toFixed(3), spirit: +(sum.spirit / total).toFixed(3), vitality: +(sum.vitality / total).toFixed(3) };
+}

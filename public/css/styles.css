@@ -608,33 +608,48 @@ footer { padding-block: 26px 44px; color: var(--muted); font-size: 13px; border-
 :root[data-theme="light"] .dot { box-shadow: 0 0 6px var(--green); }
 
 /* --- Карточка предмета (как подсказка в игре) --- */
-.tipcard { --c: var(--weapon); width: 300px; max-width: 100%; color: #f4ead8; background: color-mix(in srgb, var(--c) 22%, #15110d); border: 2px solid color-mix(in srgb, var(--c) 70%, #000); box-shadow: 6px 6px 0 rgba(0,0,0,.55); font: 500 14px/1.4 var(--f-body); text-align: left; }
-.tipcard.spirit { --c: var(--spirit); }
-.tipcard.vitality { --c: var(--vitality); }
-.tc-head { padding: 12px 14px 10px; background: linear-gradient(135deg, color-mix(in srgb, var(--c) 78%, #000) 0%, color-mix(in srgb, var(--c) 45%, #120d08) 100%); }
-.tc-title { font: 800 22px/1.1 var(--f-display); color: #fff3e0; text-shadow: 2px 2px 0 rgba(0,0,0,.35); }
-.tc-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 6px; }
-.tc-cost { font: 900 17px/1 var(--f-tag); color: var(--mint); }
-.tc-tier, .tc-act { font: 900 10px/1 var(--f-tag); text-transform: uppercase; letter-spacing: .04em; padding: 3px 5px 2px; background: rgba(0,0,0,.45); color: #f4ead8; }
-.tc-act { background: var(--yellow); color: var(--ink); }
-.tc-body { padding: 10px 12px 12px; display: grid; gap: 10px; }
-.tc-innate { display: grid; gap: 2px; font-size: 14px; color: #e9dcc5; }
+.tipcard {
+  --c: #c9822f; --cb: #3a2a17;
+  width: 320px; max-width: 100%; overflow: hidden; border-radius: 8px; color: #efe6d6; text-align: left;
+  background: color-mix(in srgb, var(--cb) 92%, transparent); backdrop-filter: blur(6px);
+  box-shadow: 0 14px 40px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.06) inset; font: 500 15px/1.4 var(--f-body);
+}
+.tipcard.weapon { --c: #c9822f; --cb: #3b2914; }
+.tipcard.vitality { --c: #7a9d33; --cb: #333d1b; }
+.tipcard.spirit { --c: #8f63c4; --cb: #2f2244; }
+.tc-head { padding: 14px 18px 12px; background: linear-gradient(160deg, color-mix(in srgb, var(--c) 100%, #fff 8%) 0%, var(--c) 55%, color-mix(in srgb, var(--c) 70%, #000) 100%); }
+.tc-title { font: 700 24px/1.1 var(--f-body); color: #fff6e6; text-shadow: 0 2px 2px rgba(0,0,0,.35); }
+.tc-meta { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+.tc-cost { display: inline-flex; align-items: center; gap: 5px; font: 700 18px/1 var(--f-body); color: #8ff0cf; text-shadow: 0 1px 2px rgba(0,0,0,.4); }
+.tc-soul { width: 11px; height: 20px; background: currentColor; -webkit-mask: url("../icons/icons/hud/icons/icon_soul.svg") center / contain no-repeat; mask: url("../icons/icons/hud/icons/icon_soul.svg") center / contain no-repeat; }
+.tc-act { font: 700 11px/1 var(--f-body); text-transform: uppercase; letter-spacing: .06em; padding: 4px 6px 3px; border-radius: 3px; background: rgba(0,0,0,.35); color: #ffe7a8; }
+.tc-body { display: grid; }
+.tc-innate { padding: 10px 18px; background: rgba(0,0,0,.18); color: #e2d6c2; display: grid; gap: 2px; }
 .tc-innate b { color: #fff; font-weight: 700; }
-.tc-sec { display: grid; gap: 8px; }
-.tc-sec-h { font: italic 600 14px/1 var(--f-body); color: #e9dcc5; background: rgba(0,0,0,.28); padding: 7px 10px; }
-.tc-text { margin: 0; color: #eadfcb; font-size: 14px; }
+.tc-sec { display: grid; }
+.tc-sec-h { display: flex; justify-content: space-between; align-items: stretch; background: rgba(0,0,0,.28); font: 700 15px/1 var(--f-body); color: #fff; }
+.tc-sec-h > span:first-child { padding: 9px 18px; }
+.tc-cd { display: inline-flex; align-items: center; gap: 7px; padding: 0 16px; background: rgba(0,0,0,.45); font-weight: 700; }
+.tc-cd img { width: 18px; height: 18px; }
+.tc-text { margin: 0; padding: 10px 18px 8px; color: #e8dcc8; }
 .tc-text b { color: #fff; font-weight: 700; }
 .tc-muted { color: #b9ad98; }
-.tc-big { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 4px; }
-.tc-bigcell { display: grid; justify-items: center; align-content: center; gap: 2px; padding: 10px 6px; background: rgba(0,0,0,.25); text-align: center; }
-.tc-bigcell b { font: 800 20px/1 var(--f-body); color: #fff; display: inline-flex; align-items: center; gap: 4px; }
-.tc-bigcell { grid-template-columns: auto; }
-.tc-bigcell img { width: 20px; height: 20px; }
-.tc-bigcell span { font-size: 13px; color: #e9dcc5; }
-.tc-small { display: grid; gap: 4px; }
-.tc-smallcell { display: flex; align-items: center; gap: 6px; padding: 7px 10px; background: rgba(0,0,0,.2); font-size: 13px; color: #e9dcc5; }
-.tc-smallcell b { color: #fff; font-weight: 700; }
-.tc-smallcell img, .tc-bigcell img { filter: drop-shadow(0 0 1px rgba(0,0,0,.6)); }
+.tc-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; padding: 4px 14px 14px; }
+.tc-cell { background: rgba(0,0,0,.22); border-radius: 4px; padding: 10px 10px; display: grid; align-content: center; gap: 2px; min-height: 52px; }
+.tc-big { justify-items: center; text-align: center; grid-template-columns: auto; }
+.tc-big img { width: 18px; height: 18px; margin-bottom: -2px; }
+.tc-big b { font: 700 19px/1.1 var(--f-body); color: #fff; }
+.tc-big span { font-size: 13px; color: #e2d6c2; }
+.tc-big:first-child:last-child, .tc-grid > .tc-big:only-child { grid-column: 1 / -1; }
+.tc-small { align-content: start; font-size: 14px; color: #e2d6c2; }
+.tc-small b { color: #fff; font-weight: 700; }
+.tc-cond { font-style: italic; font-size: 12px; color: #a99d89; }
+.tc-tree { padding: 10px 16px 12px; background: rgba(0,0,0,.2); border-top: 1px solid rgba(255,255,255,.06); }
+.tc-tree + .tc-tree { padding-top: 6px; border-top: 0; }
+.tc-tree-h { font: 700 12px/1 var(--f-body); text-transform: uppercase; letter-spacing: .08em; color: #d9ccb4; margin-bottom: 8px; }
+.tc-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; }
+.tc-link { display: inline-flex; align-items: center; gap: 7px; font: 700 13px/1.15 var(--f-body); color: #fff; min-width: 0; }
+.tc-link img { width: 24px; height: 24px; border-radius: 3px; flex: none; box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
 /* плавающая карточка на компьютере */
 .tip-float { position: fixed; left: 0; top: 0; z-index: 55; pointer-events: none; opacity: 0; transition: opacity .12s; }
 .tip-float.show { opacity: 1; }

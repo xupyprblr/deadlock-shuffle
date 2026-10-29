@@ -362,11 +362,13 @@ function tipValue(p, lang) {
   const post = String(p.postfix || '').replace(/\{[^}]*\}/g, '');
   return sign + (lang === 'ru' ? num.replace('.', ',') : num) + post;
 }
+// строка свойства: [иконка, значение, подпись, условие] — условие: текст игры («после срабатывания») или 1 = «при условии»
 function tipProp(props, key, lang) {
   const p = props && props[key];
   const v = tipValue(p, lang);
   if (!v) return null;
-  return [p.icon || '', v, String(p.postvalue_label || p.label || key).replace(/\{[^}]*\}/g, '').trim()];
+  const cond = p.conditional ? String(p.conditional) : Array.isArray(p.usage_flags) && p.usage_flags.includes('ConditionallyApplied') ? 1 : 0;
+  return [p.icon || '', v, String(p.postvalue_label || p.label || key).replace(/\{[^}]*\}/g, '').trim(), cond];
 }
 export function buildTips(upgrades, shopItems, lang) {
   const want = new Set(shopItems.map((i) => i.id >>> 0));
@@ -383,10 +385,12 @@ export function buildTips(upgrades, shopItems, lang) {
           continue;
         }
         const text = tipText(at.loc_string);
-        const small = (at.properties || []).map((k) => tipProp(props, k, lang)).filter(Boolean);
+        // перезарядка — в заголовок блока, как в игре
+        const cdProp = (at.properties || []).includes('AbilityCooldown') ? tipProp(props, 'AbilityCooldown', lang) : null;
+        const small = (at.properties || []).filter((k) => k !== 'AbilityCooldown').map((k) => tipProp(props, k, lang)).filter(Boolean);
         const big = (at.important_properties || []).map((k) => tipProp(props, k, lang)).filter(Boolean);
         if (!text && !small.length && !big.length) continue;
-        tip.sections.push({ type: sec.section_type === 'active' ? 'active' : 'passive', text, small, big });
+        tip.sections.push({ type: sec.section_type === 'active' ? 'active' : 'passive', text, small, big, ...(cdProp ? { cd: [cdProp[0], cdProp[1]] } : {}) });
       }
     }
     if (!tip.innate.length && !tip.sections.length && it.description && it.description.desc) {

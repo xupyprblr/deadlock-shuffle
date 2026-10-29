@@ -513,7 +513,7 @@ let tipEl = null, tipFor = -1;
 function tipData() { return loadTips(CFG.dataUrl, state.lang); }
 function cardFor(idx, data) {
   const it = state.res && state.res.build[idx];
-  return it ? tipCard(it, data, state.lang, src, fmt) : '';
+  return it ? tipCard(it, data, state.lang, src, fmt, state.data.items) : '';
 }
 function placeTip(slot) {
   if (!tipEl || !slot.isConnected) return;

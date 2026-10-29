@@ -90,10 +90,10 @@ async function writeTips(raw, snap, lang) {
   const icons = [];
   const at = new Map();
   const ref = (u) => { if (!u) return -1; if (!at.has(u)) { at.set(u, icons.length); icons.push(u); } return at.get(u); };
-  const pack = (rows) => rows.map(([ic, v, l]) => [ref(ic), v, l]);
+  const pack = (rows) => rows.map(([ic, v, l, c]) => (c ? [ref(ic), v, l, c] : [ref(ic), v, l]));
   for (const t of Object.values(tips)) {
     t.innate = pack(t.innate);
-    for (const sec of t.sections) { sec.small = pack(sec.small); sec.big = pack(sec.big); }
+    for (const sec of t.sections) { sec.small = pack(sec.small); sec.big = pack(sec.big); if (sec.cd) sec.cd = [ref(sec.cd[0]), sec.cd[1]]; }
   }
   for (let i = 0; i < icons.length; i++) icons[i] = ICONS ? await mirror(icons[i]) : icons[i];
   const body = JSON.stringify({ v: 1, lang, icons, items: tips });

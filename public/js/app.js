@@ -141,6 +141,8 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 // В демо-сборке картинки встроены в страницу (window.DS_IMG), на сайте — обычные пути
 const src = (p) => (p && window.DS_IMG && window.DS_IMG[p]) || p || '';
 // внешние ссылки из API — только http(s), чтобы подменённые данные не могли подсунуть javascript:
+// Valve пишет дату патча как ММ-ДД-ГГГГ; в русской версии показываем ДД-ММ-ГГГГ
+const patchTitle = (s) => (state.lang === 'ru' ? String(s || '').replace(/^(\d{2})-(\d{2})-(\d{4})/, '$2-$1-$3') : String(s || ''));
 const safeUrl = (u) => { try { const x = new URL(String(u)); return x.protocol === 'https:' || x.protocol === 'http:' ? x.href : ''; } catch { return ''; } };
 // «Слово в [скобках]» -> выделенная плашка, как «updated» на официальной странице
 const hl = (s) => esc(s).replace(/\[(.+?)\]/g, '<mark>$1</mark>');
@@ -174,7 +176,10 @@ async function loadSnapshot(lang) {
   let snap = null;
   try { snap = await fetchJson(CFG.dataUrl + lang + '.json?v=' + Math.floor(Date.now() / 36e5)); } catch {}
   // берём более свежий из двух: кэш живого обновления или серверный снимок
-  if (cached && cached.schema === SCHEMA && (!snap || (cached.clientVersion || 0) > (snap.clientVersion || 0))) return cached;
+  if (cached && cached.schema === SCHEMA && (!snap || (cached.clientVersion || 0) > (snap.clientVersion || 0))) {
+    if (snap) cached.patch = latestPatch(cached.patch, snap.patch); // дату патча сервер знает лучше (новости Steam)
+    return cached;
+  }
   if (snap) return snap;
   if (cached) return cached;
   throw new Error('no data');
@@ -408,7 +413,7 @@ function renderTop() {
       <a class="soc soc-donate" href="${DONATE}" target="_blank" rel="noopener" data-track="donate" data-track-v="header">${ICON.heart}<span>${t('donate')}</span></a>
     </nav>
     <div class="top-meta">
-      <span class="patch"><i class="dot ${state.live ? '' : 'stale'}"></i>${p ? `${t('patch')} ${safeUrl(p.link) ? `<a href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener">${esc(p.title)}</a>` : esc(p.title)} · ` : ''}${state.live ? t('fresh') : `${t('stale')} ${when}`}</span>
+      <span class="patch"><i class="dot ${state.live ? '' : 'stale'}"></i>${p ? `${t('patch')} ${safeUrl(p.link) ? `<a href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener">${esc(patchTitle(p.title))}</a>` : esc(patchTitle(p.title))} · ` : ''}${state.live ? t('fresh') : `${t('stale')} ${when}`}</span>
       <span class="seg" role="group" aria-label="Language">
         <button data-act="lang" data-v="ru" aria-pressed="${state.lang === 'ru'}">RU</button>
         <button data-act="lang" data-v="en" aria-pressed="${state.lang === 'en'}">EN</button>

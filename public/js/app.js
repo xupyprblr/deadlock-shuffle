@@ -24,7 +24,7 @@ const I18N = {
     howWarn: '<b>Нет кнопки «Вставить сборку»?</b> Значит, в игре выбран другой герой или код пропал из буфера обмена. Проверь героя и скопируй код ещё раз.',
     view_solo: 'Соло', view_team: 'Собрать команду', teamT: '[Команда]',
     teamSub: 'Крути игроков по очереди: «+ Следующий игрок» добавляет нового, герои в команде не повторяются. Готово — кидай ссылку в чат пати, каждый откроет своего героя и заберёт затар кнопкой «В игру».',
-    teamLink: 'Ссылка на команду', teamLinkShort: 'Команда', teamLinkCopied: 'Ссылка на команду скопирована — кидай в чат пати', playerN: 'Игрок',
+    teamLink: 'Ссылка на команду', teamLinkShort: 'Команда', roT: 'Команда от [капитана]', roSub: 'Капитан уже раскидал героев и затары. Найди своего героя и нажми «В игру» — код сборки скопируется, дальше в Deadlock: Поиск сборок → Создать сборку → Вставить сборку.', roOwn: 'Крутить свой затар', roBadge: 'Только просмотр', teamLinkCopied: 'Ссылка на команду скопирована — по ней только забрать затары, без перекрута', playerN: 'Игрок',
     addPlayer: 'Следующий игрок', nextPlayer: 'Следующий игрок', onStage: 'на экране', openSlot: 'Показать сверху', removeSlot: 'Убрать игрока', rerollAll: 'Всё',
     teamAvg: 'Средняя оценка команды', poolSmall: 'В пуле не осталось свободных героев — взял из всех',
     teamTaken: 'Код для {h} скопирован. В игре: Поиск сборок → Создать сборку → Вставить сборку',
@@ -34,7 +34,7 @@ const I18N = {
     copy: 'Скопировать', link: 'Ссылка', copied: 'Скопировано', linkCopied: 'Ссылка скопирована', rerollSlot: 'Заменить предмет', infoT: 'Что это?',
     info_order: [['curve', 'Баланс рандом', 'Самый удобный: дешёвые предметы в начале, дорогие в конце — не нужно копить на первый слот.'], ['pseudo', 'Псевдо-рандом', 'Случайная сборка в разумных рамках: играть ей реально, но порядок покупки свободный — дорогой предмет может выпасть рано.'], ['chaos', 'Полный рандом', 'Никаких правил: любые предметы в любом порядке. Для любителей челленджа.']],
     info_mode: [['chaos', 'Хаос', 'Оружие, спиритизм и живучесть — как выпадет.'], ['balanced', 'Поровну', 'Каждой категории по 4 предмета.'], ['mono', 'Все в один', 'Все 12 предметов из одной категории.']],
-    laneOpt: 'Выбирать линию на матч', laneHint: 'С каждой круткой сайт подскажет, на какую линию идти.', laneT: 'Линия', tapHint: 'Тап по предмету — описание и перекрут', rerollBtn: 'Перекрутить предмет', closeBtn: 'Закрыть',
+    laneOpt: 'Выбирать линию на матч', laneHint: 'С каждой круткой сайт подскажет, на какую линию идти.', laneT: 'Линия', tapHint: 'Тап по предмету — описание и перекрут', tapHintRo: 'Тап по предмету — описание', rerollBtn: 'Перекрутить предмет', closeBtn: 'Закрыть',
     skills: 'Порядок [прокачки]', unlock: 'Открыть', newHeroBadge: 'Новинка',
     ult: 'ульта', settings: 'Правила [рандома]', settingsSub: 'Настройки запоминаются в этом браузере.',
     slots: 'Слотов в сборке', mode: 'Баланс инвеста', chaos: 'Хаос', balanced: 'Поровну', mono: 'Все в один', grpReroll: 'Перекрутить', grpTake: 'Забрать', heroShort: 'Героя', itemsShort: 'Предметы',
@@ -74,7 +74,7 @@ const I18N = {
     howWarn: '<b>No “Paste build” button?</b> The game has a different hero selected, or the code is no longer in your clipboard. Check the hero and copy the code again.',
     view_solo: 'Solo', view_team: 'Build a team', teamT: '[Team]',
     teamSub: 'Roll players one by one: “+ Next player” adds a new one, heroes never repeat within the team. Done — drop the link in party chat; everyone opens their hero and grabs the build with “To game”.',
-    teamLink: 'Team link', teamLinkShort: 'Team', teamLinkCopied: 'Team link copied — drop it in party chat', playerN: 'Player',
+    teamLink: 'Team link', teamLinkShort: 'Team', roT: 'Team from the [captain]', roSub: 'The captain has already picked the heroes and builds. Find your hero and hit “To game” — the build code is copied; then in Deadlock: Browse builds → Create build → Paste build.', roOwn: 'Roll your own build', roBadge: 'View only', teamLinkCopied: 'Team link copied — teammates can only grab builds, no rerolls', playerN: 'Player',
     addPlayer: 'Next player', nextPlayer: 'Next player', onStage: 'on screen', openSlot: 'Show on top', removeSlot: 'Remove player', rerollAll: 'All',
     teamAvg: 'Team average rating', poolSmall: 'No free heroes left in the pool — picked from all heroes',
     teamTaken: 'Code for {h} copied. In game: Browse builds → Create build → Paste build',
@@ -84,7 +84,7 @@ const I18N = {
     copy: 'Copy', link: 'Link', copied: 'Copied', linkCopied: 'Link copied', rerollSlot: 'Replace item', infoT: 'What is this?',
     info_order: [['curve', 'Balanced Random', 'The most comfortable: cheap items first, expensive ones at the end — no saving up for slot one.'], ['pseudo', 'Smart Random', 'A random build within reason: playable, but the purchase order is loose — an expensive item can come early.'], ['chaos', 'Full Random', 'No rules: any items in any order. For challenge lovers.']],
     info_mode: [['chaos', 'Chaos', 'Weapon, spirit and vitality — whatever drops.'], ['balanced', 'Even', '4 items from each category.'], ['mono', 'All in one', 'All 12 items from a single category.']],
-    laneOpt: 'Pick a lane for the match', laneHint: 'Every roll also tells you which lane to take.', laneT: 'Lane', tapHint: 'Tap an item for info and reroll', rerollBtn: 'Reroll item', closeBtn: 'Close',
+    laneOpt: 'Pick a lane for the match', laneHint: 'Every roll also tells you which lane to take.', laneT: 'Lane', tapHint: 'Tap an item for info and reroll', tapHintRo: 'Tap an item for info', rerollBtn: 'Reroll item', closeBtn: 'Close',
     skills: 'Ability [order]', unlock: 'Unlock', newHeroBadge: 'New',
     ult: 'ult', settings: 'Shuffle [rules]', settingsSub: 'Settings are saved in this browser.',
     slots: 'Build slots', mode: 'Investment balance', chaos: 'Chaos', balanced: 'Even', mono: 'All in one', grpReroll: 'Reroll', grpTake: 'Take it', heroShort: 'Hero', itemsShort: 'Items',
@@ -151,6 +151,7 @@ const state = {
   view: 'solo', // solo | team
   team: null, // { slots: [{ res, order, mode }], active } — active показан на большой сцене
   solo: null, // соло-крутка, пока открыта команда
+  readonly: false, // открыта ссылка тиммейта (?squad=): только забрать затары, без крутки
 };
 const t = (k) => (I18N[state.lang] || I18N.ru)[k] ?? k;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -259,7 +260,7 @@ async function ensureAbilities(hero) {
 // ---------- рандом ----------
 function doRoll(kind = 'all', src = 'button') {
   const d = state.data;
-  if (!d || spinning) return;
+  if (!d || spinning || state.readonly) return;
   const seed = newSeed();
   const prev = state.res;
   const keepHero = kind === 'items' && prev ? prev.hero : null;
@@ -295,7 +296,7 @@ function doRoll(kind = 'all', src = 'button') {
 
 function rerollSlot(idx) {
   const res = state.res;
-  if (!res || spinning) return;
+  if (!res || spinning || state.readonly) return;
   const r = rng(res.seed + ':' + idx + ':' + ++state.rerolls + ':' + Math.random());
   const others = res.build.filter((_, i) => i !== idx);
   const cur = res.build[idx];
@@ -321,8 +322,8 @@ function rerollSlot(idx) {
 function syncUrl() {
   try {
     const u = new URL(location.href);
-    if (state.view === 'team' && state.team) { u.searchParams.set('team', encodeTeam(state.team)); u.searchParams.delete('b'); }
-    else { u.searchParams.set('b', encodeResult(state.res)); u.searchParams.delete('team'); }
+    if (state.view === 'team' && state.team) { u.searchParams.set(state.readonly ? 'squad' : 'team', encodeTeam(state.team)); u.searchParams.delete(state.readonly ? 'team' : 'squad'); u.searchParams.delete('b'); }
+    else { u.searchParams.set('b', encodeResult(state.res)); u.searchParams.delete('team'); u.searchParams.delete('squad'); }
     history.replaceState(null, '', u);
   } catch {}
 }
@@ -331,7 +332,7 @@ function shareUrl() {
   try {
     const u = new URL(location.href);
     u.searchParams.set('b', encodeResult(state.res));
-    u.searchParams.delete('team');
+    u.searchParams.delete('team'); u.searchParams.delete('squad');
     return u.toString();
   } catch { return encodeResult(state.res); }
 }
@@ -341,15 +342,17 @@ function soloUrl(res) {
   try {
     const u = new URL(location.href);
     u.searchParams.set('b', encodeResult(res));
-    u.searchParams.delete('team');
+    u.searchParams.delete('team'); u.searchParams.delete('squad');
     return u.toString();
   } catch { return ''; }
 }
 
+// Ссылка для тиммейтов: ?squad= — команда только для просмотра (забрать затар, без перекрута)
 function teamUrl() {
   try {
     const u = new URL(location.href);
-    u.searchParams.set('team', encodeTeam(state.team));
+    u.searchParams.set('squad', encodeTeam(state.team));
+    u.searchParams.delete('team');
     u.searchParams.delete('b');
     return u.toString();
   } catch { return ''; }
@@ -511,23 +514,29 @@ function renderStage(dealItems = true) {
         <span class="souls">${fmt(cost)}<small>${t('souls')}</small></span>
       </div>
       ${order === 'phases' ? `<div class="phase-head" aria-hidden="true">${PHASES.map((p) => `<span class="ph-${p.key}">${t('ph_' + p.key)}<small>${p.from + 1}–${p.to}</small></span>`).join('')}</div>` : ''}
-      <p class="tap-hint">${t('tapHint')}</p>
+      <p class="tap-hint">${t(state.readonly ? 'tapHintRo' : 'tapHint')}</p>
       <div class="slots ${dealItems ? 'dealt' : ''} ${order === 'phases' ? 'by-phase' : ''}">
         ${build.map((i, idx) => `
-          <button class="slot ${i.cat}" style="--i:${idx}" data-act="slot" data-i="${idx}" aria-label="${esc(i.name)} — ${t(i.cat)}, ${ROMAN[i.tier]}${i.active ? ', ' + t('active') : ''}. ${t('rerollSlot')}">
+          <button class="slot ${i.cat}" style="--i:${idx}" data-act="slot" data-i="${idx}" aria-label="${esc(i.name)} — ${t(i.cat)}, ${ROMAN[i.tier]}${i.active ? ', ' + t('active') : ''}${state.readonly ? '' : '. ' + t('rerollSlot')}">
             <span class="slot-tile">
               ${i.icon ? `<img src="${esc(src(i.icon))}" alt="" loading="lazy" width="200" height="200">` : ''}
               <span class="tier">${ROMAN[i.tier]}</span>${i.active ? `<span class="act" title="${t('active')}">A</span>` : ''}<span class="num ${order === 'phases' ? 'ph-' + phaseOf(idx).key : ''}">${idx + 1}</span>
             </span>
             <span class="slot-name">${esc(i.name)}</span>
             <span class="slot-cost">${fmt(i.cost)}</span>
-            <span class="reroll" aria-hidden="true">↻</span>
+            ${state.readonly ? '' : '<span class="reroll" aria-hidden="true">↻</span>'}
           </button>`).join('')}
       </div>
       <div class="split" aria-hidden="true">${CATS.map((c) => `<span style="flex-grow:${per[c]};background:var(--${c})"></span>`).join('')}</div>
       <div class="legend-row">${CATS.map((c) => `<span><i class="sw" style="background:var(--${c})"></i>${t(c)} <b>${per[c]}</b></span>`).join('')}</div>
       ${renderScore(hero, build)}
     </div>
+    ${state.readonly ? `<div class="actions ro-actions">
+      <div class="act-group">
+        <button class="btn btn-game btn-take" data-act="game">${ICON.game}<span>${t('toGame')}</span></button>
+        <button class="how-link" data-act="how">${t('howBtn')}</button>
+      </div>
+    </div>` : `
     <div class="actions">
     <div class="hero-opts act-left">
       <div class="order-switch">
@@ -565,7 +574,7 @@ function renderStage(dealItems = true) {
         <button class="how-link" data-act="how">${t('howBtn')}</button>
       </div>
       </div>
-    </div>`;
+    </div>`}`;
   if (dealItems) spinSlots();
 }
 
@@ -647,7 +656,7 @@ async function openTipSheet(idx) {
   const paint = (data) => {
     el.innerHTML = `<div class="tip-sheet-in">${cardFor(idx, data)}<div class="tip-sheet-btns">
       <button class="btn" data-sheet="close">${t('closeBtn')}</button>
-      <button class="btn btn-game" data-sheet="reroll">${ICON.cards}<span>${t('rerollBtn')}</span></button></div></div>`;
+      ${state.readonly ? '' : `<button class="btn btn-game" data-sheet="reroll">${ICON.cards}<span>${t('rerollBtn')}</span></button>`}</div></div>`;
   };
   paint(null);
   el.addEventListener('click', (e) => {
@@ -779,7 +788,7 @@ function decodeTeam(code, data) {
 }
 function saveTeam() {
   if (!state.team) return;
-  store.set('ds:team', encodeTeam(state.team));
+  if (!state.readonly) store.set('ds:team', encodeTeam(state.team));
   if (state.view === 'team') syncUrl();
 }
 
@@ -849,7 +858,7 @@ function activate(i, scroll = true) {
 // «+ Следующий игрок»: новый слот и сразу крутка (с анимацией, как в соло)
 function addPlayer(src = 'button') {
   const team = state.team;
-  if (!team || team.slots.length >= TEAM_N || spinning) return;
+  if (!team || team.slots.length >= TEAM_N || spinning || state.readonly) return;
   team.slots.push({ res: null, order: state.opts.order, mode: state.opts.mode });
   team.active = team.slots.length - 1;
   state.res = null;
@@ -860,7 +869,7 @@ function addPlayer(src = 'button') {
 
 function removePlayer(i) {
   const team = state.team;
-  if (!team || spinning || team.slots.length <= 1) return;
+  if (!team || spinning || state.readonly || team.slots.length <= 1) return;
   team.slots.splice(i, 1);
   if (team.active >= team.slots.length || team.active === i) team.active = Math.max(0, Math.min(i, team.slots.length - 1));
   else if (team.active > i) team.active--;
@@ -875,6 +884,7 @@ function teamSlotAct(i, k) {
   if (!team || !team.slots[i] || spinning) return;
   if (k === 'game') { teamToGame(i); return; }
   if (k === 'open') { activate(i); return; }
+  if (state.readonly) return;
   if (k === 'remove') { removePlayer(i); return; }
   if (team.active !== i) activate(i);
   doRoll(k === 'hero' ? 'hero' : k === 'items' ? 'items' : 'all', 'team_card');
@@ -916,6 +926,14 @@ function setView(v) {
 
 function renderViews() {
   const v = state.view;
+  const opts = document.getElementById('opts');
+  if (opts) opts.hidden = state.readonly;
+  document.body.classList.toggle('ro', state.readonly);
+  if (state.readonly) {
+    document.getElementById('views').innerHTML = `<div class="ro-bar"><span class="tag ro-tag">${t('roBadge')}</span><a class="btn" href="./">${ICON.dice}<span>${t('roOwn')}</span></a></div>`;
+    document.getElementById('team').hidden = false;
+    return;
+  }
   document.getElementById('views').innerHTML = `
     <div class="views-seg" role="tablist">
       <button role="tab" data-act="view" data-v="solo" aria-selected="${v === 'solo'}" aria-pressed="${v === 'solo'}">${ICON.mask}<span>${t('view_solo')}</span></button>
@@ -939,7 +957,7 @@ function teamCard(s, i) {
             <span class="t-mode">${esc(t('o_' + s.order))} · ${esc(t(s.mode))}</span>
           </span>
         </button>
-        ${state.team.slots.length > 1 ? `<button class="t-x" data-act="t-slot" data-s="${i}" data-k="remove" title="${esc(t('removeSlot'))}" aria-label="${esc(t('removeSlot'))}: ${esc(hero.name)}">✕</button>` : ''}
+        ${state.team.slots.length > 1 && !state.readonly ? `<button class="t-x" data-act="t-slot" data-s="${i}" data-k="remove" title="${esc(t('removeSlot'))}" aria-label="${esc(t('removeSlot'))}: ${esc(hero.name)}">✕</button>` : ''}
       </header>
       ${state.opts.lane && s.res.lane ? `<div class="chips">${lanePill(s.res.lane)}</div>` : ''}
       <div class="t-items">
@@ -951,11 +969,11 @@ function teamCard(s, i) {
       </div>
       <div class="t-acts">
         <button class="btn btn-game" data-act="t-slot" data-s="${i}" data-k="game">${ICON.game}<span>${t('toGame')}</span></button>
-        <div class="btn-row t-rr" role="group" aria-label="${esc(t('grpReroll'))}">
+        ${state.readonly ? '' : `<div class="btn-row t-rr" role="group" aria-label="${esc(t('grpReroll'))}">
           <button class="btn btn-mini" data-act="t-slot" data-s="${i}" data-k="hero" title="${esc(t('grpReroll'))}: ${esc(t('heroShort'))}">${ICON.mask}<span>${t('heroShort')}</span></button>
           <button class="btn btn-mini" data-act="t-slot" data-s="${i}" data-k="items" title="${esc(t('grpReroll'))}: ${esc(t('itemsShort'))}">${ICON.cards}<span>${t('itemsShort')}</span></button>
           <button class="btn btn-mini" data-act="t-slot" data-s="${i}" data-k="all" title="${esc(t('grpReroll'))}: ${esc(t('rerollAll'))}">${ICON.dice}<span>${t('rerollAll')}</span></button>
-        </div>
+        </div>`}
       </div>
     </article>`;
 }
@@ -970,8 +988,8 @@ function renderTeam() {
   el.innerHTML = `
     <div class="t-top">
       <div class="t-intro">
-        <h2>${hl(t('teamT'))} <span class="t-count">${n}/${TEAM_N}</span></h2>
-        <p class="sub">${t('teamSub')}</p>
+        <h2>${hl(t(state.readonly ? 'roT' : 'teamT'))} <span class="t-count">${state.readonly ? n : `${n}/${TEAM_N}`}</span></h2>
+        <p class="sub">${t(state.readonly ? 'roSub' : 'teamSub')}</p>
       </div>
       <div class="t-side">
         ${avg != null && slots.length > 1 ? `<span class="t-avg">${t('teamAvg')}: <b>≈${dec(avg)}%</b></span>` : ''}
@@ -980,7 +998,7 @@ function renderTeam() {
     </div>
     <div class="t-grid">
       ${state.team.slots.map((s, i) => (s.res ? teamCard(s, i) : '')).join('')}
-      ${n < TEAM_N ? `<button class="t-add" data-act="t-add">${ICON.plus}<span>${t('addPlayer')}</span><small>${t('playerN')} ${n + 1}</small></button>` : ''}
+      ${n < TEAM_N && !state.readonly ? `<button class="t-add" data-act="t-add">${ICON.plus}<span>${t('addPlayer')}</span><small>${t('playerN')} ${n + 1}</small></button>` : ''}
     </div>`;
 }
 
@@ -1178,6 +1196,7 @@ app.addEventListener('click', (e) => {
     case 'slot':
       // на телефоне тап открывает карточку предмета, перекрут — кнопкой в ней
       if (isTouch()) { openTipSheet(+b.dataset.i); break; }
+      if (state.readonly) break;
       hideTip(); rerollSlot(+b.dataset.i); track('reroll_slot', { slot: +b.dataset.i + 1, hero: state.res && state.res.hero.name }); break;
     case 'game': toGame(); break;
     case 'how': openHow(false); track('howto_open'); break;
@@ -1242,6 +1261,7 @@ document.addEventListener('keydown', (e) => {
   if (document.getElementById('how')) return;
   const tag = (e.target.tagName || '').toLowerCase();
   if (['input', 'textarea', 'select', 'button'].includes(tag)) return;
+  if (state.readonly) return;
   e.preventDefault();
   doRoll('all', 'space');
 });
@@ -1286,7 +1306,10 @@ async function boot() {
   shell();
   let fromUrl = null, teamFromUrl = null;
   try { const q = new URL(location.href).searchParams; fromUrl = q.get('b'); teamFromUrl = q.get('team'); } catch {}
-  if (teamFromUrl) { state.team = decodeTeam(teamFromUrl, state.data); if (state.team) state.view = 'team'; }
+  let squad = null;
+  try { squad = new URL(location.href).searchParams.get('squad'); } catch {}
+  if (squad) { state.team = decodeTeam(squad, state.data); if (state.team) { state.view = 'team'; state.readonly = true; } }
+  else if (teamFromUrl) { state.team = decodeTeam(teamFromUrl, state.data); if (state.team) state.view = 'team'; }
   const shared = fromUrl && decodeResult(fromUrl, state.data);
   if (shared) { shared.seed = newSeed(); state.res = shared; }
   else state.res = roll(state.data, state.opts, newSeed());

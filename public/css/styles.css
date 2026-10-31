@@ -800,3 +800,15 @@ footer { padding-block: 26px 44px; color: var(--muted); font-size: 13px; border-
 :root[data-theme="light"] .views-seg { box-shadow: 5px 5px 0 rgba(0, 0, 0, .2); background: rgba(255, 255, 255, .6); }
 :root[data-theme="light"] .views-seg button[aria-pressed="true"] { background: var(--yellow); }
 :root[data-theme="light"] .t-add:hover { border-color: var(--orange); }
+
+/* ссылка тиммейта (?squad=): команда только для просмотра — забрать затар, без крутки */
+.ro-bar { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; justify-content: center; }
+.ro-tag { background: var(--teal); font-size: 14px; }
+.ro-bar .btn { text-decoration: none; }
+.ro .slot { cursor: default; }
+.ro .slot:hover .slot-tile { transform: none; }
+.ro-actions { display: flex; justify-content: center; }
+.ro-actions .act-group { justify-items: center; }
+.btn-take { font-size: 22px; padding: 18px 40px 16px; gap: 12px; box-shadow: 5px 5px 0 var(--ink); transform: rotate(-1.5deg); }
+.btn-take .ico { width: 26px; height: 26px; }
+@media (max-width: 640px) { .ro-actions .act-group, .btn-take { width: 100%; justify-content: center; } }

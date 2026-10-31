@@ -122,14 +122,37 @@ export function normalizeLanes(generic) {
     .map((l) => ({ name: l.lane_name, css: l.css_class, color: laneHex(l.color) }));
 }
 
-export function latestPatch(patches) {
-  if (!Array.isArray(patches) || !patches.length) return null;
-  const p = [...patches].sort((a, b) => String(b.pub_date).localeCompare(String(a.pub_date)))[0];
+// Новости Steam: Valve публикует патч там сразу, а тема на форуме (лента PATCHES) появляется с опозданием.
+// Из браузера недоступна (нет CORS) — читает только sync.mjs.
+export const STEAM_NEWS = 'https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=1422450&count=15&maxlength=1&feeds=steam_community_announcements';
+const ptDate = (iso) => {
+  const [m, d, y] = new Date(iso).toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).split('/');
+  return `${m}-${d}-${y}`; // как Valve подписывает патчи: дата по тихоокеанскому времени
+};
+export function steamPatches(news) {
+  const items = (news && news.appnews && news.appnews.newsitems) || [];
+  return items
+    .filter((n) => (n.tags || []).includes('patchnotes') || /\b(update|patch)\b/i.test(n.title || ''))
+    .map((n) => {
+      const iso = new Date(n.date * 1000).toISOString();
+      return { title: ptDate(iso), pub_date: iso, link: n.url };
+    });
+}
+// Самый свежий патч из любых источников (форум, Steam, уже известный снимку)
+export function latestPatch(...lists) {
+  const all = [];
+  for (const l of lists) {
+    if (Array.isArray(l)) all.push(...l);
+    else if (l && l.date) all.push({ title: l.title, pub_date: l.date, link: l.link });
+  }
+  const ok = all.filter((p) => p && p.pub_date && p.title);
+  if (!ok.length) return null;
+  const p = ok.sort((a, b) => Date.parse(b.pub_date) - Date.parse(a.pub_date))[0];
   return { title: p.title, date: p.pub_date, link: p.link };
 }
 
 // Главная функция: собирает всё в один снимок.
-export function buildSnapshot({ lang, heroes, upgrades, abilities, generic, patches, clientVersion }) {
+export function buildSnapshot({ lang, heroes, upgrades, abilities, generic, patches, steam, clientVersion }) {
   const abilityByClass = {};
   for (const a of abilities || []) abilityByClass[a.class_name] = a;
 
@@ -147,7 +170,7 @@ export function buildSnapshot({ lang, heroes, upgrades, abilities, generic, patc
     lang,
     fetchedAt: new Date().toISOString(),
     clientVersion: clientVersion || null,
-    patch: latestPatch(patches),
+    patch: latestPatch(patches, steamPatches(steam)),
     prices: (generic && generic.item_price_per_tier) || [0, 800, 1600, 3200, 6400, 9999],
     lanes: normalizeLanes(generic),
     heroes: heroList,
@@ -236,16 +259,17 @@ export function applyEnglishNames(snap, en) {
 // (в Node — с таймаутом и ретраями, в браузере — обычный fetch).
 export async function fetchRaw(fetchJson, lang) {
   const l = LANGS[lang] || 'english';
-  const [heroes, upgrades, abilities, generic, patches, versions] = await Promise.all([
+  const [heroes, upgrades, abilities, generic, patches, versions, steam] = await Promise.all([
     fetchJson(`${API}/heroes?language=${l}&only_active=true`),
     fetchJson(`${API}/items/by-type/upgrade?language=${l}`),
     fetchJson(`${API}/items/by-type/ability?language=${l}`),
     fetchJson(`${API}/generic-data`),
     fetchJson(PATCHES).catch(() => []),
     fetchJson(`${API}/client-versions`).catch(() => []),
+    fetchJson(STEAM_NEWS).catch(() => null),
   ]);
   const clientVersion = Array.isArray(versions) && versions.length ? Math.max(...versions) : null;
-  return { lang, heroes, upgrades, abilities, generic, patches, clientVersion };
+  return { lang, heroes, upgrades, abilities, generic, patches, steam, clientVersion };
 }
 
 // Облегчённая версия для браузера: без 4-мегабайтного списка всех способностей.

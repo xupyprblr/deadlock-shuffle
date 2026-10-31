@@ -206,7 +206,7 @@ async function liveCheck() {
     if (lang !== 'en') applyEnglishNames(fresh, buildSnapshot(await fetchRawLite(fetchJson, 'en')));
     // переносим способности и патч из старого снимка, новых героев догрузим по запросу
     fresh.patch = state.data.patch;
-    try { fresh.patch = latestPatch(await fetchJson(PATCHES)) || fresh.patch; } catch {}
+    try { fresh.patch = latestPatch(await fetchJson(PATCHES), fresh.patch) || fresh.patch; } catch {}
     if (lang !== state.lang) return;
     store.set('ds:data:' + lang, fresh);
     state.data = attachTune(fresh, await loadTune());

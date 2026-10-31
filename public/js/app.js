@@ -22,14 +22,12 @@ const I18N = {
     how3T: 'Нажми «Создать сборку»', how3: 'Откроется пустая сборка этого героя.',
     how4T: 'Нажми «Вставить сборку»', how4: 'Маленькая квадратная кнопка рядом с «i». Предметы и прокачка встанут сами — останется сохранить.',
     howWarn: '<b>Нет кнопки «Вставить сборку»?</b> Значит, в игре выбран другой герой или код пропал из буфера обмена. Проверь героя и скопируй код ещё раз.',
-    view_solo: 'Соло', view_team: 'Собрать команду', teamT: 'Собрать [команду]',
-    teamSub: 'Капитан крутит 6 героев без повторов и кидает ссылку в чат пати. Каждый находит своего героя и забирает затар кнопкой «В игру».',
-    teamRoll: 'Крутить команду', teamLink: 'Ссылка на команду', teamLinkCopied: 'Ссылка на команду скопирована — кидай в чат пати',
-    allOrder: 'Режим для всех', allMode: 'Инвест для всех', slotOrder: 'Режим', slotMode: 'Инвест', playerN: 'Игрок',
-    lock: 'Закрепить слот', unlock: 'Открепить слот', lockHint: 'Замок — слот не меняется при «Крутить команду».', rerollAll: 'Всё',
-    teamAvg: 'Средняя оценка команды', poolSmall: 'В пуле меньше 6 героев — остальных добрал из всех',
+    view_solo: 'Соло', view_team: 'Собрать команду', teamT: '[Команда]',
+    teamSub: 'Крути игроков по очереди: «+ Следующий игрок» добавляет нового, герои в команде не повторяются. Готово — кидай ссылку в чат пати, каждый откроет своего героя и заберёт затар кнопкой «В игру».',
+    teamLink: 'Ссылка на команду', teamLinkShort: 'Команда', teamLinkCopied: 'Ссылка на команду скопирована — кидай в чат пати', playerN: 'Игрок',
+    addPlayer: 'Следующий игрок', nextPlayer: 'Следующий игрок', onStage: 'на экране', openSlot: 'Показать сверху', removeSlot: 'Убрать игрока', rerollAll: 'Всё',
+    teamAvg: 'Средняя оценка команды', poolSmall: 'В пуле не осталось свободных героев — взял из всех',
     teamTaken: 'Код для {h} скопирован. В игре: Поиск сборок → Создать сборку → Вставить сборку',
-    sh_curve: 'Баланс', sh_pseudo: 'Псевдо', sh_chaos: 'Полный', shm_chaos: 'Хаос', shm_balanced: 'Поровну', shm_mono: 'В один',
     orderT: 'Режим крутки', o_chaos: 'Полный рандом', o_pseudo: 'Псевдо-рандом', o_curve: 'Баланс рандом', o_phases: 'По фазам',
     ph_early: 'Ранняя игра', ph_mid: 'Середина', ph_late: 'Поздняя игра', slotHint: 'Слоты по порядку покупки: сверху вниз, затем следующий столбец — как в игре.', copyOrder: 'Порядок покупки',
     souls: 'душ', roll: 'Крутить', newHero: 'Другой герой', newItems: 'Другие предметы',
@@ -74,14 +72,12 @@ const I18N = {
     how3T: 'Press “Create build”', how3: 'An empty build for this hero opens.',
     how4T: 'Press “Paste build”', how4: 'The small square button next to the “i”. Items and abilities fill in on their own — just save.',
     howWarn: '<b>No “Paste build” button?</b> The game has a different hero selected, or the code is no longer in your clipboard. Check the hero and copy the code again.',
-    view_solo: 'Solo', view_team: 'Build a team', teamT: 'Build a [team]',
-    teamSub: 'The captain rolls 6 heroes with no repeats and drops the link in party chat. Everyone finds their hero and grabs the build with “To game”.',
-    teamRoll: 'Shuffle team', teamLink: 'Team link', teamLinkCopied: 'Team link copied — drop it in party chat',
-    allOrder: 'Mode for all', allMode: 'Investment for all', slotOrder: 'Mode', slotMode: 'Invest', playerN: 'Player',
-    lock: 'Lock slot', unlock: 'Unlock slot', lockHint: 'Lock — the slot stays put on “Shuffle team”.', rerollAll: 'All',
-    teamAvg: 'Team average rating', poolSmall: 'Hero pool has fewer than 6 heroes — filled the rest from all heroes',
+    view_solo: 'Solo', view_team: 'Build a team', teamT: '[Team]',
+    teamSub: 'Roll players one by one: “+ Next player” adds a new one, heroes never repeat within the team. Done — drop the link in party chat; everyone opens their hero and grabs the build with “To game”.',
+    teamLink: 'Team link', teamLinkShort: 'Team', teamLinkCopied: 'Team link copied — drop it in party chat', playerN: 'Player',
+    addPlayer: 'Next player', nextPlayer: 'Next player', onStage: 'on screen', openSlot: 'Show on top', removeSlot: 'Remove player', rerollAll: 'All',
+    teamAvg: 'Team average rating', poolSmall: 'No free heroes left in the pool — picked from all heroes',
     teamTaken: 'Code for {h} copied. In game: Browse builds → Create build → Paste build',
-    sh_curve: 'Balanced', sh_pseudo: 'Smart', sh_chaos: 'Full', shm_chaos: 'Chaos', shm_balanced: 'Even', shm_mono: 'All in one',
     orderT: 'Roll mode', o_chaos: 'Full Random', o_pseudo: 'Smart Random', o_curve: 'Balanced Random', o_phases: 'By phase',
     ph_early: 'Early game', ph_mid: 'Mid game', ph_late: 'Late game', slotHint: 'Slots in purchase order: top to bottom, then the next column, as in the game.', copyOrder: 'Purchase order',
     souls: 'souls', roll: 'Shuffle', newHero: 'New hero', newItems: 'New items',
@@ -153,7 +149,8 @@ const state = {
   live: false,
   rerolls: 0,
   view: 'solo', // solo | team
-  team: null, // { slots: [{ res, order, mode, locked }] }
+  team: null, // { slots: [{ res, order, mode }], active } — active показан на большой сцене
+  solo: null, // соло-крутка, пока открыта команда
 };
 const t = (k) => (I18N[state.lang] || I18N.ru)[k] ?? k;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -266,14 +263,23 @@ function doRoll(kind = 'all', src = 'button') {
   const seed = newSeed();
   const prev = state.res;
   const keepHero = kind === 'items' && prev ? prev.hero : null;
-  let res = roll(d, state.opts, seed, keepHero);
+  // в команде герои не повторяются: выбираем из пула без героев других игроков
+  const team = inTeam();
+  const used = team ? teamUsed() : null;
+  const pickT = team && !keepHero && kind !== 'hero' ? teamHero(rng(seed + ':team'), state.opts, used) : null;
+  if (pickT && pickT.wide) toast(t('poolSmall'));
+  let res = roll(d, state.opts, seed, keepHero || (pickT ? pickT.hero : undefined));
   if (kind === 'hero' && prev) {
     // новый герой должен уметь купить всю текущую сборку
-    const hero = rollHeroFor(rng(seed), d, state.opts, prev.build, prev.hero.id);
+    const hero = team
+      ? ((teamHero(rng(seed), state.opts, new Set([...used, prev.hero.id]), prev.build) || {}).hero)
+      : rollHeroFor(rng(seed), d, state.opts, prev.build, prev.hero.id);
     if (hero) res = { ...prev, hero, skills: rollSkillOrder(rng(seed + ':s'), 4, ultIndexOf(hero)), seed };
   }
   if (kind !== 'hero' || !prev) res.orders = { [state.opts.order]: res.build };
+  const prevLane = team ? (activeSlot().res ? activeSlot().res.lane : null) : undefined;
   state.res = res;
+  if (team) teamCommit(prevLane);
   state.rerolls = 0;
   state.heroIn = kind !== 'items';
   syncUrl();
@@ -307,6 +313,7 @@ function rerollSlot(idx) {
     res.orders[m] = m === 'phases' ? arr.map((i, n) => [i, n]).sort((a, b) => a[0].cost - b[0].cost || a[1] - b[1]).map((x) => x[0]) : arr;
   }
   res.build = (res.orders && res.orders[opts.order]) || res.build.map((i) => (i === cur ? next : i));
+  if (inTeam()) { saveTeam(); renderTeam(); }
   syncUrl();
   renderStage(false);
 }
@@ -446,7 +453,7 @@ function shell() {
     <nav class="views" id="views"></nav>
     <main>
       <div class="stage" id="stage"></div>
-      <section class="team" id="team" hidden></section>
+      <section class="block team" id="team" hidden></section>
       <section class="block" id="skills"></section>
       <section class="block" id="opts"></section>
       <section class="block" id="about"></section>
@@ -488,7 +495,7 @@ function renderStage(dealItems = true) {
     <article class="hero ${state.heroIn ? 'hero-in' : ''}" aria-live="polite">
       <div class="hero-art">${isNewHero(hero) ? `<span class="new-badge">${t('newHeroBadge')}</span>` : ''}${hero.card ? `<img src="${esc(src(hero.card))}" alt="${esc(hero.name)}" width="330" height="440">` : ''}</div>
       <div class="hero-info">
-        <span class="eyebrow">${t('yourHero')}</span>
+        <span class="eyebrow">${inTeam() ? `${t('playerN')} ${state.team.active + 1}` : t('yourHero')}</span>
         <h1 class="hero-name">${esc(hero.name)}</h1>
         ${hero.role ? `<p class="hero-role">${esc(hero.role)}</p>` : ''}
         <div class="chips">
@@ -538,6 +545,7 @@ function renderStage(dealItems = true) {
     </div>
       <div class="act-main">
         <button class="btn btn-main" data-act="roll" id="roll-btn">${ICON.dice}<span>${t('roll')}</span></button>
+        ${inTeam() && state.team.slots.length < TEAM_N ? `<button class="btn btn-next" data-act="next">${ICON.plus}<span>${t('nextPlayer')}</span><small>${state.team.slots.length + 1}/${TEAM_N}</small></button>` : ''}
         <span class="kbd">Space</span>
       </div>
       <div class="act-right">
@@ -552,7 +560,7 @@ function renderStage(dealItems = true) {
         <span class="act-lbl">${t('grpTake')}</span>
         <div class="btn-row">
           <button class="btn btn-game" data-act="game">${ICON.game}<span>${t('toGame')}</span></button>
-          <button class="btn" data-act="link">${ICON.link}<span>${t('link')}</span></button>
+          <button class="btn" data-act="link">${ICON.link}<span>${inTeam() ? t('teamLinkShort') : t('link')}</span></button>
         </div>
         <button class="how-link" data-act="how">${t('howBtn')}</button>
       </div>
@@ -738,14 +746,15 @@ function orderFor(res, mode) {
   return res.orders[mode];
 }
 
-// ---------- команда: капитан крутит 6 героев без повторов и кидает одну ссылку на всех ----------
-// Ссылка ?team=слот_слот_…, слот = encodeResult(res)~[режим][инвест], например «c~-~….~0123…~px».
-// Каждый игрок открывает ссылку, находит своего героя и забирает код кнопкой «В игру».
+// ---------- команда: капитан по очереди крутит игроков (до 6, без повторов героев) и кидает одну ссылку ----------
+// Сверху — обычная большая крутка для выбранного игрока (state.res === слот активного игрока),
+// ниже — слоты команды. Ссылка ?team=слот_слот_…, слот = encodeResult(res)~[режим][инвест].
 const TEAM_N = 6;
 const ORD_K = { curve: 'c', pseudo: 'p', chaos: 'x' };
 const MODE_K = { chaos: 'x', balanced: 'b', mono: 'm' };
 const keyOf = (map, v) => Object.keys(map).find((k) => map[k] === v);
-const teamOpts = (s) => ({ ...state.opts, order: s.order, mode: s.mode });
+const inTeam = () => state.view === 'team' && !!state.team;
+const activeSlot = () => (inTeam() ? state.team.slots[state.team.active] : null);
 
 function encodeTeam(team) {
   return team.slots.filter((s) => s.res).map((s) => `${encodeResult(s.res)}~${ORD_K[s.order] || 'p'}${MODE_K[s.mode] || 'x'}`).join('_');
@@ -759,14 +768,14 @@ function decodeTeam(code, data) {
     if (!res || !res.build.length || seen.has(res.hero.id)) continue; // повторы героя в ссылке пропускаем
     seen.add(res.hero.id);
     const f = p[4] || '';
-    const order = keyOf(ORD_K, f[0]) || state.opts.order;
-    const mode = keyOf(MODE_K, f[1]) || state.opts.mode;
+    const order = keyOf(ORD_K, f[0]) || 'pseudo';
+    const mode = keyOf(MODE_K, f[1]) || 'chaos';
     res.seed = newSeed();
     res.orders = { [order]: res.build };
     if (res.skills.length !== 16) res.skills = rollSkillOrder(rng(newSeed()), 4, ultIndexOf(res.hero));
-    slots.push({ res, order, mode, locked: false });
+    slots.push({ res, order, mode });
   }
-  return slots.length ? { slots } : null;
+  return slots.length ? { slots, active: 0 } : null;
 }
 function saveTeam() {
   if (!state.team) return;
@@ -774,7 +783,11 @@ function saveTeam() {
   if (state.view === 'team') syncUrl();
 }
 
-// Герой для слота: из пула правил, без героев других слотов; если пул кончился — из всех героев
+// Герои других игроков команды (кроме активного)
+function teamUsed(except = state.team ? state.team.active : -1) {
+  return new Set(state.team.slots.filter((s, j) => j !== except && s.res).map((s) => s.res.hero.id));
+}
+// Герой из пула «Правил рандома» без героев команды; если пул кончился — из всех героев
 function teamHero(r, o, used, build = null) {
   const ok = (h) => !used.has(h.id) && (!build || !build.some((i) => h.banned && h.banned.includes(i.slug)));
   let pool = heroPool(state.data.heroes, o).filter(ok);
@@ -783,120 +796,88 @@ function teamHero(r, o, used, build = null) {
   return pool.length ? { hero: pool[Math.floor(r() * pool.length)], wide } : null;
 }
 
-// kind: all — новый герой и затар, hero — другой герой под тот же затар, items — новый затар тому же герою
-function rollTeamSlot(i, kind = 'all') {
-  const s = state.team.slots[i];
-  const d = state.data;
-  const o = teamOpts(s);
-  const used = new Set(state.team.slots.filter((x, j) => j !== i && x.res).map((x) => x.res.hero.id));
-  const seed = newSeed();
-  const r = rng(seed + ':team');
-  const lane = s.res ? s.res.lane : null;
-  let wide = false;
-  if (kind === 'items' && s.res) {
-    s.res = roll(d, o, seed, s.res.hero);
-  } else if (kind === 'hero' && s.res) {
-    used.add(s.res.hero.id);
-    const p = teamHero(r, o, used, s.res.build);
-    if (!p) return false;
-    wide = p.wide;
-    s.res = { ...s.res, hero: p.hero, skills: rollSkillOrder(rng(seed + ':s'), 4, ultIndexOf(p.hero)), seed };
-  } else {
-    const p = teamHero(r, o, used);
-    if (!p) return false;
-    wide = p.wide;
-    s.res = roll(d, o, seed, p.hero);
-  }
-  s.res.lane = lane; // линии раздаёт teamLanes — по двое на линию
-  s.res.orders = { [s.order]: s.res.build };
-  ensureAbilities(s.res.hero);
-  return wide ? 'wide' : true;
-}
-
-// Линии командой: по двое на каждую (3 линии × 2). all — перераздать всем открытым слотам.
-function teamLanes(all) {
+// Линии командой: по двое на каждую (3 линии × 2); раздаём только тем, у кого линии ещё нет или она переполнена
+function teamLanes() {
   const lanes = state.data.lanes || [];
-  const slots = state.team.slots.filter((s) => s.res);
   if (!state.opts.lane || !lanes.length) return;
+  const slots = state.team.slots.filter((s) => s.res);
   const cap = Math.ceil(TEAM_N / lanes.length);
   const left = new Map(lanes.map((l) => [l.css, cap]));
   const need = [];
   for (const s of slots) {
     const css = s.res.lane && s.res.lane.css;
-    if (css && left.get(css) > 0 && (s.locked || !all)) left.set(css, left.get(css) - 1);
+    if (css && left.get(css) > 0) left.set(css, left.get(css) - 1);
     else need.push(s);
   }
-  const bag = [];
-  for (const l of lanes) for (let k = 0; k < left.get(l.css); k++) bag.push(l);
-  for (let k = bag.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [bag[k], bag[j]] = [bag[j], bag[k]]; }
-  need.forEach((s, k) => { s.res.lane = bag[k] || lanes[k % lanes.length]; });
-}
-
-function ensureTeam() {
-  if (!state.team) state.team = { slots: [] };
-  const slots = state.team.slots;
-  while (slots.length < TEAM_N) slots.push({ res: null, order: state.opts.order, mode: state.opts.mode, locked: false });
-  return slots.map((s, i) => (s.res ? -1 : i)).filter((i) => i >= 0);
-}
-
-function rollTeam(src = 'button') {
-  if (!state.data) return;
-  ensureTeam();
-  const slots = state.team.slots;
-  const open = slots.map((s, i) => i).filter((i) => !slots[i].locked || !slots[i].res);
-  if (!open.length) { toast(t('lockHint')); return; }
-  for (const i of open) slots[i].res = null; // старые герои открытых слотов не должны мешать выбору
-  let wide = false;
-  for (const i of open) if (rollTeamSlot(i) === 'wide') wide = true;
-  teamLanes(true);
-  saveTeam();
-  renderTeam(open, open);
-  kick('[data-act="t-roll"]');
-  if (wide) toast(t('poolSmall'));
-  track('team_roll', { src, locked: TEAM_N - open.length });
-}
-
-// Достроить команду из ссылки или сохранения (если слотов меньше 6)
-function fillTeam() {
-  const missing = ensureTeam();
-  for (const i of missing) rollTeamSlot(i);
-  teamLanes(false);
-  return missing;
-}
-
-function teamSlotAct(i, k, v) {
-  const s = state.team && state.team.slots[i];
-  if (!s || !s.res) return;
-  if (k === 'game') { teamToGame(i); return; }
-  if (k === 'lock') { s.locked = !s.locked; renderTeam(); return; }
-  if (k === 'order' || k === 'mode') {
-    if (s[k] === v) return;
-    s[k] = v; // как в соло: смена режима сразу перекручивает затар этого слота
-    rollTeamSlot(i, 'items');
-    saveTeam(); renderTeam([i]);
-    track('team_setting', { name: k === 'order' ? 'order' : 'invest', value: v });
-    return;
+  for (const s of need) {
+    const free = lanes.filter((l) => left.get(l.css) > 0);
+    const l = free.length ? free[Math.floor(Math.random() * free.length)] : lanes[0];
+    left.set(l.css, left.get(l.css) - 1);
+    s.res.lane = l;
   }
-  const kind = k === 'hero' ? 'hero' : k === 'items' ? 'items' : 'all';
-  const r = rollTeamSlot(i, kind);
-  if (!r) return;
-  if (state.opts.lane && !s.res.lane) teamLanes(false);
-  saveTeam();
-  renderTeam(kind === 'hero' ? [] : [i], kind === 'items' ? [] : [i]);
-  if (r === 'wide') toast(t('poolSmall'));
-  track('team_reroll', { kind, slot: i + 1 });
 }
 
-// Режим или инвест «для всех»: меняет и перекручивает открытые слоты
-function teamAll(k, v) {
-  const slots = state.team.slots;
-  const open = slots.map((s, i) => i).filter((i) => !slots[i].locked);
-  if (!open.length) { toast(t('lockHint')); return; }
-  for (const i of open) { slots[i][k] = v; rollTeamSlot(i, 'items'); }
-  state.opts[k] = v; saveOpts(); // заодно — режим по умолчанию для соло и новых слотов
+// После любой крутки на большой сцене: результат — в слот активного игрока
+function teamCommit(prevLane) {
+  const s = activeSlot();
+  if (!s) return;
+  if (state.res && s.res !== state.res) state.res.lane = prevLane !== undefined ? prevLane : (s.res ? s.res.lane : null);
+  s.res = state.res;
+  s.order = state.opts.order;
+  s.mode = state.opts.mode;
+  teamLanes();
   saveTeam();
-  renderTeam(open);
-  track('team_setting', { name: k === 'order' ? 'order_all' : 'invest_all', value: v });
+  renderTeam();
+}
+
+function activate(i, scroll = true) {
+  const team = state.team;
+  if (!team || !team.slots[i] || spinning) return;
+  hideTip();
+  team.active = i;
+  const s = team.slots[i];
+  state.res = s.res;
+  state.opts.order = s.order;
+  state.opts.mode = s.mode;
+  renderStage(false);
+  renderSkills();
+  renderTeam();
+  ensureAbilities(s.res.hero);
+  if (scroll) { const el = document.getElementById('stage'); if (el) el.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' }); }
+}
+
+// «+ Следующий игрок»: новый слот и сразу крутка (с анимацией, как в соло)
+function addPlayer(src = 'button') {
+  const team = state.team;
+  if (!team || team.slots.length >= TEAM_N || spinning) return;
+  team.slots.push({ res: null, order: state.opts.order, mode: state.opts.mode });
+  team.active = team.slots.length - 1;
+  state.res = null;
+  doRoll('all', src);
+  const el = document.getElementById('stage'); if (el) el.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' });
+  track('team_add', { size: team.slots.length });
+}
+
+function removePlayer(i) {
+  const team = state.team;
+  if (!team || spinning || team.slots.length <= 1) return;
+  team.slots.splice(i, 1);
+  if (team.active >= team.slots.length || team.active === i) team.active = Math.max(0, Math.min(i, team.slots.length - 1));
+  else if (team.active > i) team.active--;
+  saveTeam();
+  activate(team.active, false);
+  track('team_remove', { size: team.slots.length });
+}
+
+// Кнопки на карточке игрока: делаем его активным и крутим на большой сцене
+function teamSlotAct(i, k) {
+  const team = state.team;
+  if (!team || !team.slots[i] || spinning) return;
+  if (k === 'game') { teamToGame(i); return; }
+  if (k === 'open') { activate(i); return; }
+  if (k === 'remove') { removePlayer(i); return; }
+  if (team.active !== i) activate(i);
+  doRoll(k === 'hero' ? 'hero' : k === 'items' ? 'items' : 'all', 'team_card');
 }
 
 async function teamToGame(i) {
@@ -909,64 +890,64 @@ async function teamToGame(i) {
 }
 
 function setView(v) {
+  v = v === 'team' ? 'team' : 'solo';
   if (v === state.view || spinning) return;
   hideTip();
-  state.view = v === 'team' ? 'team' : 'solo';
-  if (state.view === 'team') {
+  if (v === 'team') {
+    // соло-крутку и её режимы запоминаем, чтобы вернуть при выходе из команды
+    state.solo = { res: state.res, order: state.opts.order, mode: state.opts.mode };
     if (!state.team) { const saved = store.get('ds:team', null); state.team = saved ? decodeTeam(saved, state.data) : null; }
-    const fresh = !state.team;
-    fillTeam();
-    if (fresh) saveTeam();
+    // новая команда: первым игроком становится текущая соло-крутка
+    if (!state.team) state.team = { slots: [{ res: state.res, order: state.opts.order, mode: state.opts.mode }], active: 0 };
+    state.view = 'team';
+    saveTeam();
+    renderViews();
+    activate(Math.min(state.team.active || 0, state.team.slots.length - 1), false);
+  } else {
+    state.view = 'solo';
+    if (state.solo && state.solo.res) { state.res = state.solo.res; state.opts.order = state.solo.order; state.opts.mode = state.solo.mode; }
+    else { state.res = roll(state.data, state.opts, newSeed()); state.res.orders = { [state.opts.order]: state.res.build }; }
+    renderViews();
+    renderStage(false); renderSkills();
   }
-  renderViews();
-  if (state.view === 'team') renderTeam(); else { renderStage(false); renderSkills(); }
   syncUrl();
-  track('view', { value: state.view });
+  track('view', { value: v });
 }
 
 function renderViews() {
   const v = state.view;
   document.getElementById('views').innerHTML = `
-    <div class="views-seg" role="tablist" aria-label="${esc(t('view_solo'))} / ${esc(t('view_team'))}">
+    <div class="views-seg" role="tablist">
       <button role="tab" data-act="view" data-v="solo" aria-selected="${v === 'solo'}" aria-pressed="${v === 'solo'}">${ICON.mask}<span>${t('view_solo')}</span></button>
-      <button role="tab" data-act="view" data-v="team" aria-selected="${v === 'team'}" aria-pressed="${v === 'team'}">${ICON.team}<span>${t('view_team')}</span><b class="views-n">6</b></button>
+      <button role="tab" data-act="view" data-v="team" aria-selected="${v === 'team'}" aria-pressed="${v === 'team'}">${ICON.team}<span>${t('view_team')}</span></button>
     </div>`;
-  const team = v === 'team';
-  document.getElementById('stage').hidden = team;
-  document.getElementById('skills').hidden = team;
-  document.getElementById('team').hidden = !team;
+  document.getElementById('team').hidden = v !== 'team';
 }
 
-const segBtns = (k, i, cur, list, cls = '') => list.map(([val, label]) =>
-  `<button class="${cls}${cls ? val : ''}" data-act="t-slot" data-s="${i}" data-k="${k}" data-v="${val}" aria-pressed="${cur === val}">${label}</button>`).join('');
-
-function teamCard(s, i, deal, heroIn) {
+function teamCard(s, i) {
   const { hero, build } = s.res;
   const sc = state.stats ? scoreBuild(build, heroStats(hero)) : null;
+  const on = state.team.active === i;
   return `
-    <article class="t-card ${s.locked ? 'locked' : ''} ${deal ? 'dealt' : ''} ${heroIn ? 'hero-in' : ''}" style="--hero:${safeColor(hero.color)}" aria-label="${esc(t('playerN'))} ${i + 1}: ${esc(hero.name)}">
+    <article class="t-card ${on ? 'on' : ''}" style="--hero:${safeColor(hero.color)}">
       <header class="t-head">
-        <span class="t-pic">${hero.small ? `<img src="${esc(src(hero.small))}" alt="" width="64" height="64">` : ''}</span>
-        <div class="t-who">
-          <span class="t-num">${t('playerN')} ${i + 1}</span>
-          <h3>${esc(hero.name)}</h3>
-          <div class="chips"><span class="tag">${esc(t(hero.type))}</span>${state.opts.lane && s.res.lane ? lanePill(s.res.lane) : ''}</div>
-        </div>
-        <button class="t-lock" data-act="t-slot" data-s="${i}" data-k="lock" aria-pressed="${s.locked}" title="${esc(s.locked ? t('unlock') : t('lock'))}" aria-label="${esc(s.locked ? t('unlock') : t('lock'))}">${s.locked ? ICON.lock : ICON.unlock}</button>
+        <button class="t-open" data-act="t-slot" data-s="${i}" data-k="open" aria-pressed="${on}" title="${esc(t('openSlot'))}">
+          <span class="t-pic">${hero.small ? `<img src="${esc(src(hero.small))}" alt="" width="64" height="64">` : ''}</span>
+          <span class="t-who">
+            <span class="t-num">${t('playerN')} ${i + 1}${on ? ` · <em>${t('onStage')}</em>` : ''}</span>
+            <span class="t-name">${esc(hero.name)}</span>
+            <span class="t-mode">${esc(t('o_' + s.order))} · ${esc(t(s.mode))}</span>
+          </span>
+        </button>
+        ${state.team.slots.length > 1 ? `<button class="t-x" data-act="t-slot" data-s="${i}" data-k="remove" title="${esc(t('removeSlot'))}" aria-label="${esc(t('removeSlot'))}: ${esc(hero.name)}">✕</button>` : ''}
       </header>
+      ${state.opts.lane && s.res.lane ? `<div class="chips">${lanePill(s.res.lane)}</div>` : ''}
       <div class="t-items">
-        ${build.map((it, n) => `<span class="t-it ${it.cat}" style="--i:${n}" title="${esc(it.name)} — ${esc(t(it.cat))}, ${ROMAN[it.tier]}${it.active ? ', ' + esc(t('active')) : ''}">
-          ${it.icon ? `<img src="${esc(src(it.icon))}" alt="" loading="lazy" width="80" height="80">` : ''}<b>${n + 1}</b>${it.active ? '<i>A</i>' : ''}</span>`).join('')}
+        ${build.map((it, n) => `<span class="t-it ${it.cat}" title="${esc(it.name)}">${it.icon ? `<img src="${esc(src(it.icon))}" alt="" loading="lazy" width="80" height="80">` : ''}<b>${n + 1}</b>${it.active ? '<i>A</i>' : ''}</span>`).join('')}
       </div>
       <div class="t-meta">
         <span class="t-souls">${fmt(buildCost(build))} <small>${t('souls')}</small></span>
         ${sc ? `<span class="t-score v-${sc.verdict}"><span class="tag v-tag">${t('v_' + sc.verdict)}</span><b>≈${dec(sc.chance)}%</b></span>` : ''}
-      </div>
-      <div class="t-set">
-        <span class="t-lbl">${t('slotOrder')}</span>
-        <div class="seg-order seg-modes t-seg">${segBtns('order', i, s.order, ['curve', 'pseudo', 'chaos'].map((m) => [m, t('sh_' + m)]), 'm-')}</div>
-        <span class="t-lbl">${t('slotMode')}</span>
-        <div class="seg-order t-seg">${segBtns('mode', i, s.mode, ['chaos', 'balanced', 'mono'].map((m) => [m, t('shm_' + m)]))}</div>
       </div>
       <div class="t-acts">
         <button class="btn btn-game" data-act="t-slot" data-s="${i}" data-k="game">${ICON.game}<span>${t('toGame')}</span></button>
@@ -979,42 +960,28 @@ function teamCard(s, i, deal, heroIn) {
     </article>`;
 }
 
-// deal — у каких слотов анимировать предметы, heroIn — у каких героя
-function renderTeam(deal = [], heroIn = []) {
+function renderTeam() {
   const el = document.getElementById('team');
-  if (!state.team || !el) return;
+  if (!inTeam() || !el) return;
   const slots = state.team.slots.filter((s) => s.res);
-  const same = (k) => (slots.every((s) => s[k] === slots[0][k]) ? slots[0][k] : null);
-  const allOrder = same('order'), allMode = same('mode');
   const scores = state.stats ? slots.map((s) => scoreBuild(s.res.build, heroStats(s.res.hero))).filter(Boolean) : [];
   const avg = scores.length ? scores.reduce((a, x) => a + x.chance, 0) / scores.length : null;
+  const n = state.team.slots.length;
   el.innerHTML = `
     <div class="t-top">
       <div class="t-intro">
-        <h2>${hl(t('teamT'))}</h2>
+        <h2>${hl(t('teamT'))} <span class="t-count">${n}/${TEAM_N}</span></h2>
         <p class="sub">${t('teamSub')}</p>
       </div>
-      <div class="t-ctrl">
-        <div class="order-switch">
-          <span class="lbl">${t('allOrder')}${infoBtn('order')}</span>
-          <div class="seg-order seg-modes">${['curve', 'pseudo', 'chaos'].map((m) => `<button class="m-${m}" data-act="t-all-order" data-v="${m}" aria-pressed="${allOrder === m}">${t('o_' + m)}</button>`).join('')}</div>
-        </div>
-        <div class="order-switch">
-          <span class="lbl">${t('allMode')}${infoBtn('mode')}</span>
-          <div class="seg-order">${['chaos', 'balanced', 'mono'].map((m) => `<button data-act="t-all-mode" data-v="${m}" aria-pressed="${allMode === m}">${t(m)}</button>`).join('')}</div>
-        </div>
-      </div>
-      <div class="t-main">
-        <button class="btn btn-main" data-act="t-roll">${ICON.dice}<span>${t('teamRoll')}</span></button>
-        <div class="t-main-side">
-          <button class="btn" data-act="t-link">${ICON.link}<span>${t('teamLink')}</span></button>
-          ${avg != null ? `<span class="t-avg">${t('teamAvg')}: <b>≈${dec(avg)}%</b></span>` : ''}
-          <span class="kbd">Space</span>
-        </div>
+      <div class="t-side">
+        ${avg != null && slots.length > 1 ? `<span class="t-avg">${t('teamAvg')}: <b>≈${dec(avg)}%</b></span>` : ''}
+        <button class="btn btn-game" data-act="t-link">${ICON.link}<span>${t('teamLink')}</span></button>
       </div>
     </div>
-    <p class="t-hint">${t('lockHint')}</p>
-    <div class="t-grid">${state.team.slots.map((s, i) => (s.res ? teamCard(s, i, deal.includes(i), heroIn.includes(i)) : '')).join('')}</div>`;
+    <div class="t-grid">
+      ${state.team.slots.map((s, i) => (s.res ? teamCard(s, i) : '')).join('')}
+      ${n < TEAM_N ? `<button class="t-add" data-act="t-add">${ICON.plus}<span>${t('addPlayer')}</span><small>${t('playerN')} ${n + 1}</small></button>` : ''}
+    </div>`;
 }
 
 // ---------- соцсети podvalni akrobat ----------
@@ -1039,8 +1006,7 @@ const ICON = {
   flask: svg('<path d="M9 3h6"/><path d="M10 3v6L4.5 18.5A1.7 1.7 0 0 0 6 21h12a1.7 1.7 0 0 0 1.5-2.5L14 9V3"/><path d="M7 15h10"/>'),
   link: svg('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'),
   team: svg('<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.8-3.6 3.2-5.5 6-5.5s5.2 1.9 6 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M16 14.6c2.6.1 4.3 1.8 5 5.4"/>'),
-  lock: svg('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
-  unlock: svg('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/>'),
+  plus: svg('<path d="M12 5v14M5 12h14"/>'),
 };
 
 // ---------- код сборки для игры ----------
@@ -1183,7 +1149,7 @@ function renderAbout() {
 function renderAll() {
   renderTop();
   renderViews();
-  if (state.view === 'team') renderTeam(); else { renderStage(); renderSkills(); }
+  renderStage(); renderSkills(); renderTeam();
   renderOpts();
   renderAbout();
   document.documentElement.lang = state.lang;
@@ -1202,10 +1168,10 @@ app.addEventListener('click', (e) => {
   const o = state.opts;
   switch (act) {
     case 'view': setView(v); break;
-    case 't-roll': rollTeam('button'); break;
-    case 't-link': copy(teamUrl(), t('teamLinkCopied')); track('team_link'); break;
-    case 't-all-order': case 't-all-mode': teamAll(act === 't-all-order' ? 'order' : 'mode', v); break;
-    case 't-slot': teamSlotAct(+b.dataset.s, b.dataset.k, v); break;
+    case 't-add': addPlayer(); break;
+    case 't-link': copy(teamUrl(), t('teamLinkCopied')); track('team_link', { size: state.team ? state.team.slots.length : 0 }); break;
+    case 't-slot': teamSlotAct(+b.dataset.s, b.dataset.k); break;
+    case 'next': addPlayer('stage'); break;
     case 'roll': doRoll('all'); break;
     case 'hero': doRoll('hero'); break;
     case 'items': doRoll('items'); break;
@@ -1215,7 +1181,8 @@ app.addEventListener('click', (e) => {
       hideTip(); rerollSlot(+b.dataset.i); track('reroll_slot', { slot: +b.dataset.i + 1, hero: state.res && state.res.hero.name }); break;
     case 'game': toGame(); break;
     case 'how': openHow(false); track('howto_open'); break;
-    case 'link': copy(shareUrl(), t('linkCopied')); track('share_link', { hero: state.res && state.res.hero.name }); break;
+    case 'link': if (inTeam()) { copy(teamUrl(), t('teamLinkCopied')); track('team_link', { from: 'stage' }); break; }
+      copy(shareUrl(), t('linkCopied')); track('share_link', { hero: state.res && state.res.hero.name }); break;
     case 'lang': if (v !== state.lang) { switchLang(v); track('setting', { name: 'lang', value: v }); } break;
     case 'mode': if (o.mode === v || spinning) break; o.mode = v; saveOpts(); track('setting', { name: 'invest', value: v }); doRoll('all', 'setting'); break;
     case 'order':
@@ -1249,7 +1216,7 @@ app.addEventListener('click', (e) => {
 // ползунок шлёт событие один раз — когда отпустили
 app.addEventListener('change', (e) => {
   const k = e.target.dataset && e.target.dataset.opt;
-  if (k === 'lane' && state.view === 'team' && state.team) { teamLanes(false); saveTeam(); renderTeam(); }
+  if (k === 'lane' && inTeam()) { teamLanes(); saveTeam(); renderStage(false); renderTeam(); }
   else if (k === 'lane' && state.res) {
     if (state.opts.lane && !state.res.lane && state.data.lanes && state.data.lanes.length) state.res.lane = state.data.lanes[Math.floor(Math.random() * state.data.lanes.length)];
     renderStage(false); syncUrl();
@@ -1276,13 +1243,14 @@ document.addEventListener('keydown', (e) => {
   const tag = (e.target.tagName || '').toLowerCase();
   if (['input', 'textarea', 'select', 'button'].includes(tag)) return;
   e.preventDefault();
-  if (state.view === 'team') rollTeam('space'); else doRoll('all', 'space');
+  doRoll('all', 'space');
 });
 
 async function switchLang(lang) {
   const code = state.res ? encodeResult(state.res) : null;
   const teamCode = state.team ? encodeTeam(state.team) : null;
-  const locks = state.team ? state.team.slots.map((x) => x.locked) : [];
+  const active = state.team ? state.team.active : 0;
+  const soloCode = state.solo && state.solo.res ? encodeResult(state.solo.res) : null;
   state.lang = lang;
   store.set('ds:lang', lang);
   try {
@@ -1299,7 +1267,8 @@ async function switchLang(lang) {
   }
   if (!state.res.seed) state.res.seed = newSeed();
   if (!state.res.orders || !state.res.orders[state.opts.order]) state.res.orders = { ...(state.res.orders || {}), [state.opts.order]: state.res.build };
-  if (teamCode) { state.team = decodeTeam(teamCode, state.data); if (state.team) state.team.slots.forEach((x, i) => { x.locked = !!locks[i]; }); }
+  if (teamCode) { state.team = decodeTeam(teamCode, state.data); if (state.team) { state.team.active = Math.min(active, state.team.slots.length - 1); if (inTeam()) state.res = state.team.slots[state.team.active].res; } }
+  if (soloCode && state.solo) { const r = decodeResult(soloCode, state.data); if (r) { r.seed = newSeed(); r.orders = { [state.solo.order]: r.build }; state.solo.res = r; } }
   renderAll();
   liveCheck();
 }
@@ -1323,11 +1292,16 @@ async function boot() {
   else state.res = roll(state.data, state.opts, newSeed());
   state.res.orders = { [state.opts.order || 'chaos']: state.res.build };
   if (!state.res.skills || state.res.skills.length !== 16) state.res.skills = rollSkillOrder(rng(newSeed()), 4, ultIndexOf(state.res.hero));
-  if (state.view === 'team') { fillTeam(); saveTeam(); }
+  if (state.view === 'team') {
+    state.solo = { res: state.res, order: state.opts.order, mode: state.opts.mode };
+    const s0 = state.team.slots[0];
+    state.res = s0.res; state.opts.order = s0.order; state.opts.mode = s0.mode;
+    saveTeam();
+  }
   renderAll();
   preloadIcons();
   ensureAbilities(state.res.hero);
-  loadStats().then(() => (state.view === 'team' ? renderTeam() : renderStage(false)));
+  loadStats().then(() => { renderStage(false); renderTeam(); });
   liveCheck();
 }
 

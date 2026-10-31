@@ -137,9 +137,9 @@ const state = {
   // старые сохранённые настройки (слоты, классы, лимит активок) больше не используются
   opts: (({ slots, types, maxActive, ...rest }) => {
     const o = Object.assign({}, DEFAULTS, rest);
-    // «По фазам» убран из интерфейса; с версии 2 по умолчанию псевдо-рандом (переводим всех один раз)
-    if (o.order === 'phases' || !rest.ov) o.order = 'pseudo';
-    o.ov = 2;
+    // «По фазам» убран из интерфейса; с версии 3 по умолчанию баланс рандом (переводим всех один раз)
+    if (o.order === 'phases' || !rest.ov || rest.ov < 3) o.order = 'curve';
+    o.ov = 3;
     return o;
   })(store.get('ds:opts', {})),
   stats: null,

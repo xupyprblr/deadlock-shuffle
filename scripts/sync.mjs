@@ -11,7 +11,7 @@ import { mkdir, writeFile, readFile, access } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fetchRaw, buildSnapshot, applyEnglishNames, bannedFromStats, itemScores, tuneHero, buildTips, heroMix, STATS } from '../public/js/normalize.js';
+import { fetchRaw, buildSnapshot, applyEnglishNames, bannedFromStats, itemScores, tuneHero, skillTune, buildTips, heroMix, STATS } from '../public/js/normalize.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -175,7 +175,7 @@ function prevTuneRow(heroId, items) {
     w += k === undefined ? '-' : row.w[k] || '-';
     t += k === undefined ? '-' : row.t[k] || '-';
   }
-  return { w, t };
+  return row.s ? { w, t, s: row.s } : { w, t };
 }
 // если свежей статистики по герою нет — переносим его прошлые оценки и подкрутку, чтобы файлы оставались полными
 function carryOver(h, why) {
@@ -222,6 +222,10 @@ for (let i = 0; i < enSnap.heroes.length; i += PAR) {
             items: enSnap.items, heroItems: stats, globalItems: globalStats, heroBuilds, globalBuilds,
             heroMatches: hs ? hs.matches : 0, globalMatches, wr: scoreOut.heroes[h.id].items,
           });
+          // типичный порядок прокачки (скрыто, для псевдо и баланс рандома)
+          const orders = await fetchJson(`https://api.deadlock-api.com/v1/analytics/ability-order-stats?hero_id=${h.id}&min_matches=50&min_unix_timestamp=${since}`).catch(() => null);
+          const s = skillTune(orders, h.abilities) || (prevTuneRow(h.id, enSnap.items) || {}).s;
+          if (s) tuneOut.heroes[h.id].s = s;
         } catch (e) {
           const pt = prevTuneRow(h.id, enSnap.items);
           if (pt) tuneOut.heroes[h.id] = pt;

@@ -3,7 +3,7 @@ import { initAnalytics, track } from './analytics.js';
 import { NS, markDev } from './env.js';
 import { loadTips, tipCard } from './tips.js';
 import { buildSnapshot, fetchRawLite, fetchHeroAbilities, normalizeAbility, latestPatch, applyEnglishNames, isNewHero, attachTune, SCHEMA, API, PATCHES } from './normalize.js';
-import { roll, rng, newSeed, DEFAULTS, heroPool, rollItem, orderBuild, PHASES, phaseOf, phaseTiers, curveTiers, curveUpgrade, buildCost, encodeResult, decodeResult, CATS, rollSkillOrder, ultIndexOf, rollHeroFor, scoreBuild, meterPos, MAX_ACTIVE } from './random.js';
+import { roll, rng, newSeed, DEFAULTS, heroPool, rollItem, orderBuild, PHASES, phaseOf, phaseTiers, curveTiers, curveUpgrade, buildCost, encodeResult, decodeResult, CATS, rollSkillOrder, skillsFor, ultIndexOf, rollHeroFor, scoreBuild, meterPos, MAX_ACTIVE } from './random.js';
 
 const CFG = Object.assign({ live: true, dataUrl: 'data/', cacheHours: 6 }, window.DS_CONFIG || {});
 const app = document.getElementById('app');
@@ -13,8 +13,8 @@ const I18N = {
   ru: {
     tagline: 'рандомайзер', loading: 'Загружаю героев и предметы…', patch: 'Патч', fresh: 'данные актуальны', stale: 'снимок данных',
     updated: 'Данные обновлены до свежей версии игры', yourHero: 'Твой герой', build: 'Затар [на матч]',
-    toGame: 'В игру', toGameDone: 'Код скопирован. В игре: Поиск сборок → Создать сборку → Вставить сборку', toGameFail: 'Не удалось собрать код сборки', gameCat: 'Порядок покупки',
-    gameT: 'Перенос в игру', game: ['Нажми <strong>«В игру»</strong> — сайт скопирует код сборки. Дальше в Deadlock: выбери этого же героя → <strong>Поиск сборок</strong> → <strong>Создать сборку</strong> → <strong>Вставить сборку</strong>. Предметы и порядок прокачки встанут сами, без модов и аддонов.'],
+    toGame: 'Скопировать в игру', toGameDone: 'Код скопирован. В игре: Поиск сборок → Создать сборку → Вставить сборку', toGameFail: 'Не удалось собрать код сборки', gameCat: 'Порядок покупки',
+    gameT: 'Перенос в игру', game: ['Нажми <strong>«Скопировать в игру»</strong> — сайт скопирует код сборки. Дальше в Deadlock: выбери этого же героя → <strong>Поиск сборок</strong> → <strong>Создать сборку</strong> → <strong>Вставить сборку</strong>. Предметы и порядок прокачки встанут сами, без модов и аддонов.'],
     howBtn: 'Как вставить в игру?', howT: 'Как вставить сборку в игру', howCopied: 'Код сборки скопирован', howCopy: 'Скопировать код сборки', howOk: 'Понятно',
     how1T: 'Выбери в игре героя', how1: 'Сборка вставляется только на того героя, для которого её собрали.',
     how2T: 'Открой сборки и нажми «Поиск сборок»', how2: 'Кнопка справа вверху в окне сборок.',
@@ -22,8 +22,8 @@ const I18N = {
     how4T: 'Нажми «Вставить сборку»', how4: 'Маленькая квадратная кнопка рядом с «i». Предметы и прокачка встанут сами — останется сохранить.',
     howWarn: '<b>Нет кнопки «Вставить сборку»?</b> Значит, в игре выбран другой герой или код пропал из буфера обмена. Проверь героя и скопируй код ещё раз.',
     view_solo: 'Соло', view_team: 'Собрать команду', teamT: '[Команда]',
-    teamSub: 'Крути игроков по очереди: «+ Следующий игрок» добавляет нового, герои в команде не повторяются. Готово — кидай ссылку в чат пати, каждый откроет своего героя и заберёт затар кнопкой «В игру».',
-    teamLink: 'Ссылка на команду', teamLinkShort: 'Команда', roT: 'Команда от [капитана]', roSub: 'Капитан уже раскидал героев и затары. Найди своего героя и нажми «В игру» — код сборки скопируется, дальше в Deadlock: Поиск сборок → Создать сборку → Вставить сборку.', roOwn: 'Крутить свой затар', roBadge: 'Только просмотр', teamLinkCopied: 'Ссылка на команду скопирована — по ней только забрать затары, без перекрута', playerN: 'Игрок',
+    teamSub: 'Крути игроков по очереди: «+ Следующий игрок» добавляет нового, герои в команде не повторяются. Готово — кидай ссылку в чат пати, каждый откроет своего героя и заберёт затар кнопкой «Скопировать в игру».',
+    teamLink: 'Ссылка на команду', teamLinkShort: 'Команда', roT: 'Команда от [капитана]', roSub: 'Капитан уже раскидал героев и затары. Найди своего героя и нажми «Скопировать в игру» — код сборки скопируется, дальше в Deadlock: Поиск сборок → Создать сборку → Вставить сборку.', roOwn: 'Крутить свой затар', roBadge: 'Только просмотр', teamLinkCopied: 'Ссылка на команду скопирована — по ней только забрать затары, без перекрута', playerN: 'Игрок',
     addPlayer: 'Следующий игрок', nextPlayer: 'Следующий игрок', onStage: 'на экране', openSlot: 'Показать сверху', removeSlot: 'Убрать игрока', rerollAll: 'Всё',
     teamAvg: 'Средняя оценка команды', poolSmall: 'В пуле не осталось свободных героев — взял из всех',
     teamTaken: 'Код для {h} скопирован. В игре: Поиск сборок → Создать сборку → Вставить сборку',
@@ -63,8 +63,8 @@ const I18N = {
   en: {
     tagline: 'randomizer', loading: 'Loading heroes and items…', patch: 'Patch', fresh: 'data is live', stale: 'data snapshot',
     updated: 'Data updated to the latest game version', yourHero: 'Your hero', build: 'Your [build]',
-    toGame: 'To game', toGameDone: 'Code copied. In game: Browse builds → Create build → Paste build', toGameFail: 'Could not build the code', gameCat: 'Purchase order',
-    gameT: 'Send to the game', game: ['Hit <strong>To game</strong> to copy the build code. Then in Deadlock: pick the same hero → <strong>Browse builds</strong> → <strong>Create build</strong> → <strong>Paste build</strong>. Items and the ability order fill in on their own, no mods or add-ons.'],
+    toGame: 'Copy to game', toGameDone: 'Code copied. In game: Browse builds → Create build → Paste build', toGameFail: 'Could not build the code', gameCat: 'Purchase order',
+    gameT: 'Send to the game', game: ['Hit <strong>Copy to game</strong> to copy the build code. Then in Deadlock: pick the same hero → <strong>Browse builds</strong> → <strong>Create build</strong> → <strong>Paste build</strong>. Items and the ability order fill in on their own, no mods or add-ons.'],
     howBtn: 'How to paste it in game?', howT: 'How to paste the build in game', howCopied: 'Build code copied', howCopy: 'Copy build code', howOk: 'Got it',
     how1T: 'Pick the hero in game', how1: 'A build can only be pasted for the hero it was made for.',
     how2T: 'Open builds and press “Browse builds”', how2: 'The button in the top right of the builds window. (Screenshots are from the Russian client.)',
@@ -72,8 +72,8 @@ const I18N = {
     how4T: 'Press “Paste build”', how4: 'The small square button next to the “i”. Items and abilities fill in on their own — just save.',
     howWarn: '<b>No “Paste build” button?</b> The game has a different hero selected, or the code is no longer in your clipboard. Check the hero and copy the code again.',
     view_solo: 'Solo', view_team: 'Build a team', teamT: '[Team]',
-    teamSub: 'Roll players one by one: “+ Next player” adds a new one, heroes never repeat within the team. Done — drop the link in party chat; everyone opens their hero and grabs the build with “To game”.',
-    teamLink: 'Team link', teamLinkShort: 'Team', roT: 'Team from the [captain]', roSub: 'The captain has already picked the heroes and builds. Find your hero and hit “To game” — the build code is copied; then in Deadlock: Browse builds → Create build → Paste build.', roOwn: 'Roll your own build', roBadge: 'View only', teamLinkCopied: 'Team link copied — teammates can only grab builds, no rerolls', playerN: 'Player',
+    teamSub: 'Roll players one by one: “+ Next player” adds a new one, heroes never repeat within the team. Done — drop the link in party chat; everyone opens their hero and grabs the build with “Copy to game”.',
+    teamLink: 'Team link', teamLinkShort: 'Team', roT: 'Team from the [captain]', roSub: 'The captain has already picked the heroes and builds. Find your hero and hit “Copy to game” — the build code is copied; then in Deadlock: Browse builds → Create build → Paste build.', roOwn: 'Roll your own build', roBadge: 'View only', teamLinkCopied: 'Team link copied — teammates can only grab builds, no rerolls', playerN: 'Player',
     addPlayer: 'Next player', nextPlayer: 'Next player', onStage: 'on screen', openSlot: 'Show on top', removeSlot: 'Remove player', rerollAll: 'All',
     teamAvg: 'Team average rating', poolSmall: 'No free heroes left in the pool — picked from all heroes',
     teamTaken: 'Code for {h} copied. In game: Browse builds → Create build → Paste build',
@@ -274,7 +274,7 @@ function doRoll(kind = 'all', src = 'button') {
     const hero = team
       ? ((teamHero(rng(seed), state.opts, new Set([...used, prev.hero.id]), prev.build) || {}).hero)
       : rollHeroFor(rng(seed), d, state.opts, prev.build, prev.hero.id);
-    if (hero) res = { ...prev, hero, skills: rollSkillOrder(rng(seed + ':s'), 4, ultIndexOf(hero)), seed };
+    if (hero) res = { ...prev, hero, skills: skillsFor(rng(seed + ':s'), hero, prev.build, state.opts), seed };
   }
   if (kind !== 'hero' || !prev) res.orders = { [state.opts.order]: res.build };
   const prevLane = team ? (activeSlot().res ? activeSlot().res.lane : null) : undefined;
@@ -444,8 +444,8 @@ function shell() {
     <nav class="views" id="views"></nav>
     <main>
       <div class="stage" id="stage"></div>
-      <section class="block team" id="team" hidden></section>
       <section class="block" id="skills"></section>
+      <section class="block team" id="team" hidden></section>
       <section class="block" id="opts"></section>
       <section class="block" id="about"></section>
     </main>

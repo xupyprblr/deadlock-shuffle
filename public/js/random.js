@@ -392,10 +392,17 @@ export function scoreBuild(build, heroStats) {
 // Порядок прокачки как в игре: у каждой способности 4 шага — открытие и 3 улучшения
 // (за 1, 2 и 5 очков). Ульту можно открыть только после того, как открыты
 // три базовые способности. Возвращает индексы способностей длиной 16, например [2,0,2,1,...]
-export function rollSkillOrder(r, abilityCount = 4, ultIndex = abilityCount - 1, steps = 4) {
+// plan (псевдо и баланс рандом): pos — типичный шаг каждого события умения (hero.tune.s, 4×4),
+// force — умение, которое открываем первым и качаем раньше (заряды под Extra Charge), need — до какого улучшения.
+export function rollSkillOrder(r, abilityCount = 4, ultIndex = abilityCount - 1, steps = 4, plan = null) {
   const left = Array(abilityCount).fill(steps);
   const out = [];
   const basesOpen = () => left.every((v, i) => i === ultIndex || v < steps);
+  const target = (i, e) => {
+    if (plan.force === i && e <= plan.need) return e * 2; // открыть сразу, нужные улучшения — через шаг
+    const p = plan.pos ? plan.pos[i * steps + e] : e * 4 + 1.5;
+    return plan.force === i ? p - SKILL.charge : p;
+  };
   while (out.length < abilityCount * steps) {
     const avail = [];
     for (let i = 0; i < abilityCount; i++) {
@@ -403,11 +410,40 @@ export function rollSkillOrder(r, abilityCount = 4, ultIndex = abilityCount - 1,
       if (i === ultIndex && left[i] === steps && !basesOpen()) continue;
       avail.push(i);
     }
-    const i = pick(r, avail);
+    const n = out.length;
+    const i = !plan ? pick(r, avail)
+      : n === 0 && plan.force >= 0 && avail.includes(plan.force) ? plan.force
+      : weightedPick(r, avail, (a) => Math.exp(-Math.max(-6, target(a, steps - left[a]) - n) / SKILL.tau));
     left[i]--;
     out.push(i);
   }
   return out;
+}
+
+// Прокачка с учётом героя и затара. Полный рандом — как раньше, равновероятно.
+// Псевдо и баланс рандом: порядок близок к тому, как героя качают игроки (hero.tune.s, скрыто),
+// а если Extra Charge / Rapid Recharge в первых 4 слотах — первым открываем и раньше качаем умение с зарядами.
+export const SKILL = { tau: 1.4, charge: 3, early: 4 };
+const CHARGE_ITEMS = new Set(['upgrade_extra_charge', 'upgrade_rapid_recharge']);
+export function skillsFor(r, hero, build, opts) {
+  const ult = ultIndexOf(hero);
+  if (!opts || (opts.order !== 'pseudo' && opts.order !== 'curve')) return rollSkillOrder(r, 4, ult);
+  const ab = (hero && hero.abilities) || [];
+  const pos = hero && hero.tune && hero.tune.s ? hero.tune.s : null;
+  let force = -1, need = 0;
+  if ((build || []).slice(0, SKILL.early).some((i) => CHARGE_ITEMS.has(i.slug))) {
+    const c = ab.map((a, i) => ({ a, i })).filter((x) => !x.a.ult && x.i !== ult && x.a.charge !== undefined && x.a.charge !== null);
+    if (c.length) {
+      const best = Math.min(...c.map((x) => x.a.charge));
+      const top = c.filter((x) => x.a.charge === best);
+      // из равных — то, что игроки обычно открывают раньше
+      top.sort((x, y) => (pos ? pos[x.i * 4] - pos[y.i * 4] : 0));
+      force = top[0].i;
+      need = best;
+    }
+  }
+  if (!pos && force < 0) return rollSkillOrder(r, 4, ult);
+  return rollSkillOrder(r, 4, ult, 4, { pos, force, need });
 }
 
 export function ultIndexOf(hero) {
@@ -428,7 +464,7 @@ export function roll(data, opts, seed, lockedHero) {
   const k = activeTarget(r, opts);
   const built = rollBuild(r, data.items, opts, hero, k);
   const build = opts.order === 'curve' ? built : orderBuild(r, built, opts.order, hero);
-  const skills = rollSkillOrder(r, 4, ultIndexOf(hero));
+  const skills = skillsFor(r, hero, build, opts);
   // линию разыгрываем последней, чтобы флажок не менял героя и сборку при том же сиде
   const lane = opts.lane && data.lanes && data.lanes.length ? pick(r, data.lanes) : null;
   return { seed, hero, lane, build, skills, actives: k };

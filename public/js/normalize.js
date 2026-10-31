@@ -55,7 +55,40 @@ export function normalizeAbility(a) {
     ult: a.ability_type === 'ultimate',
     quip: plain(d.quip) || plain(d.desc).slice(0, 160),
     up: [plain(d.t1_desc), plain(d.t2_desc), plain(d.t3_desc)],
+    // заряды: 0 — есть с открытия, 1–3 — появляются с этого улучшения, нет поля — умение без зарядов
+    // (нужно для прокачки: с Extra Charge в начале сборки первым качаем умение с зарядами)
+    ...chargeTier(a),
   };
+}
+function chargeTier(a) {
+  const base = Number(a.properties && a.properties.AbilityCharges && a.properties.AbilityCharges.value);
+  if (base > 0) return { charge: 0 };
+  const k = (a.upgrades || []).findIndex((u) => (u.property_upgrades || []).some((p) => p.name === 'AbilityCharges' && Number(p.bonus) > 0));
+  return k >= 0 ? { charge: k + 1 } : {};
+}
+
+// Типичный порядок прокачки героя (ability-order-stats за 30 дней): для каждого умения средний номер шага
+// (0–15), на котором его открывают и улучшают 1-й, 2-й, 3-й раз. 16 чисел по порядку умений героя.
+// Веса — число матчей с этим порядком. Не сделанное до конца матча улучшение считается шагом 16.
+export function skillTune(orders, abilities) {
+  const ids = (abilities || []).map((a) => a.id >>> 0);
+  if (ids.length !== 4 || !Array.isArray(orders) || !orders.length) return null;
+  const sum = Array(16).fill(0);
+  let W = 0;
+  for (const o of orders) {
+    const w = o.matches || 0;
+    if (!w || !Array.isArray(o.abilities)) continue;
+    const seen = [0, 0, 0, 0];
+    const pos = Array(16).fill(16);
+    o.abilities.forEach((id, step) => {
+      const i = ids.indexOf(id >>> 0);
+      if (i < 0 || seen[i] >= 4 || step > 15) return;
+      pos[i * 4 + seen[i]++] = step;
+    });
+    for (let k = 0; k < 16; k++) sum[k] += pos[k] * w;
+    W += w;
+  }
+  return W ? sum.map((v) => Math.round((v / W) * 10) / 10) : null;
 }
 
 export function normalizeHero(h, abilityByClass) {
@@ -350,7 +383,7 @@ export function attachTune(data, tune) {
       if (cw && cw !== '-') w.set(id, Math.exp(decZ(cw)));
       if (ct && ct !== '-') t.set(id, decT(ct));
     });
-    h.tune = { w, t };
+    h.tune = { w, t, s: Array.isArray(row.s) && row.s.length === 16 ? row.s : null };
   }
   return data;
 }

@@ -149,6 +149,32 @@ assert.ok(es.from.includes(data.items.find((i) => i.name === 'Sprint Boots').slu
   assert.ok(n > 300, 'моно-оценки посчитаны');
 }
 
+// прокачка: Extra Charge / Rapid Recharge в первых 4 слотах → первым открывается умение с зарядами
+{
+  const { skillsFor } = await import('../public/js/random.js');
+  let checked = 0;
+  for (let k = 0; k < 3000 && checked < 80; k++) {
+    const r = roll(data, DEFAULTS, 'ec' + k);
+    if (!r.build.slice(0, 4).some((i) => i.slug === 'upgrade_extra_charge' || i.slug === 'upgrade_rapid_recharge')) continue;
+    const c = r.hero.abilities.map((a, i) => ({ a, i })).filter((x) => !x.a.ult && x.a.charge !== undefined);
+    if (!c.length) continue;
+    checked++;
+    const best = Math.min(...c.map((x) => x.a.charge));
+    assert.ok(c.some((x) => x.a.charge === best && x.i === r.skills[0]), `${r.hero.name}: первым не умение с зарядами`);
+  }
+  assert.ok(checked > 10, 'нашлись крутки с Extra Charge в начале: ' + checked);
+  // полный рандом прокачки не подкручивается
+  const h = data.heroes.find((x) => x.tune && x.tune.s);
+  assert.deepEqual(skillsFor(rng('z'), h, [], { ...DEFAULTS, order: 'chaos' }), rollSkillOrder(rng('z'), 4, ultIndexOf(h)));
+  // псевдо: первое открытие чаще всего совпадает с типичным для героя
+  let hit = 0, n = 0;
+  for (const hero of data.heroes.filter((x) => x.tune && x.tune.s)) {
+    const s = hero.tune.s, first = [0, 1, 2, 3].sort((a, b) => s[a * 4] - s[b * 4])[0];
+    for (let k = 0; k < 20; k++) { n++; if (skillsFor(rng(hero.id + ':' + k), hero, [], DEFAULTS)[0] === first) hit++; }
+  }
+  assert.ok(hit / n > 0.5, `типичное первое умение: ${(hit / n * 100).toFixed(0)}%`);
+}
+
 // детерминизм сида
 assert.deepEqual(roll(data, DEFAULTS, 'abc').build.map((i) => i.id), roll(data, DEFAULTS, 'abc').build.map((i) => i.id));
 assert.equal(rollSkillOrder(rng('x')).length, 16);

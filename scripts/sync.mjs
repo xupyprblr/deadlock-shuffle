@@ -11,7 +11,7 @@ import { mkdir, writeFile, readFile, access } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fetchRaw, buildSnapshot, applyEnglishNames, bannedFromStats, itemScores, tuneHero, STATS } from '../public/js/normalize.js';
+import { fetchRaw, buildSnapshot, applyEnglishNames, bannedFromStats, itemScores, tuneHero, buildTips, heroMix, STATS } from '../public/js/normalize.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -26,19 +26,27 @@ const OUT = path.resolve(root, opt('--out', 'public/data'));
 const ICONS = flag('--icons');
 const ICON_DIR = path.resolve(root, 'public/icons');
 
-async function fetchJson(url, tries = 3) {
+// Повторы: при перегрузке API (429/5xx) ждём Retry-After или 5/10/15 с, при прочих ошибках — 1,5/3 с
+async function fetchJson(url, tries = 4) {
   let last;
   for (let i = 0; i < tries; i++) {
+    let wait = 1500 * (i + 1);
     try {
       const ctl = new AbortController();
       const t = setTimeout(() => ctl.abort(), 60_000);
       const res = await fetch(url, { signal: ctl.signal, headers: { 'User-Agent': 'deadlock-shuffle-sync/1.0' } });
       clearTimeout(t);
-      if (!res.ok) throw new Error(`${res.status} ${url}`);
+      if (!res.ok) {
+        if (res.status === 429 || res.status >= 500) {
+          const ra = parseInt(res.headers.get('retry-after') || '', 10);
+          wait = Number.isFinite(ra) ? Math.min(30, ra) * 1000 : 5000 * (i + 1);
+        }
+        throw new Error(`${res.status} ${url}`);
+      }
       return await res.json();
     } catch (e) {
       last = e;
-      await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+      if (i < tries - 1) await new Promise((r) => setTimeout(r, wait));
     }
   }
   throw last;
@@ -75,6 +83,26 @@ async function mirror(url) {
   return 'icons/' + rel.replace(/\\/g, '/');
 }
 
+// Карточки предметов (data/tips.{lang}.json): иконки свойств — общей таблицей, при --icons скачаны к себе
+async function writeTips(raw, snap, lang) {
+  const tips = buildTips(raw.upgrades, snap.items, lang);
+  if (Object.keys(tips).length < snap.items.length * 0.9) { console.warn(`tips.${lang}: мало данных, оставляю прошлый файл`); return; }
+  const icons = [];
+  const at = new Map();
+  const ref = (u) => { if (!u) return -1; if (!at.has(u)) { at.set(u, icons.length); icons.push(u); } return at.get(u); };
+  const pack = (rows) => rows.map(([ic, v, l, c]) => (c ? [ref(ic), v, l, c] : [ref(ic), v, l]));
+  for (const t of Object.values(tips)) {
+    t.innate = pack(t.innate);
+    for (const sec of t.sections) { sec.small = pack(sec.small); sec.big = pack(sec.big); if (sec.cd) sec.cd = [ref(sec.cd[0]), sec.cd[1]]; }
+  }
+  for (let i = 0; i < icons.length; i++) icons[i] = ICONS ? await mirror(icons[i]) : icons[i];
+  const body = JSON.stringify({ v: 1, lang, icons, items: tips });
+  const file = path.join(OUT, `tips.${lang}.json`);
+  let prev = '';
+  try { prev = await readFile(file, 'utf8'); } catch {}
+  if (prev !== body) { await writeFile(file, body); changed = true; console.log(`tips.${lang}: ${Object.keys(tips).length} карточек, ${icons.length} иконок свойств`); }
+}
+
 async function mirrorAll(snap) {
   const jobs = [];
   for (const h of snap.heroes) {
@@ -93,7 +121,8 @@ let changed = false;
 const meta = { updatedAt: new Date().toISOString(), langs: {} };
 
 // Английский снимок нужен всегда: из него берутся имена героев, предметов и способностей
-const enSnap = buildSnapshot(await fetchRaw(fetchJson, 'en'));
+const enRaw = await fetchRaw(fetchJson, 'en');
+const enSnap = buildSnapshot(enRaw);
 
 // Журнал героев: когда каждый появился в пуле. Новые герои логируются и получают дату —
 // по ней сайт показывает бейдж «Новинка».
@@ -133,6 +162,30 @@ const globalStats = await fetchJson(`${STATS}?min_unix_timestamp=${since}`).catc
 const STATS_FILE = path.join(OUT, 'stats.json');
 let prevStats = null;
 try { prevStats = JSON.parse(await readFile(STATS_FILE, 'utf8')); } catch {}
+// Прошлая подкрутка: при сбое API по герою берём его прошлую строку (переложенную на текущий список предметов)
+let prevTune = null;
+try { prevTune = JSON.parse(await readFile(path.join(OUT, 'tune.json'), 'utf8')); } catch {}
+function prevTuneRow(heroId, items) {
+  const row = prevTune && prevTune.heroes && prevTune.heroes[heroId];
+  if (!row || !Array.isArray(prevTune.items)) return null;
+  const at = new Map(prevTune.items.map((k, idx) => [k, idx]));
+  let w = '', t = '';
+  for (const it of items) {
+    const k = at.get((it.id >>> 0).toString(36));
+    w += k === undefined ? '-' : row.w[k] || '-';
+    t += k === undefined ? '-' : row.t[k] || '-';
+  }
+  return { w, t };
+}
+// если свежей статистики по герою нет — переносим его прошлые оценки и подкрутку, чтобы файлы оставались полными
+function carryOver(h, why) {
+  if (statsFresh) return;
+  const ps = prevStats && prevStats.heroes && prevStats.heroes[h.id];
+  if (ps && !scoreOut.heroes[h.id]) scoreOut.heroes[h.id] = ps;
+  const pt = prevTuneRow(h.id, enSnap.items);
+  if (pt && !tuneOut.heroes[h.id]) tuneOut.heroes[h.id] = pt;
+  console.warn(`  ${h.name}: ${why} — оценки${ps ? '' : ' (нет)'} и подкрутка${pt ? '' : ' (нет)'} из прошлого снимка`);
+}
 const statsFresh = prevStats && Date.now() - Date.parse(prevStats.updatedAt) < 20 * 3600e3 && !flag('--force-stats');
 const heroStats = statsFresh ? null : await fetchJson(`https://api.deadlock-api.com/v1/analytics/hero-stats?min_unix_timestamp=${since}`).catch(() => null);
 const scoreOut = { updatedAt: new Date().toISOString(), windowDays: 30, minMatches: 300, heroes: {} };
@@ -143,9 +196,14 @@ const buildsSince = Math.floor(Date.now() / 1000) - 90 * 86400;
 const globalBuilds = statsFresh ? null : await fetchJson(`${BUILD_STATS}?min_last_updated_unix_timestamp=${buildsSince}`).catch(() => null);
 const globalMatches = (heroStats || []).reduce((a, x) => a + (x.matches || 0), 0);
 const tuneOut = { v: 1, updatedAt: scoreOut.updatedAt, items: enSnap.items.map((i) => (i.id >>> 0).toString(36)), heroes: {} };
-for (let i = 0; i < enSnap.heroes.length; i += 6) {
-  await Promise.all(enSnap.heroes.slice(i, i + 6).map(async (h) => {
+let freshHeroes = 0; // по скольким героям статистика пришла свежей (остальные — из прошлого снимка)
+const PAR = 3; // 504 у аналитики API приходят пачками — не грузим её сильнее
+// для проверки отказоустойчивости: SYNC_FAIL_HEROES='^V' — имитировать сбой API по этим героям
+const FAIL_TEST = process.env.SYNC_FAIL_HEROES ? new RegExp(process.env.SYNC_FAIL_HEROES) : null;
+for (let i = 0; i < enSnap.heroes.length; i += PAR) {
+  await Promise.all(enSnap.heroes.slice(i, i + PAR).map(async (h) => {
     try {
+      if (FAIL_TEST && FAIL_TEST.test(h.name)) throw new Error('504 (имитация сбоя)');
       const stats = await fetchJson(`${STATS}?hero_id=${h.id}&min_unix_timestamp=${since}`);
       if (!globalStats) throw new Error('нет общей статистики предметов');
       h.banned = bannedFromStats(stats, enSnap.items, globalStats);
@@ -155,14 +213,20 @@ for (let i = 0; i < enSnap.heroes.length; i += 6) {
           base: hs && hs.matches ? Math.round((hs.wins / hs.matches) * 1000) : null,
           matches: hs ? hs.matches : 0,
           items: itemScores(stats, enSnap.items),
+          mix: heroMix(stats, enSnap.items),
         };
+        freshHeroes++;
         try {
           const heroBuilds = await fetchJson(`${BUILD_STATS}?hero_id=${h.id}&min_last_updated_unix_timestamp=${buildsSince}`).catch(() => null);
           tuneOut.heroes[h.id] = tuneHero({
             items: enSnap.items, heroItems: stats, globalItems: globalStats, heroBuilds, globalBuilds,
             heroMatches: hs ? hs.matches : 0, globalMatches, wr: scoreOut.heroes[h.id].items,
           });
-        } catch (e) { console.warn(`  ${h.name}: подкрутка не посчитана (${e.message})`); }
+        } catch (e) {
+          const pt = prevTuneRow(h.id, enSnap.items);
+          if (pt) tuneOut.heroes[h.id] = pt;
+          console.warn(`  ${h.name}: подкрутка не посчитана (${e.message})${pt ? ' — из прошлого снимка' : ''}`);
+        }
       }
       bansFound += h.banned.length;
       if (h.banned.length) console.log(`  ${h.name}: нельзя купить ${h.banned.length} — ${h.banned.map((s) => enSnap.items.find((x) => x.slug === s).name).join(', ')}`);
@@ -170,31 +234,38 @@ for (let i = 0; i < enSnap.heroes.length; i += 6) {
       h.banned = prevBans[h.slug] || [];
       bansFound += h.banned.length;
       console.warn(`  ${h.name}: статистика недоступна, запреты из прошлого снимка: ${h.banned.length} (${e.message})`);
+      carryOver(h, 'статистика недоступна');
     }
   }));
 }
 console.log(`Запреты: ${bansFound} пар герой/предмет`);
-// перезаписываем оценки и подкрутку, только если статистика пришла почти по всем героям — иначе оставляем прошлые
+// Оценки и подкрутка: свежие герои + прошлые данные для тех, по кому API не ответил (файлы всегда полные).
+// Если свежих меньше 80%, дату обновления не трогаем — следующая синхронизация (через 3 ч) попробует снова,
+// а не будет считать данные свежими 20 часов. Если нет ни свежих, ни прошлых данных — файлы не трогаем.
 const enough = (o) => Object.keys(o.heroes).length >= Math.ceil(enSnap.heroes.length * 0.8) && Object.values(o.heroes).some((h) => h.base || h.w);
-if (!statsFresh && !enough(scoreOut)) {
-  console.warn(`Оценки предметов: статистика пришла по ${Object.keys(scoreOut.heroes).length} из ${enSnap.heroes.length} героев — оставляю прошлые stats.json и tune.json`);
-} else if (!statsFresh) {
+if (statsFresh) {
+  console.log('Оценки предметов: свежие (моложе 20 ч), пропускаю');
+} else if (!freshHeroes || !enough(scoreOut)) {
+  console.warn(`Оценки предметов: свежая статистика по ${freshHeroes} из ${enSnap.heroes.length} героев — оставляю прошлые stats.json и tune.json`);
+} else {
+  const allFresh = freshHeroes >= Math.ceil(enSnap.heroes.length * 0.8);
+  if (!allFresh && prevStats && prevStats.updatedAt) { scoreOut.updatedAt = prevStats.updatedAt; tuneOut.updatedAt = prevStats.updatedAt; }
   await writeFile(STATS_FILE, JSON.stringify(scoreOut));
-  console.log(`Оценки предметов: ${Object.keys(scoreOut.heroes).length} героев`);
+  console.log(`Оценки предметов: ${Object.keys(scoreOut.heroes).length} героев, свежих ${freshHeroes}${allFresh ? '' : ' — дату не обновляю, повторю при следующей синхронизации'}`);
   if (enough(tuneOut)) {
     await writeFile(TUNE_FILE, JSON.stringify(tuneOut));
     console.log(`Подкрутка псевдо-рандома: ${Object.keys(tuneOut.heroes).length} героев`);
   }
-} else {
-  console.log('Оценки предметов: свежие (моложе 20 ч), пропускаю');
 }
 
 for (const lang of LANGS_TO_SYNC) {
-  const snap = lang === 'en' ? enSnap : applyEnglishNames(buildSnapshot(await fetchRaw(fetchJson, lang)), enSnap);
+  const raw = lang === 'en' ? enRaw : await fetchRaw(fetchJson, lang);
+  const snap = lang === 'en' ? enSnap : applyEnglishNames(buildSnapshot(raw), enSnap);
   if (snap.heroes.length < 10 || snap.items.length < 50) {
     throw new Error(`Подозрительно мало данных (${lang}): героев ${snap.heroes.length}, предметов ${snap.items.length}`);
   }
   if (ICONS) await mirrorAll(snap);
+  await writeTips(raw, snap, lang);
 
   const { fetchedAt, ...stable } = snap;
   const h = hash(stable);

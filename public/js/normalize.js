@@ -122,14 +122,37 @@ export function normalizeLanes(generic) {
     .map((l) => ({ name: l.lane_name, css: l.css_class, color: laneHex(l.color) }));
 }
 
-export function latestPatch(patches) {
-  if (!Array.isArray(patches) || !patches.length) return null;
-  const p = [...patches].sort((a, b) => String(b.pub_date).localeCompare(String(a.pub_date)))[0];
+// Новости Steam: Valve публикует патч там сразу, а тема на форуме (лента PATCHES) появляется с опозданием.
+// Из браузера недоступна (нет CORS) — читает только sync.mjs.
+export const STEAM_NEWS = 'https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/?appid=1422450&count=15&maxlength=1&feeds=steam_community_announcements';
+const ptDate = (iso) => {
+  const [m, d, y] = new Date(iso).toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).split('/');
+  return `${m}-${d}-${y}`; // как Valve подписывает патчи: дата по тихоокеанскому времени
+};
+export function steamPatches(news) {
+  const items = (news && news.appnews && news.appnews.newsitems) || [];
+  return items
+    .filter((n) => (n.tags || []).includes('patchnotes') || /\b(update|patch)\b/i.test(n.title || ''))
+    .map((n) => {
+      const iso = new Date(n.date * 1000).toISOString();
+      return { title: ptDate(iso), pub_date: iso, link: n.url };
+    });
+}
+// Самый свежий патч из любых источников (форум, Steam, уже известный снимку)
+export function latestPatch(...lists) {
+  const all = [];
+  for (const l of lists) {
+    if (Array.isArray(l)) all.push(...l);
+    else if (l && l.date) all.push({ title: l.title, pub_date: l.date, link: l.link });
+  }
+  const ok = all.filter((p) => p && p.pub_date && p.title);
+  if (!ok.length) return null;
+  const p = ok.sort((a, b) => Date.parse(b.pub_date) - Date.parse(a.pub_date))[0];
   return { title: p.title, date: p.pub_date, link: p.link };
 }
 
 // Главная функция: собирает всё в один снимок.
-export function buildSnapshot({ lang, heroes, upgrades, abilities, generic, patches, clientVersion }) {
+export function buildSnapshot({ lang, heroes, upgrades, abilities, generic, patches, steam, clientVersion }) {
   const abilityByClass = {};
   for (const a of abilities || []) abilityByClass[a.class_name] = a;
 
@@ -147,7 +170,7 @@ export function buildSnapshot({ lang, heroes, upgrades, abilities, generic, patc
     lang,
     fetchedAt: new Date().toISOString(),
     clientVersion: clientVersion || null,
-    patch: latestPatch(patches),
+    patch: latestPatch(patches, steamPatches(steam)),
     prices: (generic && generic.item_price_per_tier) || [0, 800, 1600, 3200, 6400, 9999],
     lanes: normalizeLanes(generic),
     heroes: heroList,
@@ -236,16 +259,17 @@ export function applyEnglishNames(snap, en) {
 // (в Node — с таймаутом и ретраями, в браузере — обычный fetch).
 export async function fetchRaw(fetchJson, lang) {
   const l = LANGS[lang] || 'english';
-  const [heroes, upgrades, abilities, generic, patches, versions] = await Promise.all([
+  const [heroes, upgrades, abilities, generic, patches, versions, steam] = await Promise.all([
     fetchJson(`${API}/heroes?language=${l}&only_active=true`),
     fetchJson(`${API}/items/by-type/upgrade?language=${l}`),
     fetchJson(`${API}/items/by-type/ability?language=${l}`),
     fetchJson(`${API}/generic-data`),
     fetchJson(PATCHES).catch(() => []),
     fetchJson(`${API}/client-versions`).catch(() => []),
+    fetchJson(STEAM_NEWS).catch(() => null),
   ]);
   const clientVersion = Array.isArray(versions) && versions.length ? Math.max(...versions) : null;
-  return { lang, heroes, upgrades, abilities, generic, patches, clientVersion };
+  return { lang, heroes, upgrades, abilities, generic, patches, steam, clientVersion };
 }
 
 // Облегчённая версия для браузера: без 4-мегабайтного списка всех способностей.
@@ -329,4 +353,88 @@ export function attachTune(data, tune) {
     h.tune = { w, t };
   }
   return data;
+}
+
+// ---------- Карточка предмета как в игре (data/tips.{lang}.json) ----------
+// Из сырых данных API берём только то, что показывает игровая подсказка:
+// базовые бонусы, блоки «Пассивное»/«Активное» с текстом, крупные и мелкие значения, иконки свойств.
+// Текст описаний — без HTML: выделение игры превращаем в маркеры **…**, всё остальное вырезаем.
+export function tipText(html) {
+  return String(html || '')
+    .replace(/<svg[\s\S]*?<\/svg>/gi, '') // встроенные значки игры — целиком
+    .replace(/<img[^>]*>/gi, '')
+    .replace(/[\r\n]+/g, ' ') // переносы строк в исходнике — не смысловые; смысловые — только <br>
+    .replace(/<span[^>]*class="(?:highlight|inlineattributename|inline-attribute-label)[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, '**$1**')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\{[^}]*\}/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/\*\*\s*\*\*/g, '')
+    .trim();
+}
+function tipValue(p, lang) {
+  if (!p) return null;
+  let raw = String(p.value ?? '').trim().replace(/m$/i, '');
+  const n = parseFloat(raw);
+  if (!Number.isFinite(n) || n === 0) return null;
+  const pre = String(p.prefix || '');
+  const sign = pre.includes('{s:sign}') ? (n > 0 ? '+' : '') : pre === '-' ? '-' : '';
+  const num = Number.isInteger(n) ? String(n) : (Math.round(n * 10) / 10).toFixed(1);
+  const post = String(p.postfix || '').replace(/\{[^}]*\}/g, '');
+  return sign + (lang === 'ru' ? num.replace('.', ',') : num) + post;
+}
+// строка свойства: [иконка, значение, подпись, условие] — условие: текст игры («после срабатывания») или 1 = «при условии»
+function tipProp(props, key, lang) {
+  const p = props && props[key];
+  const v = tipValue(p, lang);
+  if (!v) return null;
+  const cond = p.conditional ? String(p.conditional) : Array.isArray(p.usage_flags) && p.usage_flags.includes('ConditionallyApplied') ? 1 : 0;
+  return [p.icon || '', v, String(p.postvalue_label || p.label || key).replace(/\{[^}]*\}/g, '').trim(), cond];
+}
+export function buildTips(upgrades, shopItems, lang) {
+  const want = new Set(shopItems.map((i) => i.id >>> 0));
+  const out = {};
+  for (const it of upgrades || []) {
+    const id = it.id >>> 0;
+    if (!want.has(id)) continue;
+    const props = it.properties || {};
+    const tip = { innate: [], sections: [] };
+    for (const sec of it.tooltip_sections || []) {
+      for (const at of sec.section_attributes || []) {
+        if (sec.section_type === 'innate') {
+          for (const k of [...(at.properties || []), ...(at.elevated_properties || [])]) { const x = tipProp(props, k, lang); if (x) tip.innate.push(x); }
+          continue;
+        }
+        const text = tipText(at.loc_string);
+        // перезарядка — в заголовок блока, как в игре
+        const cdProp = (at.properties || []).includes('AbilityCooldown') ? tipProp(props, 'AbilityCooldown', lang) : null;
+        const small = (at.properties || []).filter((k) => k !== 'AbilityCooldown').map((k) => tipProp(props, k, lang)).filter(Boolean);
+        const big = (at.important_properties || []).map((k) => tipProp(props, k, lang)).filter(Boolean);
+        if (!text && !small.length && !big.length) continue;
+        tip.sections.push({ type: sec.section_type === 'active' ? 'active' : 'passive', text, small, big, ...(cdProp ? { cd: [cdProp[0], cdProp[1]] } : {}) });
+      }
+    }
+    if (!tip.innate.length && !tip.sections.length && it.description && it.description.desc) {
+      tip.sections.push({ type: it.is_active_item ? 'active' : 'passive', text: tipText(it.description.desc), small: [], big: [] });
+    }
+    out[id] = tip;
+  }
+  return out;
+}
+
+// Типичный инвест героя: доля душ, которую игроки на этом герое вкладывают в оружие / спиритизм / живучесть
+// (покупки за 30 дней × цена предмета). Нужна оценке затара, чтобы штрафовать перекос по категориям.
+export function heroMix(stats, items) {
+  const byId = new Map(items.map((i) => [i.id >>> 0, i]));
+  const sum = { weapon: 0, spirit: 0, vitality: 0 };
+  for (const s of stats || []) {
+    const it = byId.get(s.item_id >>> 0);
+    if (it && sum[it.cat] !== undefined) sum[it.cat] += (s.matches || 0) * (it.cost || 0);
+  }
+  const total = sum.weapon + sum.spirit + sum.vitality;
+  if (!total) return null;
+  return { weapon: +(sum.weapon / total).toFixed(3), spirit: +(sum.spirit / total).toFixed(3), vitality: +(sum.vitality / total).toFixed(3) };
 }

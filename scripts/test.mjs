@@ -29,6 +29,9 @@ const variants = [
   { ...DEFAULTS, order: 'pseudo', mode: 'balanced', actives: 3 },
   { ...DEFAULTS, order: 'pseudo', mode: 'mono' },
   { ...DEFAULTS, order: 'chaos' },
+  { ...DEFAULTS, order: 'curve' },
+  { ...DEFAULTS, order: 'curve', mode: 'balanced', actives: 4 },
+  { ...DEFAULTS, order: 'curve', mode: 'mono' },
   { ...DEFAULTS, order: 'phases' },
   { ...DEFAULTS, order: 'phases', mode: 'balanced', actives: 4 },
 ];
@@ -57,6 +60,24 @@ for (const opts of variants) {
     if (opts.mode === 'balanced') {
       const c = {}; for (const i of res.build) c[i.cat] = (c[i.cat] || 0) + 1;
       assert.ok(Math.max(...Object.values(c)) - Math.min(...Object.values(c)) <= 1, 'баланс категорий');
+    }
+    if (opts.order === 'curve' && opts.tiers.length === 4) {
+      // «Баланс рандом»: дешёвый старт, дорогое в конце; вход в слот 2 — максимум 800, в слоты 1–5 нет 6400
+      const entry = (i) => (i.from.length ? Math.min(...i.from.map((sl) => (bySlug[sl] ? bySlug[sl].cost : i.cost))) : i.cost);
+      assert.ok(entry(res.build[0]) <= 800, `баланс: слот 1 — ${res.build[0].name}`);
+      assert.ok(entry(res.build[1]) <= 800, `баланс: слот 2 — ${res.build[1].name}`);
+      for (let i = 0; i < 5; i++) assert.ok(res.build[i].tier < 4, `баланс: 6400 в слоте ${i + 1}`);
+      if (res.build[5].tier === 4) assert.ok(entry(res.build[5]) <= 3200, `баланс: слот 6 — 6400 без компонента (${res.build[5].name})`);
+      // слоты 1, 5, 6: предмет, у которого есть подходящий апгрейд на тир выше, должен быть показан апгрейдом
+      for (const [idx, max] of [[0, 2], [4, 3], [5, 4]]) {
+        const it = res.build[idx];
+        if (it.tier + 1 > max) continue;
+        const others = res.build.filter((x) => x !== it);
+        const canUp = data.items.some((u) => u.tier === it.tier + 1 && u.from.includes(it.slug) && u.active === it.active && (opts.mode === 'chaos' || u.cat === it.cat) && !res.hero.banned.includes(u.slug) && !others.some((o) => o.slug === u.slug || deep(u).has(o.slug) || deep(o).has(u.slug)) && !(u.active && others.filter((o) => o.active).length >= 4));
+        assert.ok(!canUp, `баланс: слот ${idx + 1} — ${it.name} можно было показать апгрейдом`);
+      }
+      // в «Все в один» дешёвые предметы категории блокируют часть своих же апгрейдов — дорогих в конце может быть меньше
+      assert.ok(res.build.slice(8).filter((i) => i.tier === 4).length >= (opts.mode === 'mono' ? 2 : 3), 'баланс: в конце дорогие предметы');
     }
     if (opts.order === 'phases') {
       for (let i = 1; i < 12; i++) assert.ok(res.build[i - 1].cost <= res.build[i].cost, 'по фазам: цены по возрастанию');
@@ -114,6 +135,20 @@ assert.ok(es.from.includes(data.items.find((i) => i.name === 'Sprint Boots').slu
   for (let i = 1; i < xs.length; i++) assert.ok(rank[xs[i].verdict] >= rank[xs[i - 1].verdict], `шанс ${xs[i].chance} при вердикте ${xs[i].verdict} ниже ${xs[i - 1].verdict}`);
 }
 
+// затар одного цвета: без нужных герою категорий оценка не бывает «мета»
+{
+  let n = 0;
+  for (let k = 0; k < 600; k++) {
+    const r = roll(data, { ...DEFAULTS, mode: 'mono' }, 'm' + k);
+    const sc = scoreBuild(r.build, stats.heroes[r.hero.id]);
+    if (!sc) continue;
+    n++;
+    assert.ok(sc.gaps.length >= 1 && sc.penalty > 0, `моно без штрафа: ${r.hero.name}`);
+    assert.ok(sc.chance < 55, `моно ${r.hero.name}: ${sc.chance}%`);
+  }
+  assert.ok(n > 300, 'моно-оценки посчитаны');
+}
+
 // детерминизм сида
 assert.deepEqual(roll(data, DEFAULTS, 'abc').build.map((i) => i.id), roll(data, DEFAULTS, 'abc').build.map((i) => i.id));
 assert.equal(rollSkillOrder(rng('x')).length, 16);
@@ -150,6 +185,14 @@ if (tune) {
   // дорогой предмет может выпасть в 1–2 слот
   let t4 = 0; for (let k = 0; k < 1000; k++) if (roll(data, { ...DEFAULTS, order: 'pseudo' }, 't' + k).build.slice(0, 2).some((i) => i.tier === 4)) t4++;
   assert.ok(t4 > 30 && t4 < 400, `T4 в 1–2 слоте: ${t4} из 1000`);
+}
+
+// карточки предметов: есть почти у всех, тексты без HTML
+for (const lang of ['ru', 'en']) {
+  const tips = JSON.parse(await readFile(new URL(`../public/data/tips.${lang}.json`, import.meta.url), 'utf8'));
+  const have = data.items.filter((i) => tips.items[i.id >>> 0]).length;
+  assert.ok(have >= data.items.length * 0.9, `tips.${lang}: карточки у ${have} из ${data.items.length}`);
+  for (const t of Object.values(tips.items)) for (const sec of t.sections) assert.ok(!/[<>]/.test(sec.text), `tips.${lang}: HTML в тексте`);
 }
 
 console.log(`OK: ${n} роллов. Пример: ${ex.hero.name} / ${ex.build.map((i) => i.name).join(', ')}`);

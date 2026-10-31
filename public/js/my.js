@@ -16,7 +16,7 @@ const num = (v) => (Number.isFinite(+v) ? Math.trunc(+v) : 0);
 const pct = (v) => Math.round(v * 100) + '%';
 const when = (ms) => new Date(ms).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 const hours = (ms) => (ms / 3600e3 < 1 ? Math.round(ms / 60e3) + ' мин' : (ms / 3600e3).toFixed(1).replace('.', ',') + ' ч');
-const ORDER = { pseudo: 'Псевдо-рандом', chaos: 'Полный рандом', phases: 'По фазам' };
+const ORDER = { curve: 'Баланс рандом', pseudo: 'Псевдо-рандом', chaos: 'Полный рандом', phases: 'По фазам' };
 const INVEST = { chaos: 'Хаос', balanced: 'Поровну', mono: 'Все в один' };
 const VERDICT = { meta: 'Мета-затар', solid: 'Рабочая сборка', risky: 'Рискованно', challenge: 'Челлендж', troll: 'Чистый троллинг' };
 

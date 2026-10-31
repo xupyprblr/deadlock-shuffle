@@ -2,8 +2,9 @@ import { encodeBuildCode, CATEGORY_KEYS } from './buildcode.js';
 import { initAnalytics, track } from './analytics.js';
 import { NS, IS_DEV, markDev } from './env.js';
 import { addEntry, entryFrom } from './journal.js';
+import { loadTips, tipCard } from './tips.js';
 import { buildSnapshot, fetchRawLite, fetchHeroAbilities, normalizeAbility, latestPatch, applyEnglishNames, isNewHero, attachTune, SCHEMA, API, PATCHES } from './normalize.js';
-import { roll, rng, newSeed, DEFAULTS, rollItem, orderBuild, PHASES, phaseOf, phaseTiers, buildCost, encodeResult, decodeResult, CATS, rollSkillOrder, ultIndexOf, rollHeroFor, scoreBuild, meterPos, MAX_ACTIVE } from './random.js';
+import { roll, rng, newSeed, DEFAULTS, rollItem, orderBuild, PHASES, phaseOf, phaseTiers, curveTiers, curveUpgrade, buildCost, encodeResult, decodeResult, CATS, rollSkillOrder, ultIndexOf, rollHeroFor, scoreBuild, meterPos, MAX_ACTIVE } from './random.js';
 
 const CFG = Object.assign({ live: true, dataUrl: 'data/', cacheHours: 6 }, window.DS_CONFIG || {});
 const app = document.getElementById('app');
@@ -21,16 +22,19 @@ const I18N = {
     how3T: 'Нажми «Создать сборку»', how3: 'Откроется пустая сборка этого героя.',
     how4T: 'Нажми «Вставить сборку»', how4: 'Маленькая квадратная кнопка рядом с «i». Предметы и прокачка встанут сами — останется сохранить.',
     howWarn: '<b>Нет кнопки «Вставить сборку»?</b> Значит, в игре выбран другой герой или код пропал из буфера обмена. Проверь героя и скопируй код ещё раз.',
-    orderT: 'Порядок покупки', o_chaos: 'Полный рандом', o_pseudo: 'Псевдо-рандом', o_phases: 'По фазам',
+    orderT: 'Режим крутки', o_chaos: 'Полный рандом', o_pseudo: 'Псевдо-рандом', o_curve: 'Баланс рандом', o_phases: 'По фазам',
     ph_early: 'Ранняя игра', ph_mid: 'Середина', ph_late: 'Поздняя игра', slotHint: 'Слоты по порядку покупки: сверху вниз, затем следующий столбец — как в игре.', copyOrder: 'Порядок покупки',
     souls: 'душ', roll: 'Крутить', newHero: 'Другой герой', newItems: 'Другие предметы',
-    copy: 'Скопировать', link: 'Ссылка', copied: 'Скопировано', linkCopied: 'Ссылка скопирована', rerollSlot: 'Заменить предмет',
+    copy: 'Скопировать', link: 'Ссылка', copied: 'Скопировано', linkCopied: 'Ссылка скопирована', rerollSlot: 'Заменить предмет', infoT: 'Что это?',
+    info_order: [['curve', 'Баланс рандом', 'Самый удобный: дешёвые предметы в начале, дорогие в конце — не нужно копить на первый слот.'], ['pseudo', 'Псевдо-рандом', 'Случайная сборка в разумных рамках: играть ей реально, но порядок покупки свободный — дорогой предмет может выпасть рано.'], ['chaos', 'Полный рандом', 'Никаких правил: любые предметы в любом порядке. Для любителей челленджа.']],
+    info_mode: [['chaos', 'Хаос', 'Оружие, спиритизм и живучесть — как выпадет.'], ['balanced', 'Поровну', 'Каждой категории по 4 предмета.'], ['mono', 'Все в один', 'Все 12 предметов из одной категории.']],
+    laneOpt: 'Выбирать линию на матч', laneHint: 'С каждой круткой сайт подскажет, на какую линию идти.', laneT: 'Линия', tapHint: 'Тап по предмету — описание и перекрут', rerollBtn: 'Перекрутить предмет', closeBtn: 'Закрыть',
     skills: 'Порядок [прокачки]', unlock: 'Открыть', newHeroBadge: 'Новинка',
     ult: 'ульта', settings: 'Правила [рандома]', settingsSub: 'Настройки запоминаются в этом браузере.',
     slots: 'Слотов в сборке', mode: 'Баланс инвеста', chaos: 'Хаос', balanced: 'Поровну', mono: 'Все в один', grpReroll: 'Перекрутить', grpTake: 'Забрать', heroShort: 'Героя', itemsShort: 'Предметы',
     tiers: 'Тиры предметов', actives: 'Активные предметы', activesRandom: 'Случайно 0–4', activesHint: 'В игре максимум 4 активных слота. Крайнее левое положение — каждую крутку случайно.',
-    scoreT: 'Шанс на победу', chanceNote: 'твой вклад в победу', realNote: 'Средний винрейт с такими предметами на этом герое', scoreNone: 'По этому герою пока мало матчей — шанс на победу появится через несколько дней.', vs: 'к соседям по тиру',
-    v_meta: 'Мета-затар', v_solid: 'Рабочая сборка', v_risky: 'Рискованно', v_challenge: 'Челлендж', v_troll: 'Чистый троллинг', copyScore: 'Шанс на победу',
+    scoreT: 'Оценка затара', gapNote: 'Без категории «{c}» герою тяжело — оценка снижена', gapNoteN: 'Без категорий {c} герою тяжело — оценка снижена', chanceNote: 'шанс на победу', realNote: 'Средний винрейт с такими предметами на этом герое', scoreNone: 'По этому герою пока мало матчей — оценка появится через несколько дней.', vs: 'к соседям по тиру',
+    v_meta: 'Мета-затар', v_solid: 'Рабочая сборка', v_risky: 'Рискованно', v_challenge: 'Челлендж', v_troll: 'Чистый троллинг', copyScore: 'Оценка затара',
     classes: 'Классы героев', all: 'Все', pool: 'Пул героев',
     poolHint: 'Нажми на портрет — останется только этот герой. Следующие клики добавляют и убирают героев.', allHeroes: 'Все герои', poolCount: 'в пуле', reset: 'Сбросить правила',
     weapon: 'Оружие', spirit: 'Спиритизм', vitality: 'Живучесть',
@@ -62,16 +66,19 @@ const I18N = {
     how3T: 'Press “Create build”', how3: 'An empty build for this hero opens.',
     how4T: 'Press “Paste build”', how4: 'The small square button next to the “i”. Items and abilities fill in on their own — just save.',
     howWarn: '<b>No “Paste build” button?</b> The game has a different hero selected, or the code is no longer in your clipboard. Check the hero and copy the code again.',
-    orderT: 'Purchase order', o_chaos: 'Full random', o_pseudo: 'Smart Random', o_phases: 'By phase',
+    orderT: 'Roll mode', o_chaos: 'Full Random', o_pseudo: 'Smart Random', o_curve: 'Balanced Random', o_phases: 'By phase',
     ph_early: 'Early game', ph_mid: 'Mid game', ph_late: 'Late game', slotHint: 'Slots in purchase order: top to bottom, then the next column, as in the game.', copyOrder: 'Purchase order',
     souls: 'souls', roll: 'Shuffle', newHero: 'New hero', newItems: 'New items',
-    copy: 'Copy', link: 'Link', copied: 'Copied', linkCopied: 'Link copied', rerollSlot: 'Replace item',
+    copy: 'Copy', link: 'Link', copied: 'Copied', linkCopied: 'Link copied', rerollSlot: 'Replace item', infoT: 'What is this?',
+    info_order: [['curve', 'Balanced Random', 'The most comfortable: cheap items first, expensive ones at the end — no saving up for slot one.'], ['pseudo', 'Smart Random', 'A random build within reason: playable, but the purchase order is loose — an expensive item can come early.'], ['chaos', 'Full Random', 'No rules: any items in any order. For challenge lovers.']],
+    info_mode: [['chaos', 'Chaos', 'Weapon, spirit and vitality — whatever drops.'], ['balanced', 'Even', '4 items from each category.'], ['mono', 'All in one', 'All 12 items from a single category.']],
+    laneOpt: 'Pick a lane for the match', laneHint: 'Every roll also tells you which lane to take.', laneT: 'Lane', tapHint: 'Tap an item for info and reroll', rerollBtn: 'Reroll item', closeBtn: 'Close',
     skills: 'Ability [order]', unlock: 'Unlock', newHeroBadge: 'New',
     ult: 'ult', settings: 'Shuffle [rules]', settingsSub: 'Settings are saved in this browser.',
     slots: 'Build slots', mode: 'Investment balance', chaos: 'Chaos', balanced: 'Even', mono: 'All in one', grpReroll: 'Reroll', grpTake: 'Take it', heroShort: 'Hero', itemsShort: 'Items',
     tiers: 'Item tiers', actives: 'Active items', activesRandom: 'Random 0–4', activesHint: 'The game has 4 active slots at most. Far left — random on every shuffle.',
-    scoreT: 'Build Win Rate', chanceNote: 'your impact on the win', realNote: 'Average win rate with these items on this hero', scoreNone: 'Not enough matches on this hero yet — the build win rate will appear in a few days.', vs: 'vs. same tier',
-    v_meta: 'Meta build', v_solid: 'Solid build', v_risky: 'Risky', v_challenge: 'Challenge', v_troll: 'Pure troll', copyScore: 'Build win rate',
+    scoreT: 'Build Rating', gapNote: 'Missing {c} items hurts this hero — rating lowered', gapNoteN: 'Missing {c} items hurts this hero — rating lowered', chanceNote: 'build win rate', realNote: 'Average win rate with these items on this hero', scoreNone: 'Not enough matches on this hero yet — the rating will appear in a few days.', vs: 'vs. same tier',
+    v_meta: 'Meta build', v_solid: 'Solid build', v_risky: 'Risky', v_challenge: 'Challenge', v_troll: 'Pure troll', copyScore: 'Build rating',
     classes: 'Hero classes', all: 'All', pool: 'Hero pool',
     poolHint: 'Click a portrait to keep only that hero. Further clicks add or remove heroes.', allHeroes: 'All heroes', poolCount: 'in pool', reset: 'Reset rules',
     weapon: 'Weapon', spirit: 'Spirit', vitality: 'Vitality',
@@ -135,6 +142,8 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 // В демо-сборке картинки встроены в страницу (window.DS_IMG), на сайте — обычные пути
 const src = (p) => (p && window.DS_IMG && window.DS_IMG[p]) || p || '';
 // внешние ссылки из API — только http(s), чтобы подменённые данные не могли подсунуть javascript:
+// Valve пишет дату патча как ММ-ДД-ГГГГ; в русской версии показываем ДД-ММ-ГГГГ
+const patchTitle = (s) => (state.lang === 'ru' ? String(s || '').replace(/^(\d{2})-(\d{2})-(\d{4})/, '$2-$1-$3') : String(s || ''));
 const safeUrl = (u) => { try { const x = new URL(String(u)); return x.protocol === 'https:' || x.protocol === 'http:' ? x.href : ''; } catch { return ''; } };
 // «Слово в [скобках]» -> выделенная плашка, как «updated» на официальной странице
 const hl = (s) => esc(s).replace(/\[(.+?)\]/g, '<mark>$1</mark>');
@@ -168,7 +177,10 @@ async function loadSnapshot(lang) {
   let snap = null;
   try { snap = await fetchJson(CFG.dataUrl + lang + '.json?v=' + Math.floor(Date.now() / 36e5)); } catch {}
   // берём более свежий из двух: кэш живого обновления или серверный снимок
-  if (cached && cached.schema === SCHEMA && (!snap || (cached.clientVersion || 0) > (snap.clientVersion || 0))) return cached;
+  if (cached && cached.schema === SCHEMA && (!snap || (cached.clientVersion || 0) > (snap.clientVersion || 0))) {
+    if (snap) cached.patch = latestPatch(cached.patch, snap.patch); // дату патча сервер знает лучше (новости Steam)
+    return cached;
+  }
   if (snap) return snap;
   if (cached) return cached;
   throw new Error('no data');
@@ -200,7 +212,7 @@ async function liveCheck() {
     if (lang !== 'en') applyEnglishNames(fresh, buildSnapshot(await fetchRawLite(fetchJson, 'en')));
     // переносим способности и патч из старого снимка, новых героев догрузим по запросу
     fresh.patch = state.data.patch;
-    try { fresh.patch = latestPatch(await fetchJson(PATCHES)) || fresh.patch; } catch {}
+    try { fresh.patch = latestPatch(await fetchJson(PATCHES), fresh.patch) || fresh.patch; } catch {}
     if (lang !== state.lang) return;
     store.set('ds:data:' + lang, fresh);
     state.data = attachTune(fresh, await loadTune());
@@ -266,9 +278,11 @@ function rerollSlot(idx) {
   const opts = state.opts;
   const cat = state.opts.mode === 'chaos' ? null : cur.cat;
   // замена сохраняет тип слота: активка меняется на активку, пассивка на пассивку
-  const tiers = opts.order === 'phases' ? phaseTiers(idx, opts) : null;
-  const next = rollItem(r, state.data.items, [...others, cur], opts, cat, res.hero, cur.active, tiers) || rollItem(r, state.data.items, others, opts, cat, res.hero, cur.active, tiers);
+  const tiers = opts.order === 'phases' ? phaseTiers(idx, opts) : opts.order === 'curve' ? curveTiers(idx, opts, cur) : null;
+  let next = rollItem(r, state.data.items, [...others, cur], opts, cat, res.hero, cur.active, tiers) || rollItem(r, state.data.items, others, opts, cat, res.hero, cur.active, tiers);
   if (!next) return;
+  // «Баланс рандом»: в слотах 1, 5, 6 предмет с апгрейдом показываем сразу апгрейдом
+  if (opts.order === 'curve') next = curveUpgrade(r, state.data.items, [...others, next], idx, next, opts, res.hero);
   // замена встаёт на место старого предмета во всех уже показанных порядках покупки
   for (const m of Object.keys(res.orders || {})) {
     const arr = res.orders[m].map((i) => (i === cur ? next : i));
@@ -319,8 +333,9 @@ async function toGame() {
   if (ok) logTaken();
   track('to_game', { from: 'button', ok: ok ? 1 : 0, hero: state.res && state.res.hero.name, order: state.opts.order });
 }
-// Журнал круток (фаза 2): что игрок забрал в игру и когда
+// смена темы (js/theme.js) — в аналитику как настройка
 document.addEventListener('ds:theme', (e) => track('setting', { name: 'theme', value: e.detail }));
+// Журнал круток (фаза 2): что игрок забрал в игру и когда
 function logTaken() {
   try {
     const r = state.res;
@@ -411,7 +426,7 @@ function renderTop() {
       <a class="soc soc-donate" href="${DONATE}" target="_blank" rel="noopener" data-track="donate" data-track-v="header">${ICON.heart}<span>${t('donate')}</span></a>
     </nav>
     <div class="top-meta">
-      <span class="patch"><i class="dot ${state.live ? '' : 'stale'}"></i>${p ? `${t('patch')} ${safeUrl(p.link) ? `<a href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener">${esc(p.title)}</a>` : esc(p.title)} · ` : ''}${state.live ? t('fresh') : `${t('stale')} ${when}`}</span>
+      <span class="patch"><i class="dot ${state.live ? '' : 'stale'}"></i>${p ? `${t('patch')} ${safeUrl(p.link) ? `<a href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener">${esc(patchTitle(p.title))}</a>` : esc(patchTitle(p.title))} · ` : ''}${state.live ? t('fresh') : `${t('stale')} ${when}`}</span>
       <span class="seg" role="group" aria-label="Language">
         <button data-act="lang" data-v="ru" aria-pressed="${state.lang === 'ru'}">RU</button>
         <button data-act="lang" data-v="en" aria-pressed="${state.lang === 'en'}">EN</button>
@@ -438,6 +453,7 @@ function renderStage(dealItems = true) {
         ${hero.role ? `<p class="hero-role">${esc(hero.role)}</p>` : ''}
         <div class="chips">
           <span class="tag">${esc(t(hero.type))}</span>
+          ${state.opts.lane && state.res.lane ? lanePill(state.res.lane) : ''}
         </div>
         ${hero.complexity ? `<span class="complex">${t('complexity')}: <b>${'◆'.repeat(hero.complexity)}${'◇'.repeat(Math.max(0, 3 - hero.complexity))}</b></span>` : ''}
       </div>
@@ -448,9 +464,10 @@ function renderStage(dealItems = true) {
         <span class="souls">${fmt(cost)}<small>${t('souls')}</small></span>
       </div>
       ${order === 'phases' ? `<div class="phase-head" aria-hidden="true">${PHASES.map((p) => `<span class="ph-${p.key}">${t('ph_' + p.key)}<small>${p.from + 1}–${p.to}</small></span>`).join('')}</div>` : ''}
-      <div class="slots ${dealItems ? 'dealt' : ''} ${order === 'phases' ? 'by-phase' : ''}" title="${t('slotHint')}">
+      <p class="tap-hint">${t('tapHint')}</p>
+      <div class="slots ${dealItems ? 'dealt' : ''} ${order === 'phases' ? 'by-phase' : ''}">
         ${build.map((i, idx) => `
-          <button class="slot ${i.cat}" style="--i:${idx}" data-act="slot" data-i="${idx}" title="${esc(i.name)} — ${t(i.cat)}, ${ROMAN[i.tier]}${i.active ? ', ' + t('active') : ''}" aria-label="${t('rerollSlot')}: ${esc(i.name)}">
+          <button class="slot ${i.cat}" style="--i:${idx}" data-act="slot" data-i="${idx}" aria-label="${esc(i.name)} — ${t(i.cat)}, ${ROMAN[i.tier]}${i.active ? ', ' + t('active') : ''}. ${t('rerollSlot')}">
             <span class="slot-tile">
               ${i.icon ? `<img src="${esc(src(i.icon))}" alt="" loading="lazy" width="200" height="200">` : ''}
               <span class="tier">${ROMAN[i.tier]}</span>${i.active ? `<span class="act" title="${t('active')}">A</span>` : ''}<span class="num ${order === 'phases' ? 'ph-' + phaseOf(idx).key : ''}">${idx + 1}</span>
@@ -467,13 +484,13 @@ function renderStage(dealItems = true) {
     <div class="actions">
     <div class="hero-opts act-left">
       <div class="order-switch">
-        <span class="lbl">${t('orderT')}</span>
-        <div class="seg-order" role="radiogroup" aria-label="${t('orderT')}">
-          ${['pseudo', 'chaos'].map((m) => `<button data-act="order" data-v="${m}" role="radio" aria-checked="${order === m}" aria-pressed="${order === m}">${t('o_' + m)}</button>`).join('')}
+        <span class="lbl">${t('orderT')}${infoBtn('order')}</span>
+        <div class="seg-order seg-modes" role="radiogroup" aria-label="${t('orderT')}">
+          ${['curve', 'pseudo', 'chaos'].map((m) => `<button class="m-${m}" data-act="order" data-v="${m}" role="radio" aria-checked="${order === m}" aria-pressed="${order === m}">${t('o_' + m)}</button>`).join('')}
         </div>
       </div>
       <div class="order-switch">
-        <span class="lbl">${t('mode')}</span>
+        <span class="lbl">${t('mode')}${infoBtn('mode')}</span>
         <div class="seg-order" role="radiogroup" aria-label="${t('mode')}">
           ${['chaos', 'balanced', 'mono'].map((m) => `<button data-act="mode" data-v="${m}" role="radio" aria-checked="${state.opts.mode === m}" aria-pressed="${state.opts.mode === m}">${t(m)}</button>`).join('')}
         </div>
@@ -514,6 +531,95 @@ function scrollToStage() {
   if (window.scrollY <= top) return;
   window.scrollTo({ top, behavior: reduceMotion() ? 'auto' : 'smooth' });
 }
+
+// ---------- значок «i» с описанием режимов ----------
+function infoBtn(key) {
+  const rows = t('info_' + key).map(([m, name, text]) => `<li class="m-${m}"><b>${esc(name)}</b> — ${esc(text)}</li>`).join('');
+  return `<span class="info"><button type="button" class="info-btn" data-info="${key}" aria-expanded="false" aria-label="${esc(t('infoT'))}">i</button><span class="info-pop" role="tooltip"><ul>${rows}</ul></span></span>`;
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest && e.target.closest('.info-btn');
+  document.querySelectorAll('.info.open').forEach((x) => { if (!b || !x.contains(b)) { x.classList.remove('open'); x.querySelector('.info-btn').setAttribute('aria-expanded', 'false'); } });
+  if (b) { const box = b.parentElement; const on = !box.classList.contains('open'); box.classList.toggle('open', on); b.setAttribute('aria-expanded', String(on)); if (on) track('info_open', { key: b.dataset.info }); }
+});
+
+// ---------- линия на матч ----------
+const safeColor = (c) => (/^#[0-9a-f]{3,8}$/i.test(String(c || '')) ? c : '#60cde3');
+function lanePill(lane) {
+  return `<span class="lane-pill" style="--lc:${safeColor(lane.color)}"><i>${esc(String(lane.name || '?').charAt(0))}</i>${esc(t('laneT'))}: ${esc(lane.name)}</span>`;
+}
+
+// ---------- карточка предмета (как в игре) ----------
+const isTouch = () => { try { return !matchMedia('(hover: hover) and (pointer: fine)').matches; } catch { return false; } };
+let tipEl = null, tipFor = -1;
+function tipData() { return loadTips(CFG.dataUrl, state.lang); }
+function cardFor(idx, data) {
+  const it = state.res && state.res.build[idx];
+  return it ? tipCard(it, data, state.lang, src, fmt, state.data.items) : '';
+}
+function placeTip(slot) {
+  if (!tipEl || !slot.isConnected) return;
+  const r = slot.getBoundingClientRect(), w = tipEl.offsetWidth, h = tipEl.offsetHeight, gap = 12;
+  let x = r.right + gap;
+  if (x + w > innerWidth - 8) x = r.left - gap - w;
+  if (x < 8) x = Math.max(8, Math.min(innerWidth - w - 8, r.left));
+  let y = Math.min(Math.max(8, r.top), innerHeight - h - 8);
+  tipEl.style.transform = `translate(${Math.round(x)}px, ${Math.round(Math.max(8, y))}px)`;
+}
+async function showTip(slot) {
+  const idx = +slot.dataset.i;
+  if (spinning || slot.classList.contains('spinning')) return;
+  if (!tipEl) { tipEl = document.createElement('div'); tipEl.className = 'tip-float'; tipEl.setAttribute('role', 'tooltip'); document.body.appendChild(tipEl); }
+  tipFor = idx;
+  tipEl.innerHTML = cardFor(idx, null);
+  tipEl.classList.add('show'); placeTip(slot);
+  const data = await tipData();
+  if (tipFor !== idx || !tipEl.classList.contains('show')) return;
+  tipEl.innerHTML = cardFor(idx, data); placeTip(slot);
+}
+function hideTip() { tipFor = -1; if (tipEl) tipEl.classList.remove('show'); }
+app.addEventListener('mouseover', (e) => {
+  if (isTouch()) return;
+  const slot = e.target.closest && e.target.closest('.slot');
+  if (slot && +slot.dataset.i !== tipFor) showTip(slot);
+});
+app.addEventListener('mouseout', (e) => {
+  const slot = e.target.closest && e.target.closest('.slot');
+  if (slot && !(e.relatedTarget && slot.contains(e.relatedTarget))) hideTip();
+});
+app.addEventListener('focusin', (e) => { const slot = e.target.closest && e.target.closest('.slot'); if (slot && !isTouch()) showTip(slot); });
+app.addEventListener('focusout', (e) => { if (e.target.closest && e.target.closest('.slot')) hideTip(); });
+addEventListener('scroll', hideTip, { passive: true });
+
+// телефон: нижняя панель с карточкой и кнопкой перекрута
+async function openTipSheet(idx) {
+  closeTipSheet();
+  const el = document.createElement('div');
+  el.className = 'tip-sheet'; el.id = 'tip-sheet'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
+  const paint = (data) => {
+    el.innerHTML = `<div class="tip-sheet-in">${cardFor(idx, data)}<div class="tip-sheet-btns">
+      <button class="btn" data-sheet="close">${t('closeBtn')}</button>
+      <button class="btn btn-game" data-sheet="reroll">${ICON.cards}<span>${t('rerollBtn')}</span></button></div></div>`;
+  };
+  paint(null);
+  el.addEventListener('click', (e) => {
+    if (e.target === el) { closeTipSheet(); return; }
+    const b = e.target.closest('[data-sheet]');
+    if (!b) return;
+    if (b.dataset.sheet === 'close') closeTipSheet();
+    else { closeTipSheet(); rerollSlot(idx); track('reroll_slot', { slot: idx + 1, hero: state.res && state.res.hero.name, from: 'sheet' }); }
+  });
+  document.body.appendChild(el);
+  document.body.classList.add('noscroll');
+  track('item_info', { slot: idx + 1 });
+  const data = await tipData();
+  if (el.isConnected) paint(data);
+}
+function closeTipSheet() {
+  const el = document.getElementById('tip-sheet');
+  if (el) { el.remove(); document.body.classList.remove('noscroll'); }
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeTipSheet(); hideTip(); } });
 
 // ---------- анимации крутки ----------
 const reduceMotion = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } };
@@ -661,10 +767,21 @@ function renderScore(hero, build) {
         <span class="tag v-tag">${t('v_' + sc.verdict)}</span>
       </div>
       <div class="v-body">
-        <div class="v-chance" title="${esc(t('realNote'))}: ≈${dec(sc.realChance)}%"><b>≈${dec(sc.chance)}%</b></div>
+        <div class="v-chance" title="${esc(t('realNote'))}: ≈${dec(sc.realChance)}%"><b>≈${dec(sc.chance)}%</b><span>${t('chanceNote')}</span></div>
         <div class="v-meter" aria-hidden="true"><span class="z-troll"></span><span class="z-challenge"></span><span class="z-risky"></span><span class="z-solid"></span><span class="z-meta"></span><i style="left:${pos}%"></i></div>
       </div>
+      ${gapLine(sc)}
     </div>`;
+}
+// подпись, если в затаре нет категории, без которой герою обычно тяжело (см. mixPenalty)
+function gapLine(sc) {
+  if (!sc.gaps || !sc.gaps.length) return '';
+  const ru = state.lang === 'ru';
+  const names = sc.gaps.map((c) => (ru ? `«${t(c)}»` : t(c).toLowerCase()));
+  const txt = sc.gaps.length === 1
+    ? t('gapNote').replace('{c}', ru ? t(sc.gaps[0]) : names[0])
+    : t('gapNoteN').replace('{c}', names.join(ru ? ' и ' : ' and '));
+  return `<p class="v-gap">${esc(txt)}</p>`;
 }
 
 async function loadStats() {
@@ -716,14 +833,20 @@ function renderOpts() {
         <span class="hint">${t('activesHint')}</span>
       </div>
     </div>
+    <div class="opt opt-lane">
+      <label class="check"><input type="checkbox" data-opt="lane" ${o.lane ? 'checked' : ''}><span>${t('laneOpt')}</span></label>
+      <span class="hint">${t('laneHint')}</span>
+    </div>
     <div class="opt" style="margin-top:20px">
       <span class="lbl">${t('pool')}</span>
       <span class="hint">${t('poolHint')}</span>
-      ${o.exclude.length ? `<div class="pool-bar"><b>${d.heroes.length - d.heroes.filter((h) => o.exclude.includes(h.id)).length}</b> ${t('poolCount')} <button class="btn btn-mini" data-act="all-heroes">${t('allHeroes')}</button></div>` : ''}
       <div class="heroes-pick ${o.exclude.length ? 'filtered' : ''}">
         ${d.heroes.map((h) => `<button class="hp" data-act="excl" data-v="${h.id}" aria-pressed="${!o.exclude.includes(h.id)}" title="${esc(h.name)}" aria-label="${esc(h.name)}">${isNewHero(h) ? `<span class="new-badge">${t('newHeroBadge')}</span>` : ''}${h.small ? `<img src="${esc(src(h.small))}" alt="" loading="lazy" width="52" height="52">` : esc(h.name.slice(0, 2))}</button>`).join('')}
       </div>
-      <div><button class="btn" data-act="reset" style="margin-top:10px">${t('reset')}</button></div>
+      <div class="opts-foot">
+        <button class="btn" data-act="reset">${t('reset')}</button>
+        ${o.exclude.length ? `<span class="pool-bar"><b>${d.heroes.length - d.heroes.filter((h) => o.exclude.includes(h.id)).length}</b> ${t('poolCount')} <button class="btn" data-act="all-heroes">${t('allHeroes')}</button></span>` : ''}
+      </div>
     </div>`;
 }
 
@@ -761,7 +884,10 @@ app.addEventListener('click', (e) => {
     case 'roll': doRoll('all'); break;
     case 'hero': doRoll('hero'); break;
     case 'items': doRoll('items'); break;
-    case 'slot': rerollSlot(+b.dataset.i); track('reroll_slot', { slot: +b.dataset.i + 1, hero: state.res && state.res.hero.name }); break;
+    case 'slot':
+      // на телефоне тап открывает карточку предмета, перекрут — кнопкой в ней
+      if (isTouch()) { openTipSheet(+b.dataset.i); break; }
+      hideTip(); rerollSlot(+b.dataset.i); track('reroll_slot', { slot: +b.dataset.i + 1, hero: state.res && state.res.hero.name }); break;
     case 'game': toGame(); break;
     case 'how': openHow(false); track('howto_open'); break;
     case 'link': copy(shareUrl(), t('linkCopied')); track('share_link', { hero: state.res && state.res.hero.name }); break;
@@ -798,6 +924,10 @@ app.addEventListener('click', (e) => {
 // ползунок шлёт событие один раз — когда отпустили
 app.addEventListener('change', (e) => {
   const k = e.target.dataset && e.target.dataset.opt;
+  if (k === 'lane' && state.res) {
+    if (state.opts.lane && !state.res.lane && state.data.lanes && state.data.lanes.length) state.res.lane = state.data.lanes[Math.floor(Math.random() * state.data.lanes.length)];
+    renderStage(false); syncUrl();
+  }
   if (k) track('setting', { name: k, value: String(state.opts[k]) });
 });
 

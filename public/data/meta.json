@@ -1,15 +1,15 @@
 {
-  "updatedAt": "2026-10-31T00:00:31.795Z",
+  "updatedAt": "2026-10-31T00:04:12.194Z",
   "langs": {
     "ru": {
-      "hash": "185ba5681996",
+      "hash": "5f4ed24b0521",
       "clientVersion": 6829,
-      "fetchedAt": "2026-10-30T22:20:27.666Z"
+      "fetchedAt": "2026-10-31T00:05:48.481Z"
     },
     "en": {
-      "hash": "b146198adcdc",
+      "hash": "f5ed9b65df12",
       "clientVersion": 6829,
-      "fetchedAt": "2026-10-31T00:00:32.151Z"
+      "fetchedAt": "2026-10-31T00:04:13.127Z"
     }
   },
   "clientVersion": 6829,

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-30T22:18:53.871Z",
+  "updatedAt": "2026-10-31T00:00:31.795Z",
   "langs": {
     "ru": {
       "hash": "185ba5681996",
@@ -7,12 +7,12 @@
       "fetchedAt": "2026-10-30T22:20:27.666Z"
     },
     "en": {
-      "hash": "b79c019ab0d6",
-      "clientVersion": 6821,
-      "fetchedAt": "2026-10-30T22:18:54.431Z"
+      "hash": "b146198adcdc",
+      "clientVersion": 6829,
+      "fetchedAt": "2026-10-31T00:00:32.151Z"
     }
   },
-  "clientVersion": 6821,
+  "clientVersion": 6829,
   "heroIds": [
     1,
     2,

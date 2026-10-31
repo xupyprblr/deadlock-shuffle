@@ -4,7 +4,7 @@ import { NS, IS_DEV, markDev } from './env.js';
 import { addEntry, entryFrom } from './journal.js';
 import { loadTips, tipCard } from './tips.js';
 import { buildSnapshot, fetchRawLite, fetchHeroAbilities, normalizeAbility, latestPatch, applyEnglishNames, isNewHero, attachTune, SCHEMA, API, PATCHES } from './normalize.js';
-import { roll, rng, newSeed, DEFAULTS, rollItem, orderBuild, PHASES, phaseOf, phaseTiers, curveTiers, curveUpgrade, buildCost, encodeResult, decodeResult, CATS, rollSkillOrder, ultIndexOf, rollHeroFor, scoreBuild, meterPos, MAX_ACTIVE } from './random.js';
+import { roll, rng, newSeed, DEFAULTS, heroPool, rollItem, orderBuild, PHASES, phaseOf, phaseTiers, curveTiers, curveUpgrade, buildCost, encodeResult, decodeResult, CATS, rollSkillOrder, ultIndexOf, rollHeroFor, scoreBuild, meterPos, MAX_ACTIVE } from './random.js';
 
 const CFG = Object.assign({ live: true, dataUrl: 'data/', cacheHours: 6 }, window.DS_CONFIG || {});
 const app = document.getElementById('app');
@@ -22,6 +22,14 @@ const I18N = {
     how3T: 'Нажми «Создать сборку»', how3: 'Откроется пустая сборка этого героя.',
     how4T: 'Нажми «Вставить сборку»', how4: 'Маленькая квадратная кнопка рядом с «i». Предметы и прокачка встанут сами — останется сохранить.',
     howWarn: '<b>Нет кнопки «Вставить сборку»?</b> Значит, в игре выбран другой герой или код пропал из буфера обмена. Проверь героя и скопируй код ещё раз.',
+    view_solo: 'Соло', view_team: 'Собрать команду', teamT: 'Собрать [команду]',
+    teamSub: 'Капитан крутит 6 героев без повторов и кидает ссылку в чат пати. Каждый находит своего героя и забирает затар кнопкой «В игру».',
+    teamRoll: 'Крутить команду', teamLink: 'Ссылка на команду', teamLinkCopied: 'Ссылка на команду скопирована — кидай в чат пати',
+    allOrder: 'Режим для всех', allMode: 'Инвест для всех', slotOrder: 'Режим', slotMode: 'Инвест', playerN: 'Игрок',
+    lock: 'Закрепить слот', unlock: 'Открепить слот', lockHint: 'Замок — слот не меняется при «Крутить команду».', rerollAll: 'Всё',
+    teamAvg: 'Средняя оценка команды', poolSmall: 'В пуле меньше 6 героев — остальных добрал из всех',
+    teamTaken: 'Код для {h} скопирован. В игре: Поиск сборок → Создать сборку → Вставить сборку',
+    sh_curve: 'Баланс', sh_pseudo: 'Псевдо', sh_chaos: 'Полный', shm_chaos: 'Хаос', shm_balanced: 'Поровну', shm_mono: 'В один',
     orderT: 'Режим крутки', o_chaos: 'Полный рандом', o_pseudo: 'Псевдо-рандом', o_curve: 'Баланс рандом', o_phases: 'По фазам',
     ph_early: 'Ранняя игра', ph_mid: 'Середина', ph_late: 'Поздняя игра', slotHint: 'Слоты по порядку покупки: сверху вниз, затем следующий столбец — как в игре.', copyOrder: 'Порядок покупки',
     souls: 'душ', roll: 'Крутить', newHero: 'Другой герой', newItems: 'Другие предметы',
@@ -66,6 +74,14 @@ const I18N = {
     how3T: 'Press “Create build”', how3: 'An empty build for this hero opens.',
     how4T: 'Press “Paste build”', how4: 'The small square button next to the “i”. Items and abilities fill in on their own — just save.',
     howWarn: '<b>No “Paste build” button?</b> The game has a different hero selected, or the code is no longer in your clipboard. Check the hero and copy the code again.',
+    view_solo: 'Solo', view_team: 'Build a team', teamT: 'Build a [team]',
+    teamSub: 'The captain rolls 6 heroes with no repeats and drops the link in party chat. Everyone finds their hero and grabs the build with “To game”.',
+    teamRoll: 'Shuffle team', teamLink: 'Team link', teamLinkCopied: 'Team link copied — drop it in party chat',
+    allOrder: 'Mode for all', allMode: 'Investment for all', slotOrder: 'Mode', slotMode: 'Invest', playerN: 'Player',
+    lock: 'Lock slot', unlock: 'Unlock slot', lockHint: 'Lock — the slot stays put on “Shuffle team”.', rerollAll: 'All',
+    teamAvg: 'Team average rating', poolSmall: 'Hero pool has fewer than 6 heroes — filled the rest from all heroes',
+    teamTaken: 'Code for {h} copied. In game: Browse builds → Create build → Paste build',
+    sh_curve: 'Balanced', sh_pseudo: 'Smart', sh_chaos: 'Full', shm_chaos: 'Chaos', shm_balanced: 'Even', shm_mono: 'All in one',
     orderT: 'Roll mode', o_chaos: 'Full Random', o_pseudo: 'Smart Random', o_curve: 'Balanced Random', o_phases: 'By phase',
     ph_early: 'Early game', ph_mid: 'Mid game', ph_late: 'Late game', slotHint: 'Slots in purchase order: top to bottom, then the next column, as in the game.', copyOrder: 'Purchase order',
     souls: 'souls', roll: 'Shuffle', newHero: 'New hero', newItems: 'New items',
@@ -136,6 +152,8 @@ const state = {
   res: null,
   live: false,
   rerolls: 0,
+  view: 'solo', // solo | team
+  team: null, // { slots: [{ res, order, mode, locked }] }
 };
 const t = (k) => (I18N[state.lang] || I18N.ru)[k] ?? k;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -296,7 +314,8 @@ function rerollSlot(idx) {
 function syncUrl() {
   try {
     const u = new URL(location.href);
-    u.searchParams.set('b', encodeResult(state.res));
+    if (state.view === 'team' && state.team) { u.searchParams.set('team', encodeTeam(state.team)); u.searchParams.delete('b'); }
+    else { u.searchParams.set('b', encodeResult(state.res)); u.searchParams.delete('team'); }
     history.replaceState(null, '', u);
   } catch {}
 }
@@ -305,8 +324,28 @@ function shareUrl() {
   try {
     const u = new URL(location.href);
     u.searchParams.set('b', encodeResult(state.res));
+    u.searchParams.delete('team');
     return u.toString();
   } catch { return encodeResult(state.res); }
+}
+
+// Ссылка на одну сборку (для описания сборки в игре — короче ссылки на всю команду)
+function soloUrl(res) {
+  try {
+    const u = new URL(location.href);
+    u.searchParams.set('b', encodeResult(res));
+    u.searchParams.delete('team');
+    return u.toString();
+  } catch { return ''; }
+}
+
+function teamUrl() {
+  try {
+    const u = new URL(location.href);
+    u.searchParams.set('team', encodeTeam(state.team));
+    u.searchParams.delete('b');
+    return u.toString();
+  } catch { return ''; }
 }
 
 
@@ -336,12 +375,11 @@ async function toGame() {
 // смена темы (js/theme.js) — в аналитику как настройка
 document.addEventListener('ds:theme', (e) => track('setting', { name: 'theme', value: e.detail }));
 // Журнал круток (фаза 2): что игрок забрал в игру и когда
-function logTaken() {
+function logTaken(r = state.res, order = state.opts.order, mode = state.opts.mode) {
   try {
-    const r = state.res;
     const sc = scoreBuild(r.build, heroStats(r.hero));
     addEntry(entryFrom(r, {
-      order: state.opts.order, invest: state.opts.mode, code: encodeResult(r),
+      order, invest: mode, code: encodeResult(r),
       score: sc ? { verdict: sc.verdict, chance: Math.round(sc.chance * 10) / 10 } : null,
     }));
   } catch {}
@@ -405,8 +443,10 @@ function toast(msg) {
 function shell() {
   app.innerHTML = `
     <header class="top" id="top"></header>
+    <nav class="views" id="views"></nav>
     <main>
       <div class="stage" id="stage"></div>
+      <section class="team" id="team" hidden></section>
       <section class="block" id="skills"></section>
       <section class="block" id="opts"></section>
       <section class="block" id="about"></section>
@@ -698,6 +738,285 @@ function orderFor(res, mode) {
   return res.orders[mode];
 }
 
+// ---------- команда: капитан крутит 6 героев без повторов и кидает одну ссылку на всех ----------
+// Ссылка ?team=слот_слот_…, слот = encodeResult(res)~[режим][инвест], например «c~-~….~0123…~px».
+// Каждый игрок открывает ссылку, находит своего героя и забирает код кнопкой «В игру».
+const TEAM_N = 6;
+const ORD_K = { curve: 'c', pseudo: 'p', chaos: 'x' };
+const MODE_K = { chaos: 'x', balanced: 'b', mono: 'm' };
+const keyOf = (map, v) => Object.keys(map).find((k) => map[k] === v);
+const teamOpts = (s) => ({ ...state.opts, order: s.order, mode: s.mode });
+
+function encodeTeam(team) {
+  return team.slots.filter((s) => s.res).map((s) => `${encodeResult(s.res)}~${ORD_K[s.order] || 'p'}${MODE_K[s.mode] || 'x'}`).join('_');
+}
+function decodeTeam(code, data) {
+  const slots = [];
+  const seen = new Set();
+  for (const part of String(code || '').split('_').slice(0, TEAM_N)) {
+    const p = part.split('~');
+    const res = decodeResult(p.slice(0, 4).join('~'), data);
+    if (!res || !res.build.length || seen.has(res.hero.id)) continue; // повторы героя в ссылке пропускаем
+    seen.add(res.hero.id);
+    const f = p[4] || '';
+    const order = keyOf(ORD_K, f[0]) || state.opts.order;
+    const mode = keyOf(MODE_K, f[1]) || state.opts.mode;
+    res.seed = newSeed();
+    res.orders = { [order]: res.build };
+    if (res.skills.length !== 16) res.skills = rollSkillOrder(rng(newSeed()), 4, ultIndexOf(res.hero));
+    slots.push({ res, order, mode, locked: false });
+  }
+  return slots.length ? { slots } : null;
+}
+function saveTeam() {
+  if (!state.team) return;
+  store.set('ds:team', encodeTeam(state.team));
+  if (state.view === 'team') syncUrl();
+}
+
+// Герой для слота: из пула правил, без героев других слотов; если пул кончился — из всех героев
+function teamHero(r, o, used, build = null) {
+  const ok = (h) => !used.has(h.id) && (!build || !build.some((i) => h.banned && h.banned.includes(i.slug)));
+  let pool = heroPool(state.data.heroes, o).filter(ok);
+  let wide = false;
+  if (!pool.length) { pool = state.data.heroes.filter(ok); wide = true; }
+  return pool.length ? { hero: pool[Math.floor(r() * pool.length)], wide } : null;
+}
+
+// kind: all — новый герой и затар, hero — другой герой под тот же затар, items — новый затар тому же герою
+function rollTeamSlot(i, kind = 'all') {
+  const s = state.team.slots[i];
+  const d = state.data;
+  const o = teamOpts(s);
+  const used = new Set(state.team.slots.filter((x, j) => j !== i && x.res).map((x) => x.res.hero.id));
+  const seed = newSeed();
+  const r = rng(seed + ':team');
+  const lane = s.res ? s.res.lane : null;
+  let wide = false;
+  if (kind === 'items' && s.res) {
+    s.res = roll(d, o, seed, s.res.hero);
+  } else if (kind === 'hero' && s.res) {
+    used.add(s.res.hero.id);
+    const p = teamHero(r, o, used, s.res.build);
+    if (!p) return false;
+    wide = p.wide;
+    s.res = { ...s.res, hero: p.hero, skills: rollSkillOrder(rng(seed + ':s'), 4, ultIndexOf(p.hero)), seed };
+  } else {
+    const p = teamHero(r, o, used);
+    if (!p) return false;
+    wide = p.wide;
+    s.res = roll(d, o, seed, p.hero);
+  }
+  s.res.lane = lane; // линии раздаёт teamLanes — по двое на линию
+  s.res.orders = { [s.order]: s.res.build };
+  ensureAbilities(s.res.hero);
+  return wide ? 'wide' : true;
+}
+
+// Линии командой: по двое на каждую (3 линии × 2). all — перераздать всем открытым слотам.
+function teamLanes(all) {
+  const lanes = state.data.lanes || [];
+  const slots = state.team.slots.filter((s) => s.res);
+  if (!state.opts.lane || !lanes.length) return;
+  const cap = Math.ceil(TEAM_N / lanes.length);
+  const left = new Map(lanes.map((l) => [l.css, cap]));
+  const need = [];
+  for (const s of slots) {
+    const css = s.res.lane && s.res.lane.css;
+    if (css && left.get(css) > 0 && (s.locked || !all)) left.set(css, left.get(css) - 1);
+    else need.push(s);
+  }
+  const bag = [];
+  for (const l of lanes) for (let k = 0; k < left.get(l.css); k++) bag.push(l);
+  for (let k = bag.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [bag[k], bag[j]] = [bag[j], bag[k]]; }
+  need.forEach((s, k) => { s.res.lane = bag[k] || lanes[k % lanes.length]; });
+}
+
+function ensureTeam() {
+  if (!state.team) state.team = { slots: [] };
+  const slots = state.team.slots;
+  while (slots.length < TEAM_N) slots.push({ res: null, order: state.opts.order, mode: state.opts.mode, locked: false });
+  return slots.map((s, i) => (s.res ? -1 : i)).filter((i) => i >= 0);
+}
+
+function rollTeam(src = 'button') {
+  if (!state.data) return;
+  ensureTeam();
+  const slots = state.team.slots;
+  const open = slots.map((s, i) => i).filter((i) => !slots[i].locked || !slots[i].res);
+  if (!open.length) { toast(t('lockHint')); return; }
+  for (const i of open) slots[i].res = null; // старые герои открытых слотов не должны мешать выбору
+  let wide = false;
+  for (const i of open) if (rollTeamSlot(i) === 'wide') wide = true;
+  teamLanes(true);
+  saveTeam();
+  renderTeam(open, open);
+  kick('[data-act="t-roll"]');
+  if (wide) toast(t('poolSmall'));
+  track('team_roll', { src, locked: TEAM_N - open.length });
+}
+
+// Достроить команду из ссылки или сохранения (если слотов меньше 6)
+function fillTeam() {
+  const missing = ensureTeam();
+  for (const i of missing) rollTeamSlot(i);
+  teamLanes(false);
+  return missing;
+}
+
+function teamSlotAct(i, k, v) {
+  const s = state.team && state.team.slots[i];
+  if (!s || !s.res) return;
+  if (k === 'game') { teamToGame(i); return; }
+  if (k === 'lock') { s.locked = !s.locked; renderTeam(); return; }
+  if (k === 'order' || k === 'mode') {
+    if (s[k] === v) return;
+    s[k] = v; // как в соло: смена режима сразу перекручивает затар этого слота
+    rollTeamSlot(i, 'items');
+    saveTeam(); renderTeam([i]);
+    track('team_setting', { name: k === 'order' ? 'order' : 'invest', value: v });
+    return;
+  }
+  const kind = k === 'hero' ? 'hero' : k === 'items' ? 'items' : 'all';
+  const r = rollTeamSlot(i, kind);
+  if (!r) return;
+  if (state.opts.lane && !s.res.lane) teamLanes(false);
+  saveTeam();
+  renderTeam(kind === 'hero' ? [] : [i], kind === 'items' ? [] : [i]);
+  if (r === 'wide') toast(t('poolSmall'));
+  track('team_reroll', { kind, slot: i + 1 });
+}
+
+// Режим или инвест «для всех»: меняет и перекручивает открытые слоты
+function teamAll(k, v) {
+  const slots = state.team.slots;
+  const open = slots.map((s, i) => i).filter((i) => !slots[i].locked);
+  if (!open.length) { toast(t('lockHint')); return; }
+  for (const i of open) { slots[i][k] = v; rollTeamSlot(i, 'items'); }
+  state.opts[k] = v; saveOpts(); // заодно — режим по умолчанию для соло и новых слотов
+  saveTeam();
+  renderTeam(open);
+  track('team_setting', { name: k === 'order' ? 'order_all' : 'invest_all', value: v });
+}
+
+async function teamToGame(i) {
+  const s = state.team.slots[i];
+  const code = gameCode(s.res, s.order, soloUrl(s.res));
+  const ok = !!code && await copy(code);
+  toast(ok ? t('teamTaken').replace('{h}', s.res.hero.name) : t('toGameFail'));
+  if (ok) logTaken(s.res, s.order, s.mode);
+  track('to_game', { from: 'team', ok: ok ? 1 : 0, hero: s.res.hero.name, order: s.order });
+}
+
+function setView(v) {
+  if (v === state.view || spinning) return;
+  hideTip();
+  state.view = v === 'team' ? 'team' : 'solo';
+  if (state.view === 'team') {
+    if (!state.team) { const saved = store.get('ds:team', null); state.team = saved ? decodeTeam(saved, state.data) : null; }
+    const fresh = !state.team;
+    fillTeam();
+    if (fresh) saveTeam();
+  }
+  renderViews();
+  if (state.view === 'team') renderTeam(); else { renderStage(false); renderSkills(); }
+  syncUrl();
+  track('view', { value: state.view });
+}
+
+function renderViews() {
+  const v = state.view;
+  document.getElementById('views').innerHTML = `
+    <div class="views-seg" role="tablist" aria-label="${esc(t('view_solo'))} / ${esc(t('view_team'))}">
+      <button role="tab" data-act="view" data-v="solo" aria-selected="${v === 'solo'}" aria-pressed="${v === 'solo'}">${ICON.mask}<span>${t('view_solo')}</span></button>
+      <button role="tab" data-act="view" data-v="team" aria-selected="${v === 'team'}" aria-pressed="${v === 'team'}">${ICON.team}<span>${t('view_team')}</span><b class="views-n">6</b></button>
+    </div>`;
+  const team = v === 'team';
+  document.getElementById('stage').hidden = team;
+  document.getElementById('skills').hidden = team;
+  document.getElementById('team').hidden = !team;
+}
+
+const segBtns = (k, i, cur, list, cls = '') => list.map(([val, label]) =>
+  `<button class="${cls}${cls ? val : ''}" data-act="t-slot" data-s="${i}" data-k="${k}" data-v="${val}" aria-pressed="${cur === val}">${label}</button>`).join('');
+
+function teamCard(s, i, deal, heroIn) {
+  const { hero, build } = s.res;
+  const sc = state.stats ? scoreBuild(build, heroStats(hero)) : null;
+  return `
+    <article class="t-card ${s.locked ? 'locked' : ''} ${deal ? 'dealt' : ''} ${heroIn ? 'hero-in' : ''}" style="--hero:${safeColor(hero.color)}" aria-label="${esc(t('playerN'))} ${i + 1}: ${esc(hero.name)}">
+      <header class="t-head">
+        <span class="t-pic">${hero.small ? `<img src="${esc(src(hero.small))}" alt="" width="64" height="64">` : ''}</span>
+        <div class="t-who">
+          <span class="t-num">${t('playerN')} ${i + 1}</span>
+          <h3>${esc(hero.name)}</h3>
+          <div class="chips"><span class="tag">${esc(t(hero.type))}</span>${state.opts.lane && s.res.lane ? lanePill(s.res.lane) : ''}</div>
+        </div>
+        <button class="t-lock" data-act="t-slot" data-s="${i}" data-k="lock" aria-pressed="${s.locked}" title="${esc(s.locked ? t('unlock') : t('lock'))}" aria-label="${esc(s.locked ? t('unlock') : t('lock'))}">${s.locked ? ICON.lock : ICON.unlock}</button>
+      </header>
+      <div class="t-items">
+        ${build.map((it, n) => `<span class="t-it ${it.cat}" style="--i:${n}" title="${esc(it.name)} — ${esc(t(it.cat))}, ${ROMAN[it.tier]}${it.active ? ', ' + esc(t('active')) : ''}">
+          ${it.icon ? `<img src="${esc(src(it.icon))}" alt="" loading="lazy" width="80" height="80">` : ''}<b>${n + 1}</b>${it.active ? '<i>A</i>' : ''}</span>`).join('')}
+      </div>
+      <div class="t-meta">
+        <span class="t-souls">${fmt(buildCost(build))} <small>${t('souls')}</small></span>
+        ${sc ? `<span class="t-score v-${sc.verdict}"><span class="tag v-tag">${t('v_' + sc.verdict)}</span><b>≈${dec(sc.chance)}%</b></span>` : ''}
+      </div>
+      <div class="t-set">
+        <span class="t-lbl">${t('slotOrder')}</span>
+        <div class="seg-order seg-modes t-seg">${segBtns('order', i, s.order, ['curve', 'pseudo', 'chaos'].map((m) => [m, t('sh_' + m)]), 'm-')}</div>
+        <span class="t-lbl">${t('slotMode')}</span>
+        <div class="seg-order t-seg">${segBtns('mode', i, s.mode, ['chaos', 'balanced', 'mono'].map((m) => [m, t('shm_' + m)]))}</div>
+      </div>
+      <div class="t-acts">
+        <button class="btn btn-game" data-act="t-slot" data-s="${i}" data-k="game">${ICON.game}<span>${t('toGame')}</span></button>
+        <div class="btn-row t-rr" role="group" aria-label="${esc(t('grpReroll'))}">
+          <button class="btn btn-mini" data-act="t-slot" data-s="${i}" data-k="hero" title="${esc(t('grpReroll'))}: ${esc(t('heroShort'))}">${ICON.mask}<span>${t('heroShort')}</span></button>
+          <button class="btn btn-mini" data-act="t-slot" data-s="${i}" data-k="items" title="${esc(t('grpReroll'))}: ${esc(t('itemsShort'))}">${ICON.cards}<span>${t('itemsShort')}</span></button>
+          <button class="btn btn-mini" data-act="t-slot" data-s="${i}" data-k="all" title="${esc(t('grpReroll'))}: ${esc(t('rerollAll'))}">${ICON.dice}<span>${t('rerollAll')}</span></button>
+        </div>
+      </div>
+    </article>`;
+}
+
+// deal — у каких слотов анимировать предметы, heroIn — у каких героя
+function renderTeam(deal = [], heroIn = []) {
+  const el = document.getElementById('team');
+  if (!state.team || !el) return;
+  const slots = state.team.slots.filter((s) => s.res);
+  const same = (k) => (slots.every((s) => s[k] === slots[0][k]) ? slots[0][k] : null);
+  const allOrder = same('order'), allMode = same('mode');
+  const scores = state.stats ? slots.map((s) => scoreBuild(s.res.build, heroStats(s.res.hero))).filter(Boolean) : [];
+  const avg = scores.length ? scores.reduce((a, x) => a + x.chance, 0) / scores.length : null;
+  el.innerHTML = `
+    <div class="t-top">
+      <div class="t-intro">
+        <h2>${hl(t('teamT'))}</h2>
+        <p class="sub">${t('teamSub')}</p>
+      </div>
+      <div class="t-ctrl">
+        <div class="order-switch">
+          <span class="lbl">${t('allOrder')}${infoBtn('order')}</span>
+          <div class="seg-order seg-modes">${['curve', 'pseudo', 'chaos'].map((m) => `<button class="m-${m}" data-act="t-all-order" data-v="${m}" aria-pressed="${allOrder === m}">${t('o_' + m)}</button>`).join('')}</div>
+        </div>
+        <div class="order-switch">
+          <span class="lbl">${t('allMode')}${infoBtn('mode')}</span>
+          <div class="seg-order">${['chaos', 'balanced', 'mono'].map((m) => `<button data-act="t-all-mode" data-v="${m}" aria-pressed="${allMode === m}">${t(m)}</button>`).join('')}</div>
+        </div>
+      </div>
+      <div class="t-main">
+        <button class="btn btn-main" data-act="t-roll">${ICON.dice}<span>${t('teamRoll')}</span></button>
+        <div class="t-main-side">
+          <button class="btn" data-act="t-link">${ICON.link}<span>${t('teamLink')}</span></button>
+          ${avg != null ? `<span class="t-avg">${t('teamAvg')}: <b>≈${dec(avg)}%</b></span>` : ''}
+          <span class="kbd">Space</span>
+        </div>
+      </div>
+    </div>
+    <p class="t-hint">${t('lockHint')}</p>
+    <div class="t-grid">${state.team.slots.map((s, i) => (s.res ? teamCard(s, i, deal.includes(i), heroIn.includes(i)) : '')).join('')}</div>`;
+}
+
 // ---------- соцсети podvalni akrobat ----------
 const SOCIAL = [
   { k: 'yt', name: 'YouTube', icon: 'video', url: 'https://www.youtube.com/@podvalni_akrobat' },
@@ -719,6 +1038,9 @@ const ICON = {
   heart: svg('<path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.3 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z" fill="currentColor"/>'),
   flask: svg('<path d="M9 3h6"/><path d="M10 3v6L4.5 18.5A1.7 1.7 0 0 0 6 21h12a1.7 1.7 0 0 0 1.5-2.5L14 9V3"/><path d="M7 15h10"/>'),
   link: svg('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'),
+  team: svg('<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.8-3.6 3.2-5.5 6-5.5s5.2 1.9 6 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M16 14.6c2.6.1 4.3 1.8 5 5.4"/>'),
+  lock: svg('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
+  unlock: svg('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/>'),
 };
 
 // ---------- код сборки для игры ----------
@@ -728,15 +1050,13 @@ function gameBuildName(sc) {
   const date = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
   return ['RANDOMLOCK.COM', sc ? `${dec(sc.chance)}%` : null, date].filter(Boolean).join(' - ');
 }
-function gameCode() {
-  const r = state.res;
-  const order = state.opts.order || 'chaos';
+function gameCode(r = state.res, order = state.opts.order || 'chaos', link = shareUrl()) {
   const categories = order === 'phases'
     ? PHASES.map((p) => ({ name: CATEGORY_KEYS[p.key], items: r.build.slice(p.from, p.to).map((i) => i.id) }))
     : [{ name: `${t('gameCat')} 1→12`, items: r.build.map((i) => i.id) }];
   const ab = r.hero.abilities || [];
   const sc = scoreBuild(r.build, heroStats(r.hero));
-  const desc = [sc ? `${t('copyScore')}: ${t('v_' + sc.verdict)}, ≈${dec(sc.chance)}%` : '', shareUrl()].filter(Boolean).join('\n');
+  const desc = [sc ? `${t('copyScore')}: ${t('v_' + sc.verdict)}, ≈${dec(sc.chance)}%` : '', link].filter(Boolean).join('\n');
   try {
     return encodeBuildCode({
       heroId: r.hero.id,
@@ -862,8 +1182,8 @@ function renderAbout() {
 
 function renderAll() {
   renderTop();
-  renderStage();
-  renderSkills();
+  renderViews();
+  if (state.view === 'team') renderTeam(); else { renderStage(); renderSkills(); }
   renderOpts();
   renderAbout();
   document.documentElement.lang = state.lang;
@@ -881,6 +1201,11 @@ app.addEventListener('click', (e) => {
   const v = b.dataset.v;
   const o = state.opts;
   switch (act) {
+    case 'view': setView(v); break;
+    case 't-roll': rollTeam('button'); break;
+    case 't-link': copy(teamUrl(), t('teamLinkCopied')); track('team_link'); break;
+    case 't-all-order': case 't-all-mode': teamAll(act === 't-all-order' ? 'order' : 'mode', v); break;
+    case 't-slot': teamSlotAct(+b.dataset.s, b.dataset.k, v); break;
     case 'roll': doRoll('all'); break;
     case 'hero': doRoll('hero'); break;
     case 'items': doRoll('items'); break;
@@ -924,7 +1249,8 @@ app.addEventListener('click', (e) => {
 // ползунок шлёт событие один раз — когда отпустили
 app.addEventListener('change', (e) => {
   const k = e.target.dataset && e.target.dataset.opt;
-  if (k === 'lane' && state.res) {
+  if (k === 'lane' && state.view === 'team' && state.team) { teamLanes(false); saveTeam(); renderTeam(); }
+  else if (k === 'lane' && state.res) {
     if (state.opts.lane && !state.res.lane && state.data.lanes && state.data.lanes.length) state.res.lane = state.data.lanes[Math.floor(Math.random() * state.data.lanes.length)];
     renderStage(false); syncUrl();
   }
@@ -950,11 +1276,13 @@ document.addEventListener('keydown', (e) => {
   const tag = (e.target.tagName || '').toLowerCase();
   if (['input', 'textarea', 'select', 'button'].includes(tag)) return;
   e.preventDefault();
-  doRoll('all', 'space');
+  if (state.view === 'team') rollTeam('space'); else doRoll('all', 'space');
 });
 
 async function switchLang(lang) {
   const code = state.res ? encodeResult(state.res) : null;
+  const teamCode = state.team ? encodeTeam(state.team) : null;
+  const locks = state.team ? state.team.slots.map((x) => x.locked) : [];
   state.lang = lang;
   store.set('ds:lang', lang);
   try {
@@ -971,6 +1299,7 @@ async function switchLang(lang) {
   }
   if (!state.res.seed) state.res.seed = newSeed();
   if (!state.res.orders || !state.res.orders[state.opts.order]) state.res.orders = { ...(state.res.orders || {}), [state.opts.order]: state.res.build };
+  if (teamCode) { state.team = decodeTeam(teamCode, state.data); if (state.team) state.team.slots.forEach((x, i) => { x.locked = !!locks[i]; }); }
   renderAll();
   liveCheck();
 }
@@ -986,17 +1315,19 @@ async function boot() {
     return;
   }
   shell();
-  let fromUrl = null;
-  try { fromUrl = new URL(location.href).searchParams.get('b'); } catch {}
+  let fromUrl = null, teamFromUrl = null;
+  try { const q = new URL(location.href).searchParams; fromUrl = q.get('b'); teamFromUrl = q.get('team'); } catch {}
+  if (teamFromUrl) { state.team = decodeTeam(teamFromUrl, state.data); if (state.team) state.view = 'team'; }
   const shared = fromUrl && decodeResult(fromUrl, state.data);
   if (shared) { shared.seed = newSeed(); state.res = shared; }
   else state.res = roll(state.data, state.opts, newSeed());
   state.res.orders = { [state.opts.order || 'chaos']: state.res.build };
   if (!state.res.skills || state.res.skills.length !== 16) state.res.skills = rollSkillOrder(rng(newSeed()), 4, ultIndexOf(state.res.hero));
+  if (state.view === 'team') { fillTeam(); saveTeam(); }
   renderAll();
   preloadIcons();
   ensureAbilities(state.res.hero);
-  loadStats().then(() => renderStage(false));
+  loadStats().then(() => (state.view === 'team' ? renderTeam() : renderStage(false)));
   liveCheck();
 }
 

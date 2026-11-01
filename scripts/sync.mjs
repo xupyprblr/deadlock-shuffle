@@ -132,6 +132,21 @@ const meta = { updatedAt: new Date().toISOString(), langs: {} };
 const enRaw = await fetchRaw(fetchJson, 'en');
 const enSnap = buildSnapshot(enRaw);
 
+// Постоянные короткие номера предметов для коротких ссылок (data/ids.json, только дописывается):
+// номер предмета не меняется между патчами, поэтому старые ссылки продолжают открываться.
+const IDS_FILE = path.join(OUT, 'ids.json');
+let ids = { v: 1, items: [] };
+try { ids = JSON.parse(await readFile(IDS_FILE, 'utf8')); } catch {}
+{
+  const at = new Map(ids.items.map((id, k) => [id >>> 0, k]));
+  let added = 0;
+  for (const it of enSnap.items) if (!at.has(it.id >>> 0)) { at.set(it.id >>> 0, ids.items.length); ids.items.push(it.id >>> 0); added++; }
+  if (added) { await writeFile(IDS_FILE, JSON.stringify(ids)); console.log(`ids.json: +${added} предметов (всего ${ids.items.length})`); }
+}
+const itemKey = new Map(ids.items.map((id, k) => [id >>> 0, k]));
+const withKeys = (snap) => { for (const it of snap.items) it.k = itemKey.get(it.id >>> 0); return snap; };
+withKeys(enSnap);
+
 // Журнал героев: когда каждый появился в пуле. Новые герои логируются и получают дату —
 // по ней сайт показывает бейдж «Новинка».
 const ROSTER = path.join(OUT, 'roster.json');
@@ -272,7 +287,7 @@ if (statsFresh) {
 
 for (const lang of LANGS_TO_SYNC) {
   const raw = lang === 'en' ? enRaw : await fetchRaw(fetchJson, lang);
-  const snap = lang === 'en' ? enSnap : applyEnglishNames(buildSnapshot(raw), enSnap);
+  const snap = lang === 'en' ? enSnap : withKeys(applyEnglishNames(buildSnapshot(raw), enSnap));
   if (snap.heroes.length < 10 || snap.items.length < 50) {
     throw new Error(`Подозрительно мало данных (${lang}): героев ${snap.heroes.length}, предметов ${snap.items.length}`);
   }

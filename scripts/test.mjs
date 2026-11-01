@@ -175,6 +175,31 @@ assert.ok(es.from.includes(data.items.find((i) => i.name === 'Sprint Boots').slu
   assert.ok(hit / n > 0.5, `типичное первое умение: ${(hit / n * 100).toFixed(0)}%`);
 }
 
+// короткие ссылки: команда из 6 игроков упаковывается и распаковывается без потерь
+{
+  const { packSlots, unpackSlots } = await import('../public/js/random.js');
+  for (let k = 0; k < 200; k++) {
+    const slots = [];
+    for (let j = 0; j < 6; j++) {
+      const opts = { ...DEFAULTS, order: ['curve', 'pseudo', 'chaos'][j % 3], mode: ['chaos', 'balanced', 'mono'][(j + k) % 3], lane: j % 2 === 0 };
+      slots.push({ res: roll(data, opts, 'pk' + k + ':' + j), order: opts.order, mode: opts.mode });
+    }
+    const code = packSlots(slots, data);
+    assert.ok(code && code.length <= 200, 'короткая ссылка команды: ' + (code && code.length));
+    const back = unpackSlots(code, data);
+    assert.equal(back.length, 6);
+    back.forEach((b, j) => {
+      assert.equal(b.res.hero.id, slots[j].res.hero.id);
+      assert.deepEqual(b.res.build.map((i) => i.id), slots[j].res.build.map((i) => i.id));
+      assert.deepEqual(b.res.skills, slots[j].res.skills);
+      assert.equal(b.order, slots[j].order); assert.equal(b.mode, slots[j].mode);
+      assert.equal(b.res.lane ? b.res.lane.css : null, slots[j].res.lane ? slots[j].res.lane.css : null);
+    });
+  }
+  assert.ok(data.items.every((i) => typeof i.k === 'number'), 'у всех предметов постоянный номер k');
+  assert.equal(unpackSlots('мусор', data), null);
+}
+
 // детерминизм сида
 assert.deepEqual(roll(data, DEFAULTS, 'abc').build.map((i) => i.id), roll(data, DEFAULTS, 'abc').build.map((i) => i.id));
 assert.equal(rollSkillOrder(rng('x')).length, 16);

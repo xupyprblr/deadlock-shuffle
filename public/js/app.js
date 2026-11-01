@@ -4,7 +4,7 @@ import { NS, markDev } from './env.js';
 import { browserLang } from './lang.js';
 import { loadTips, tipCard, abilityCard } from './tips.js';
 import { buildSnapshot, fetchRawLite, fetchHeroAbilities, normalizeAbility, latestPatch, applyEnglishNames, isNewHero, attachTune, SCHEMA, API, PATCHES } from './normalize.js';
-import { roll, rng, newSeed, DEFAULTS, heroPool, rollItem, orderBuild, PHASES, phaseOf, phaseTiers, curveTiers, curveUpgrade, buildCost, encodeResult, decodeResult, CATS, rollSkillOrder, skillsFor, ultIndexOf, rollHeroFor, scoreBuild, meterPos, MAX_ACTIVE } from './random.js';
+import { roll, rng, newSeed, DEFAULTS, heroPool, rollItem, orderBuild, PHASES, phaseOf, phaseTiers, curveTiers, curveUpgrade, buildCost, encodeResult, decodeResult, packSlots, unpackSlots, CATS, rollSkillOrder, skillsFor, ultIndexOf, rollHeroFor, scoreBuild, meterPos, MAX_ACTIVE } from './random.js';
 
 const CFG = Object.assign({ live: true, dataUrl: 'data/', cacheHours: 6 }, window.DS_CONFIG || {});
 const app = document.getElementById('app');
@@ -204,6 +204,9 @@ async function liveCheck() {
     const raw = await fetchRawLite(fetchJson, lang);
     const fresh = buildSnapshot(raw);
     // старые способности и патч переносим заранее, чтобы английские имена легли и на них
+    // постоянные номера предметов для коротких ссылок (k) — из серверного снимка
+    const oldK = new Map(state.data.items.map((i) => [i.id >>> 0, i.k]));
+    for (const i of fresh.items) if (oldK.get(i.id >>> 0) !== undefined) i.k = oldK.get(i.id >>> 0);
     const oldAb0 = Object.fromEntries(state.data.heroes.map((h) => [h.slug, h.abilities]));
     for (const h of fresh.heroes) h.abilities = oldAb0[h.slug] && oldAb0[h.slug].length ? oldAb0[h.slug] : [];
     // запреты считаются на сервере по статистике — переносим их из снимка
@@ -307,11 +310,35 @@ function rerollSlot(idx) {
   renderStage(false);
 }
 
+// Короткий код ссылки (packSlots); если предмет без постоянного номера (свежий патч) — старый длинный формат
+function linkCode(res, order = state.opts.order, mode = state.opts.mode) {
+  return packSlots([{ res, order, mode }], state.data) || encodeResult(res);
+}
+// прокачка из ссылки: 16 шагов, каждое умение по 4 раза, ульта после трёх базовых — иначе крутим заново
+function okSkills(sk, hero) {
+  if (!Array.isArray(sk) || sk.length !== 16) return false;
+  const u = ultIndexOf(hero), cnt = [0, 0, 0, 0];
+  for (let i = 0; i < 16; i++) {
+    const a = sk[i];
+    if (a === u && cnt[a] === 0 && [0, 1, 2, 3].some((b) => b !== u && cnt[b] === 0)) return false;
+    if (++cnt[a] > 4) return false;
+  }
+  return true;
+}
+function readLink(code, data) {
+  if (String(code).includes('~')) return decodeResult(code, data);
+  const sl = unpackSlots(code, data);
+  const r = sl && sl[0] && sl[0].res;
+  if (!r || !r.build.length) return null;
+  if (!okSkills(r.skills, r.hero)) r.skills = rollSkillOrder(rng(newSeed()), 4, ultIndexOf(r.hero));
+  return r;
+}
+
 function syncUrl() {
   try {
     const u = new URL(location.href);
     if (state.view === 'team' && state.team) { u.searchParams.set(state.readonly ? 'squad' : 'team', encodeTeam(state.team)); u.searchParams.delete(state.readonly ? 'team' : 'squad'); u.searchParams.delete('b'); }
-    else { u.searchParams.set('b', encodeResult(state.res)); u.searchParams.delete('team'); u.searchParams.delete('squad'); }
+    else { u.searchParams.set('b', linkCode(state.res)); u.searchParams.delete('team'); u.searchParams.delete('squad'); }
     history.replaceState(null, '', u);
   } catch {}
 }
@@ -319,17 +346,17 @@ function syncUrl() {
 function shareUrl() {
   try {
     const u = new URL(location.href);
-    u.searchParams.set('b', encodeResult(state.res));
+    u.searchParams.set('b', linkCode(state.res));
     u.searchParams.delete('team'); u.searchParams.delete('squad');
     return u.toString();
-  } catch { return encodeResult(state.res); }
+  } catch { return linkCode(state.res); }
 }
 
 // Ссылка на одну сборку (для описания сборки в игре — короче ссылки на всю команду)
 function soloUrl(res) {
   try {
     const u = new URL(location.href);
-    u.searchParams.set('b', encodeResult(res));
+    u.searchParams.set('b', linkCode(res));
     u.searchParams.delete('team'); u.searchParams.delete('squad');
     return u.toString();
   } catch { return ''; }
@@ -756,11 +783,24 @@ const inTeam = () => state.view === 'team' && !!state.team;
 const activeSlot = () => (inTeam() ? state.team.slots[state.team.active] : null);
 
 function encodeTeam(team) {
+  const short = packSlots(team.slots.filter((s) => s.res), state.data);
+  if (short) return short;
   return team.slots.filter((s) => s.res).map((s) => `${encodeResult(s.res)}~${ORD_K[s.order] || 'p'}${MODE_K[s.mode] || 'x'}`).join('_');
 }
 function decodeTeam(code, data) {
   const slots = [];
   const seen = new Set();
+  if (code && !String(code).includes('~')) {
+    for (const { res, order, mode } of unpackSlots(code, data) || []) {
+      if (!res.build.length || seen.has(res.hero.id) || slots.length >= TEAM_N) continue;
+      seen.add(res.hero.id);
+      res.seed = newSeed();
+      res.orders = { [order]: res.build };
+      if (!okSkills(res.skills, res.hero)) res.skills = rollSkillOrder(rng(newSeed()), 4, ultIndexOf(res.hero));
+      slots.push({ res, order, mode });
+    }
+    return slots.length ? { slots, active: 0 } : null;
+  }
   for (const part of String(code || '').split('_').slice(0, TEAM_N)) {
     const p = part.split('~');
     const res = decodeResult(p.slice(0, 4).join('~'), data);
@@ -1299,7 +1339,7 @@ async function boot() {
   try { squad = new URL(location.href).searchParams.get('squad'); } catch {}
   if (squad) { state.team = decodeTeam(squad, state.data); if (state.team) { state.view = 'team'; state.readonly = true; } }
   else if (teamFromUrl) { state.team = decodeTeam(teamFromUrl, state.data); if (state.team) state.view = 'team'; }
-  const shared = fromUrl && decodeResult(fromUrl, state.data);
+  const shared = fromUrl && readLink(fromUrl, state.data);
   if (shared) { shared.seed = newSeed(); state.res = shared; }
   else state.res = roll(state.data, state.opts, newSeed());
   state.res.orders = { [state.opts.order || 'chaos']: state.res.build };

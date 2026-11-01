@@ -11,7 +11,7 @@ import { mkdir, writeFile, readFile, access } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fetchRaw, buildSnapshot, applyEnglishNames, bannedFromStats, itemScores, tuneHero, skillTune, buildTips, heroMix, STATS } from '../public/js/normalize.js';
+import { fetchRaw, buildSnapshot, applyEnglishNames, bannedFromStats, itemScores, tuneHero, skillTune, buildTips, buildAbilityTips, heroMix, STATS } from '../public/js/normalize.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -95,8 +95,16 @@ async function writeTips(raw, snap, lang) {
     t.innate = pack(t.innate);
     for (const sec of t.sections) { sec.small = pack(sec.small); sec.big = pack(sec.big); if (sec.cd) sec.cd = [ref(sec.cd[0]), sec.cd[1]]; }
   }
+  // умения героев — в тот же файл (карточка при наведении на умение в «Порядке прокачки»)
+  const abilities = buildAbilityTips(raw.abilities, snap.heroes, lang);
+  if (Object.keys(abilities).length < snap.heroes.length * 3) console.warn(`tips.${lang}: мало карточек умений (${Object.keys(abilities).length})`);
+  for (const t of Object.values(abilities)) {
+    t.head = pack(t.head); t.small = pack(t.small);
+    for (const b of t.blocks) b.big = pack(b.big);
+    if (t.cd) t.cd = [ref(t.cd[0]), t.cd[1]];
+  }
   for (let i = 0; i < icons.length; i++) icons[i] = ICONS ? await mirror(icons[i]) : icons[i];
-  const body = JSON.stringify({ v: 1, lang, icons, items: tips });
+  const body = JSON.stringify({ v: 1, lang, icons, items: tips, abilities });
   const file = path.join(OUT, `tips.${lang}.json`);
   let prev = '';
   try { prev = await readFile(file, 'utf8'); } catch {}

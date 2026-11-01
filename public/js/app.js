@@ -2,7 +2,7 @@ import { encodeBuildCode, CATEGORY_KEYS } from './buildcode.js';
 import { initAnalytics, track } from './analytics.js';
 import { NS, markDev } from './env.js';
 import { browserLang } from './lang.js';
-import { loadTips, tipCard } from './tips.js';
+import { loadTips, tipCard, abilityCard } from './tips.js';
 import { buildSnapshot, fetchRawLite, fetchHeroAbilities, normalizeAbility, latestPatch, applyEnglishNames, isNewHero, attachTune, SCHEMA, API, PATCHES } from './normalize.js';
 import { roll, rng, newSeed, DEFAULTS, heroPool, rollItem, orderBuild, PHASES, phaseOf, phaseTiers, curveTiers, curveUpgrade, buildCost, encodeResult, decodeResult, CATS, rollSkillOrder, skillsFor, ultIndexOf, rollHeroFor, scoreBuild, meterPos, MAX_ACTIVE } from './random.js';
 
@@ -587,8 +587,14 @@ function lanePill(lane) {
 const isTouch = () => { try { return !matchMedia('(hover: hover) and (pointer: fine)').matches; } catch { return false; } };
 let tipEl = null, tipFor = -1;
 function tipData() { return loadTips(CFG.dataUrl, state.lang); }
-function cardFor(idx, data) {
-  const it = state.res && state.res.build[idx];
+// ключ карточки: 'i3' — предмет в слоте 3, 'a1' — умение героя №1
+const TIP_SEL = '.slot, .ab[data-ab]';
+const tipKey = (el) => (el.dataset.ab !== undefined ? 'a' + el.dataset.ab : 'i' + el.dataset.i);
+function cardFor(key, data) {
+  if (!state.res) return '';
+  const k = String(key), n = +k.slice(1);
+  if (k[0] === 'a') { const ab = state.res.hero.abilities && state.res.hero.abilities[n]; return ab ? abilityCard(ab, data, state.lang, src) : ''; }
+  const it = state.res.build[n];
   return it ? tipCard(it, data, state.lang, src, fmt, state.data.items) : '';
 }
 function placeTip(slot) {
@@ -601,7 +607,7 @@ function placeTip(slot) {
   tipEl.style.transform = `translate(${Math.round(x)}px, ${Math.round(Math.max(8, y))}px)`;
 }
 async function showTip(slot) {
-  const idx = +slot.dataset.i;
+  const idx = tipKey(slot);
   if (spinning || slot.classList.contains('spinning')) return;
   if (!tipEl) { tipEl = document.createElement('div'); tipEl.className = 'tip-float'; tipEl.setAttribute('role', 'tooltip'); document.body.appendChild(tipEl); }
   tipFor = idx;
@@ -614,26 +620,33 @@ async function showTip(slot) {
 function hideTip() { tipFor = -1; if (tipEl) tipEl.classList.remove('show'); }
 app.addEventListener('mouseover', (e) => {
   if (isTouch()) return;
-  const slot = e.target.closest && e.target.closest('.slot');
-  if (slot && +slot.dataset.i !== tipFor) showTip(slot);
+  const slot = e.target.closest && e.target.closest(TIP_SEL);
+  if (slot && tipKey(slot) !== tipFor) showTip(slot);
 });
 app.addEventListener('mouseout', (e) => {
-  const slot = e.target.closest && e.target.closest('.slot');
+  const slot = e.target.closest && e.target.closest(TIP_SEL);
   if (slot && !(e.relatedTarget && slot.contains(e.relatedTarget))) hideTip();
 });
-app.addEventListener('focusin', (e) => { const slot = e.target.closest && e.target.closest('.slot'); if (slot && !isTouch()) showTip(slot); });
-app.addEventListener('focusout', (e) => { if (e.target.closest && e.target.closest('.slot')) hideTip(); });
+app.addEventListener('focusin', (e) => { const slot = e.target.closest && e.target.closest(TIP_SEL); if (slot && !isTouch()) showTip(slot); });
+app.addEventListener('focusout', (e) => { if (e.target.closest && e.target.closest(TIP_SEL)) hideTip(); });
+// телефон: тап по умению в «Порядке прокачки» — карточка умения
+app.addEventListener('click', (e) => {
+  const ab = e.target.closest && e.target.closest('.ab[data-ab]');
+  if (ab && isTouch()) { openTipSheet('a' + ab.dataset.ab); track('ability_info', { hero: state.res && state.res.hero.name }); }
+});
 addEventListener('scroll', hideTip, { passive: true });
 
 // телефон: нижняя панель с карточкой и кнопкой перекрута
 async function openTipSheet(idx) {
   closeTipSheet();
+  const isItem = String(idx)[0] !== 'a';
+  const slotN = isItem ? +String(idx).replace(/^i/, '') : -1;
   const el = document.createElement('div');
   el.className = 'tip-sheet'; el.id = 'tip-sheet'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
   const paint = (data) => {
     el.innerHTML = `<div class="tip-sheet-in">${cardFor(idx, data)}<div class="tip-sheet-btns">
       <button class="btn" data-sheet="close">${t('closeBtn')}</button>
-      ${state.readonly ? '' : `<button class="btn btn-game" data-sheet="reroll">${ICON.cards}<span>${t('rerollBtn')}</span></button>`}</div></div>`;
+      ${state.readonly || !isItem ? '' : `<button class="btn btn-game" data-sheet="reroll">${ICON.cards}<span>${t('rerollBtn')}</span></button>`}</div></div>`;
   };
   paint(null);
   el.addEventListener('click', (e) => {
@@ -641,11 +654,11 @@ async function openTipSheet(idx) {
     const b = e.target.closest('[data-sheet]');
     if (!b) return;
     if (b.dataset.sheet === 'close') closeTipSheet();
-    else { closeTipSheet(); rerollSlot(idx); track('reroll_slot', { slot: idx + 1, hero: state.res && state.res.hero.name, from: 'sheet' }); }
+    else { closeTipSheet(); rerollSlot(slotN); track('reroll_slot', { slot: slotN + 1, hero: state.res && state.res.hero.name, from: 'sheet' }); }
   });
   document.body.appendChild(el);
   document.body.classList.add('noscroll');
-  track('item_info', { slot: idx + 1 });
+  if (isItem) track('item_info', { slot: slotN + 1 });
   const data = await tipData();
   if (el.isConnected) paint(data);
 }
@@ -1084,7 +1097,7 @@ function renderSkills() {
     <div class="skills-scroll"><div class="skills" role="table">
       <span></span>${Array.from({ length: 16 }, (_, i) => `<span class="num">${i + 1}</span>`).join('')}
       ${ab.map((a, r) => `
-        <span class="ab" title="${esc(a.quip || '')}">${a.icon ? `<img src="${esc(src(a.icon))}" alt="" width="28" height="28" loading="lazy">` : '<img alt="">'}<span>${esc(a.name)}</span></span>
+        <span class="ab" data-ab="${r}" tabindex="0">${a.icon ? `<img src="${esc(src(a.icon))}" alt="" width="28" height="28" loading="lazy">` : '<img alt="">'}<span>${esc(a.name)}</span></span>
         ${cellsByRow[r].map((v, c) => {
           const edge = c === 0 ? ' first' : c === 15 ? ' last' : '';
           if (!v) return `<span class="cell${edge}"></span>`;
@@ -1171,7 +1184,7 @@ app.addEventListener('click', (e) => {
     case 'items': doRoll('items'); break;
     case 'slot':
       // на телефоне тап открывает карточку предмета, перекрут — кнопкой в ней
-      if (isTouch()) { openTipSheet(+b.dataset.i); break; }
+      if (isTouch()) { openTipSheet('i' + b.dataset.i); break; }
       if (state.readonly) break;
       hideTip(); rerollSlot(+b.dataset.i); track('reroll_slot', { slot: +b.dataset.i + 1, hero: state.res && state.res.hero.name }); break;
     case 'game': toGame(); break;

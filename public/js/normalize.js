@@ -458,6 +458,59 @@ export function buildTips(upgrades, shopItems, lang) {
   return out;
 }
 
+// ---------- Карточка умения как в игре (тот же tips.{lang}.json, поле abilities) ----------
+// Шапка: перезарядка, дальность и радиус; текст; блоки с крупными значениями (подзаголовки «При попадании» и т. п.);
+// мелкие значения (basic_properties); три улучшения (1, 2, 5 очков) — текстом игры или из property_upgrades.
+// Блоки, которые появляются только после улучшения (property_upgrade_required), не показываем — как игра до прокачки.
+const AB_HEAD = ['AbilityCastRange', 'Radius', 'AbilityCharges'];
+function upgradeLine(props, u, lang) {
+  const p = props[u.name] || {};
+  let n = parseFloat(String(u.bonus ?? '').replace(/m$/i, ''));
+  if (!Number.isFinite(n) || n === 0) return null;
+  const num = Number.isInteger(n) ? String(Math.abs(n)) : (Math.round(Math.abs(n) * 100) / 100).toString();
+  const post = String(p.postfix || '').replace(/\{[^}]*\}/g, '') || (/%$/.test(String(u.bonus)) ? '%' : '');
+  const label = String(p.postvalue_label || p.label || u.name).replace(/\{[^}]*\}/g, '').trim();
+  return [`${n > 0 ? '+' : '-'}${lang === 'ru' ? num.replace('.', ',') : num}${post}`, label];
+}
+export function buildAbilityTips(abilities, heroes, lang) {
+  const want = new Set();
+  for (const h of heroes || []) for (const a of h.abilities || []) if (a.id) want.add(a.id >>> 0);
+  const out = {};
+  for (const ab of abilities || []) {
+    const id = ab.id >>> 0;
+    if (!want.has(id)) continue;
+    const props = ab.properties || {};
+    const td = ab.tooltip_details || {};
+    const d = ab.description || {};
+    const cd = tipProp(props, 'AbilityCooldown', lang);
+    const tip = { cd: cd ? [cd[0], cd[1]] : null, head: [], text: '', blocks: [], small: [], ups: [] };
+    const used = new Set(['AbilityCooldown']);
+    for (const sec of td.info_sections || []) {
+      if (sec.property_upgrade_required) continue;
+      const tx = tipText(sec.loc_string);
+      if (tx) tip.text += (tip.text ? '\n\n' : '') + tx;
+      for (const blk of sec.properties_block || []) {
+        const big = (blk.properties || []).map((x) => { used.add(x.important_property); return tipProp(props, x.important_property, lang); }).filter(Boolean);
+        if (big.length) tip.blocks.push({ t: tipText(blk.loc_string).replace(/:$/, ''), big });
+      }
+      for (const k of sec.basic_properties || []) { if (used.has(k)) continue; used.add(k); const x = tipProp(props, k, lang); if (x) tip.small.push(x); }
+    }
+    if (!tip.text) tip.text = tipText(d.desc);
+    for (const k of AB_HEAD) {
+      if (used.has(k)) continue;
+      const x = tipProp(props, k, lang);
+      if (x && !(k === 'AbilityCharges' && parseFloat(x[1]) <= 1)) tip.head.push(x);
+    }
+    (ab.upgrades || []).slice(0, 3).forEach((u, k) => {
+      const txt = tipText(d[`t${k + 1}_desc`]);
+      // текст улучшения из игры, иначе значения: [[«-8 с.», «Перезарядка»], …]
+      tip.ups.push(txt ? { x: txt } : { p: (u.property_upgrades || []).map((x) => upgradeLine(props, x, lang)).filter(Boolean) });
+    });
+    out[id] = tip;
+  }
+  return out;
+}
+
 // Типичный инвест героя: доля душ, которую игроки на этом герое вкладывают в оружие / спиритизм / живучесть
 // (покупки за 30 дней × цена предмета). Нужна оценке затара, чтобы штрафовать перекос по категориям.
 export function heroMix(stats, items) {

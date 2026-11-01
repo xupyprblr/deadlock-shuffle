@@ -56,3 +56,36 @@ export function tipCard(item, data, lang, src, fmt, all = []) {
     ${tree(tx.from, comps)}${tree(tx.upTo, ups)}
   </div>`;
 }
+
+// Карточка умения как в игре: название и перезарядка, дальность/радиус, описание, значения по блокам
+// («При попадании» и т. п.), снизу три улучшения за 1, 2 и 5 очков. Данные — tips.{lang}.json → abilities.
+const TA = {
+  ru: { none: 'Описание пока недоступно.', ult: 'Ульта' },
+  en: { none: 'Description is not available yet.', ult: 'Ultimate' },
+};
+const AP = [1, 2, 5];
+export function abilityCard(ab, data, lang, src) {
+  const tx = TA[lang] || TA.en;
+  const tip = data && data.abilities ? data.abilities[ab.id >>> 0] : null;
+  const ico = (k) => (data && k >= 0 && data.icons[k] ? `<img src="${esc(src(data.icons[k]))}" alt="" width="16" height="16">` : '');
+  const chip = ([k, v]) => `<span class="ac-chip">${ico(k)}${esc(v)}</span>`;
+  const big = ([k, v, l]) => `<div class="ac-big">${ico(k)}<b>${esc(v)}</b><span>${esc(l)}</span></div>`;
+  let body;
+  if (!data) body = `<p class="tc-text tc-muted">${T[lang] ? T[lang].loading : T.en.loading}</p>`;
+  else if (!tip) body = `<p class="tc-text tc-muted">${tx.none}</p>`;
+  else {
+    const blocks = tip.blocks.map((b) => `<div class="ac-blk${b.big.length > 1 ? ' wide' : ''}">${b.t ? `<div class="ac-blk-h">${esc(b.t)}</div>` : ''}<div class="ac-blk-row">${b.big.map(big).join('')}</div></div>`).join('');
+    body = `${tip.head.length ? `<div class="ac-head">${tip.head.map(chip).join('')}</div>` : ''}
+      ${tip.text ? `<p class="tc-text">${rich(tip.text)}</p>` : ''}
+      ${blocks ? `<div class="ac-blocks">${blocks}</div>` : ''}
+      ${tip.small.length ? `<div class="ac-small">${tip.small.map(([, v, l]) => `<span><b>${esc(v)}</b> ${esc(l)}</span>`).join('')}</div>` : ''}`;
+    if (tip.ups.length) {
+      body += `<div class="ac-ups">${tip.ups.map((u, i) => `<div class="ac-up"><div class="ac-up-h">◇ ${AP[i]}</div><div class="ac-up-b">${
+        u.x ? `<p>${rich(u.x)}</p>` : u.p.map(([v, l]) => `<b>${esc(v)}</b><span>${esc(l)}</span>`).join('')}</div></div>`).join('')}</div>`;
+    }
+  }
+  return `<div class="tipcard abcard">
+    <div class="ac-title"><span>${esc(ab.name)}${ab.ult ? ` <i class="ac-ult">${tx.ult}</i>` : ''}</span>${tip && tip.cd ? `<span class="ac-cd">${ico(tip.cd[0])}${esc(tip.cd[1])}</span>` : ''}</div>
+    <div class="ac-body">${body}</div>
+  </div>`;
+}

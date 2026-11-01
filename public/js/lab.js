@@ -717,7 +717,7 @@ document.addEventListener('click', (e) => {
   if (d.open) { state.modal = +d.open; renderModal(); track('lab_open_build', { build: d.open }); return; }
   if (d.game) {
     const c = cardFor(+d.game);
-    try { copy(gameCode(c), L('Код скопирован. В игре: Поиск сборок → Создать сборку → Вставить сборку', 'Code copied. In game: Browse builds → Create build → Paste build')); track('to_game', { from: 'lab', build: d.game }); } catch { toast(L('Не удалось собрать код сборки', 'Could not build the code')); }
+    try { copy(gameCode(c), L('Код скопирован. В игре: Поиск сборок → Создать сборку → Вставить сборку', 'Code copied. In game: Build Browser → Create new Build → Paste Build')); track('to_game', { from: 'lab', build: d.game }); } catch { toast(L('Не удалось собрать код сборки', 'Could not build the code')); }
   }
 });
 document.addEventListener('keydown', (e) => {

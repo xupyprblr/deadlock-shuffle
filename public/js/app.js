@@ -64,20 +64,20 @@ const I18N = {
   en: {
     tagline: 'randomizer', loading: 'Loading heroes and items…', patch: 'Patch', fresh: 'data is live', stale: 'data snapshot',
     updated: 'Data updated to the latest game version', yourHero: 'Your hero', build: 'Your [build]',
-    toGame: 'Copy to game', toGameDone: 'Code copied. In game: Browse builds → Create build → Paste build', toGameFail: 'Could not build the code', gameCat: 'Purchase order',
-    gameT: 'Send to the game', game: ['Hit <strong>Copy to game</strong> to copy the build code. Then in Deadlock: pick the same hero → <strong>Browse builds</strong> → <strong>Create build</strong> → <strong>Paste build</strong>. Items and the ability order fill in on their own, no mods or add-ons.'],
+    toGame: 'Copy to game', toGameDone: 'Code copied. In game: Build Browser → Create new Build → Paste Build', toGameFail: 'Could not build the code', gameCat: 'Purchase order',
+    gameT: 'Send to the game', game: ['Hit <strong>Copy to game</strong> to copy the build code. Then in Deadlock: pick the same hero → <strong>Build Browser</strong> → <strong>Create new Build</strong> → <strong>Paste Build</strong>. Items and the ability order fill in on their own, no mods or add-ons.'],
     howBtn: 'How to paste it in game?', howT: 'How to paste the build in game', howCopied: 'Build code copied', howCopy: 'Copy build code', howOk: 'Got it',
     how1T: 'Pick the hero in game', how1: 'A build can only be pasted for the hero it was made for.',
-    how2T: 'Open builds and press “Browse builds”', how2: 'The button in the top right of the builds window. (Screenshots are from the Russian client.)',
-    how3T: 'Press “Create build”', how3: 'An empty build for this hero opens.',
-    how4T: 'Press “Paste build”', how4: 'The small square button next to the “i”. Items and abilities fill in on their own — just save.',
-    howWarn: '<b>No “Paste build” button?</b> The game has a different hero selected, or the code is no longer in your clipboard. Check the hero and copy the code again.',
+    how2T: 'Open builds and press “Build Browser”', how2: 'The button in the top right of the builds window.',
+    how3T: 'Press “Create new Build”', how3: 'An empty build for this hero opens.',
+    how4T: 'Press “Paste Build”', how4: 'The small square button next to the “i”. Items and abilities fill in on their own — just save.',
+    howWarn: '<b>No “Paste Build” button?</b> The game has a different hero selected, or the code is no longer in your clipboard. Check the hero and copy the code again.',
     view_solo: 'Solo', view_team: 'Build a team', teamT: '[Team]',
     teamSub: 'Roll players one by one: “+ Next player” adds a new one, heroes never repeat within the team. Done — drop the link in party chat; everyone opens their hero and grabs the build with “Copy to game”.',
-    teamLink: 'Team link', teamLinkShort: 'Team', roT: 'Team from the [captain]', roSub: 'The captain has already picked the heroes and builds. Find your hero and hit “Copy to game” — the build code is copied; then in Deadlock: Browse builds → Create build → Paste build.', roOwn: 'Roll your own build', roBadge: 'View only', teamLinkCopied: 'Team link copied — teammates can only grab builds, no rerolls', playerN: 'Player',
+    teamLink: 'Team link', teamLinkShort: 'Team', roT: 'Team from the [captain]', roSub: 'The captain has already picked the heroes and builds. Find your hero and hit “Copy to game” — the build code is copied; then in Deadlock: Build Browser → Create new Build → Paste Build.', roOwn: 'Roll your own build', roBadge: 'View only', teamLinkCopied: 'Team link copied — teammates can only grab builds, no rerolls', playerN: 'Player',
     addPlayer: 'Next player', nextPlayer: 'Next player', onStage: 'on screen', openSlot: 'Show on top', removeSlot: 'Remove player', rerollAll: 'All',
     teamAvg: 'Team average rating', poolSmall: 'No free heroes left in the pool — picked from all heroes',
-    teamTaken: 'Code for {h} copied. In game: Browse builds → Create build → Paste build',
+    teamTaken: 'Code for {h} copied. In game: Build Browser → Create new Build → Paste Build',
     orderT: 'Roll mode', o_chaos: 'Full Random', o_pseudo: 'Smart Random', o_curve: 'Balanced Random', o_phases: 'By phase',
     ph_early: 'Early game', ph_mid: 'Mid game', ph_late: 'Late game', slotHint: 'Slots in purchase order: top to bottom, then the next column, as in the game.', copyOrder: 'Purchase order',
     souls: 'souls', roll: 'Shuffle', newHero: 'New hero', newItems: 'New items',
@@ -384,9 +384,9 @@ function openHow(copied) {
     <h2 id="how-t">${t('howT')}</h2>
     <ol class="how-steps">
       ${step(1, t('how1T'), t('how1'), h ? `<div class="how-hero">${h.small ? `<img src="${esc(src(h.small))}" alt="" width="56" height="56">` : ''}<b>${esc(h.name)}</b></div>` : '')}
-      ${step(2, t('how2T'), t('how2'), '<img class="how-shot" src="img/howto/search.webp" alt="" loading="lazy">')}
-      ${step(3, t('how3T'), t('how3'), '<img class="how-shot" src="img/howto/create.webp" alt="" loading="lazy">')}
-      ${step(4, t('how4T'), t('how4'), '<img class="how-shot" src="img/howto/paste.webp" alt="" loading="lazy">')}
+      ${step(2, t('how2T'), t('how2'), `<img class="how-shot" src="img/howto/${state.lang === 'en' ? 'en/' : ''}search.webp" alt="" loading="lazy">`)}
+      ${step(3, t('how3T'), t('how3'), `<img class="how-shot" src="img/howto/${state.lang === 'en' ? 'en/' : ''}create.webp" alt="" loading="lazy">`)}
+      ${step(4, t('how4T'), t('how4'), `<img class="how-shot" src="img/howto/${state.lang === 'en' ? 'en/' : ''}paste.webp" alt="" loading="lazy">`)}
     </ol>
     <p class="how-warn">${t('howWarn')}</p>
     <div class="how-foot">

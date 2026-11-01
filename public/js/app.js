@@ -1,6 +1,7 @@
 import { encodeBuildCode, CATEGORY_KEYS } from './buildcode.js';
 import { initAnalytics, track } from './analytics.js';
 import { NS, markDev } from './env.js';
+import { browserLang } from './lang.js';
 import { loadTips, tipCard } from './tips.js';
 import { buildSnapshot, fetchRawLite, fetchHeroAbilities, normalizeAbility, latestPatch, applyEnglishNames, isNewHero, attachTune, SCHEMA, API, PATCHES } from './normalize.js';
 import { roll, rng, newSeed, DEFAULTS, heroPool, rollItem, orderBuild, PHASES, phaseOf, phaseTiers, curveTiers, curveUpgrade, buildCost, encodeResult, decodeResult, CATS, rollSkillOrder, skillsFor, ultIndexOf, rollHeroFor, scoreBuild, meterPos, MAX_ACTIVE } from './random.js';
@@ -119,18 +120,6 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem(NS + k); return v ? JSON.parse(v) : d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(NS + k, JSON.stringify(v)); } catch {} },
 };
-
-// Язык браузера: русский для RU и соседних языков (часто знают русский), иначе английский
-function browserLang() {
-  let list = [];
-  try { list = (navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || '']); } catch {}
-  for (const l of list) {
-    const code = String(l || '').toLowerCase().split('-')[0];
-    if (['ru', 'uk', 'be', 'kk', 'ky', 'uz', 'tg', 'hy', 'az', 'ka', 'tk', 'mo'].includes(code)) return 'ru';
-    if (code === 'en') return 'en';
-  }
-  return 'en';
-}
 
 const state = {
   lang: store.get('ds:lang', browserLang()), // выбор зрителя; если не выбирал — по языку браузера

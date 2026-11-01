@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; media-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#100e0e">
+  <link rel="icon" href="../favicon.ico" sizes="48x48">
+  <link rel="icon" type="image/png" sizes="32x32" href="../favicon/icon-32.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:wght@800&family=Jost:wght@400;500;600;800&family=Rubik:wght@700;900&display=swap">
+  <link rel="stylesheet" href="css/arcade.css">
+  <title>Подвальный бой — RANDOMLOCK</title>
+  <!-- Прототип файтинга. Бойцы пока нарисованы примитивами; спрайты появятся после генерации референсов. -->
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <a class="brand" href="../"><b>Random<em>lock</em></b><span class="tag">аркада</span></a>
+      <a class="back" href="./">← Все автоматы</a>
+    </header>
+    <div class="play-area">
+      <div class="cab">
+        <div class="screen" id="screen">
+          <canvas id="cv" width="384" height="216"></canvas>
+          <div class="hud" id="hud" hidden>
+            <div class="side p1"><div class="ava" id="ava0"></div><div class="bar"><i id="lag0"></i><b id="hp0"></b></div><div class="name"><span id="nm0"></span><span class="pips" id="pip0"></span></div><div class="meter" id="mt0"><b id="mb0"></b></div></div>
+            <div class="side p2"><div class="ava" id="ava1"></div><div class="bar"><i id="lag1"></i><b id="hp1"></b></div><div class="name"><span class="pips" id="pip1"></span><span id="nm1"></span></div><div class="meter" id="mt1"><b id="mb1"></b></div></div>
+            <div class="timer" id="timer">99</div>
+            <div class="roundlbl" id="rl">Раунд 1</div>
+            <div class="banner">RANDOMLOCK</div>
+            <div class="combo l" id="cb0"></div><div class="combo r" id="cb1"></div>
+          </div>
+          <div class="msg" id="msg"></div>
+          <div class="menu on" id="menu"></div>
+        </div>
+      </div>
+      <div class="touch" id="touch">
+        <div class="dpad" data-pad></div>
+        <div class="tbtns">
+          <button data-btn="hp">В.рука</button><button data-btn="hk">В.нога</button><button data-btn="blk">Блок</button>
+          <button data-btn="lp">Н.рука</button><button data-btn="lk">Н.нога</button>
+        </div>
+      </div>
+    </div>
+    <div class="below">
+      <div class="keys"><kbd>A</kbd><kbd>D</kbd> ходьба · <kbd>W</kbd> прыжок · <kbd>S</kbd> присед · <kbd>J</kbd> <kbd>U</kbd> рука · <kbd>K</kbd> <kbd>I</kbd> нога · <kbd>Пробел</kbd> блок · <kbd>Esc</kbd> пауза. Геймпад тоже работает.</div>
+      <div><button class="tool" id="snd">Звук: вкл</button> <button class="tool" id="dbg">Зоны ударов</button></div>
+    </div>
+    <section class="moves" id="moves"></section>
+  </div>
+  <script type="module" src="js/fight.js"></script>
+</body>
+</html>

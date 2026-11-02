@@ -19,7 +19,7 @@ for (const [a, b] of [['bebop', 'lash'], ['lash', 'bebop'], ['bebop', 'bebop'], 
       for (const e of G.events) { if (e.type === 'special') used[`${G.f[e.side].id}:${e.name}`] = (used[`${G.f[e.side].id}:${e.name}`] || 0) + 1; if (e.type === 'sfx') sfx[e.s] = 1; }
       G.events.length = 0;
       for (const f of G.f) {
-        for (const v of [f.x, f.y, f.vx, f.vy, f.hp, f.meter]) assert.ok(Number.isFinite(v), `NaN у ${f.id} в состоянии ${f.st}`);
+        for (const v of [f.x, f.y, f.vx, f.vy, f.hp, f.meter]) assert.ok(Number.isFinite(v), `NaN у ${f.id} в состоянии ${f.st}: ${JSON.stringify({x:f.x,y:f.y,vx:f.vx,vy:f.vy,hp:f.hp,m:f.meter})}`);
         assert.ok(f.x >= 0 && f.x <= 384, `${f.id} за экраном: ${f.x}`);
         for (const k of Object.keys(f.pose)) assert.ok(Number.isFinite(f.pose[k]), `поза ${k}`);
       }

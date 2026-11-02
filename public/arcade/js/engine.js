@@ -1,47 +1,75 @@
 // Движок файтинга: состояния бойцов, физика, попадания, спецприёмы, раунды. Без DOM.
 // Game.update(inputs) — один кадр (1/60 с). События для звука и надписей копятся в game.events.
-import { W, FLOOR, MOVES, SPECIALS, CHARS, STAND, CROUCH, JUMP, BLOCK, CBLOCK, HIT, DIZZY, KNOCK, DOWN, WIN, BEAM } from './data.js';
+import { W, FLOOR, MOVES, SPECIALS, CHARS, HB, STAND, CROUCH, JUMP, BLOCK, CBLOCK, HIT, DIZZY, KNOCK, DOWN, WIN, BEAM } from './data.js';
+import { RIGS } from './rigs.js';
+import { ANIMS, KEYS } from './anims.js';
 
 export const ROUND_TIME = 99;
 export const WINS_NEEDED = 2;
-const WALL_L = 16, WALL_R = W - 16, GRAV = 0.32, PUSH = 26;
+const WALL_L = 16, WALL_R = W - 16, GRAV = 0.32, PUSH = 32;
+// Камера показывает часть сцены (render.js, ZOOM), поэтому бойцы не расходятся дальше MAX_GAP.
+export const MAX_GAP = 250;
 const D2R = Math.PI / 180;
 const lerp = (a, b, t) => a + (b - a) * t;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const KEYS = ['lean', 'head', 'aF', 'fF', 'aB', 'fB', 'tF', 'sF', 'tB', 'sB', 'rot'];
 export function blend(a, b, t) { const o = {}; for (const k of KEYS) o[k] = lerp(a[k] || 0, b[k] || 0, t); return o; }
 const FREE = new Set(['idle', 'walk', 'crouch', 'block', 'cblock']);
 const BTN = ['lp', 'hp', 'lk', 'hk'];
 
 // ---------- скелет ----------
+// Кости и гнёзда — с нарисованных частей (rigs.js). Кость корпуса идёт от таза к переднему плечу и на рисунке наклонена
+// на torsoAng; заднее плечо, шея и два бедра — отдельные гнёзда. Стопа — своя кость, ровная, пока на неё опираются.
+const RS = (o, a, s) => { const c = Math.cos(a * D2R), n = Math.sin(a * D2R); return { x: (o[0] * c - o[1] * n) * s, y: o[0] * n + o[1] * c }; };
 export function rig(f) {
-  const p = f.pose, d = f.ch.dim, s = f.face, r = p.rot || 0;
+  const p = f.pose, R = RIGS[f.id], d = R.bones, k = R.sockets, s = f.face, r = p.rot || 0;
   const L = (a, l) => ({ x: Math.sin(a * D2R) * l * s, y: Math.cos(a * D2R) * l });
   const add = (a, b) => ({ x: a.x + b.x, y: a.y + b.y });
-  const hF = Math.cos(p.tF * D2R) * d.th + Math.cos(p.sF * D2R) * d.sh;
-  const hB = Math.cos(p.tB * D2R) * d.th + Math.cos(p.sB * D2R) * d.sh;
+  const fo = d.foot;
+  const hF = Math.cos(p.tF * D2R) * d.th + Math.cos(p.sF * D2R) * d.sh + fo;
+  const hB = Math.cos(p.tB * D2R) * d.th + Math.cos(p.sB * D2R) * d.sh + fo;
   const ho = lerp(Math.max(hF, hB, 10), 7, Math.min(1, Math.abs(r) / 90));
   const hip = { x: f.x, y: f.y - ho };
-  const kF = add(hip, L(p.tF - r, d.th)), ftF = add(kF, L(p.sF - r, d.sh));
-  const kB = add(hip, L(p.tB - r, d.th)), ftB = add(kB, L(p.sB - r, d.sh));
-  const la = (p.lean + r) * D2R, tv = { x: Math.sin(la) * s, y: -Math.cos(la) };
-  const sh = { x: hip.x + tv.x * d.torso, y: hip.y + tv.y * d.torso };
-  const ha = (p.lean + p.head + r) * D2R, hv = { x: Math.sin(ha) * s, y: -Math.cos(ha) };
-  const hd = { x: sh.x + hv.x * (d.head + 3), y: sh.y + hv.y * (d.head + 3) };
-  const shB = { x: sh.x - 3 * s * Math.cos(la), y: sh.y - 3 * Math.sin(la) * s * 0 };
+  const hipF = add(hip, RS(k.hipF, r, s)), hipB = add(hip, RS(k.hipB, r, s));
+  const kF = add(hipF, L(p.tF - r, d.th)), anF = add(kF, L(p.sF - r, d.sh));
+  const kB = add(hipB, L(p.tB - r, d.th)), anB = add(kB, L(p.sB - r, d.sh));
+  const lowF = hF >= hB - 1.5 && Math.abs(r) < 25, lowB = hB >= hF - 1.5 && Math.abs(r) < 25;
+  const footF = lowF ? 0 : 0.5 * p.sF - r, footB = lowB ? 0 : 0.5 * p.sB - r;
+  const ftF = add(anF, L(footF, fo)), ftB = add(anB, L(footB, fo));
+  const la = p.lean + r;
+  const sh = add(hip, RS(k.shF, la, s)), shB = add(hip, RS(k.shB, la, s)), neck = add(hip, RS(k.neck, la, s));
+  const ha = la + p.head, hv = { x: Math.sin(ha * D2R) * s, y: -Math.cos(ha * D2R) };
+  const hd = { x: neck.x + hv.x * (d.head + 1), y: neck.y + hv.y * (d.head + 1) };
   const eF = add(sh, L(p.aF - r, d.ua)), hnF = add(eF, L(p.fF - r, d.fa));
-  const eB = add(shB, L(p.aB - r, d.ua)), hnB = add(eB, L(p.fB - r, d.fa));
-  const j = { hip, kF, ftF, kB, ftB, sh, shB, hd, eF, hnF, eB, hnB, tv };
-  let box;
-  if (Math.abs(r) < 25) {
-    const cx = (hip.x + sh.x) / 2;
-    box = { x0: cx - d.w, x1: cx + d.w, y0: hd.y - d.head, y1: Math.max(ftF.y, ftB.y, hip.y + 4) };
-  } else {
-    const pts = [hip, kF, ftF, kB, ftB, sh, hd];
-    box = { x0: Math.min(...pts.map((q) => q.x)) - 5, x1: Math.max(...pts.map((q) => q.x)) + 5, y0: Math.min(...pts.map((q) => q.y)) - 6, y1: Math.max(...pts.map((q) => q.y)) + 3 };
+  const eB = add(shB, L(p.aB - r, d.uaB)), hnB = add(eB, L(p.fB - r, d.faB));
+  const j = { hip, hipF, hipB, kF, anF, ftF, footF, kB, anB, ftB, footB, sh, shB, neck, hd, eF, hnF, eB, hnB, la, ha, r };
+  if (Math.abs(r) > 20) { // повёрнутое тело не уходит под пол, а лёжа касается его
+    const pts = [hip, sh, shB, eF, eB, hnF, hnB, kF, kB, ftF, ftB, { y: hd.y + d.head }];
+    const lo = Math.max(...pts.map((q) => q.y)) + 2 - f.y;
+    if (lo > 0 || (f.y >= FLOOR && lo < 0)) for (const q of Object.values(j)) if (q && typeof q === 'object') q.y -= lo;
   }
-  j.box = box;
+  const w = d.w * 1.3; // зона попадания чуть шире нарисованного корпуса
+  if (Math.abs(r) < 25) {
+    const cx = (hip.x + sh.x + shB.x) / 3;
+    j.box = { x0: cx - w, x1: cx + w, y0: hd.y - d.head, y1: Math.max(ftF.y, ftB.y, hip.y + 4) };
+  } else {
+    const pts = [hip, kF, ftF, kB, ftB, sh, shB, hd];
+    j.box = { x0: Math.min(...pts.map((q) => q.x)) - 4, x1: Math.max(...pts.map((q) => q.x)) + 4, y0: Math.min(...pts.map((q) => q.y)) - 5, y1: Math.max(...pts.map((q) => q.y)) + 3 };
+  }
   return j;
+}
+
+// ---------- клипы анимаций ----------
+// Поза в кадре f клипа: смешение соседних ключей (linear — как удары движка, smooth — сглаженно).
+export function clipPose(id, name, f) {
+  const c = ANIMS[id][name] || ANIMS[id].idle, k = c.keys;
+  if (c.loop) f = ((f % c.n) + c.n) % c.n; else f = clamp(f, 0, c.n - 1);
+  const arr = (v) => { const o = {}; KEYS.forEach((q, i) => { o[q] = v[i]; }); return o; };
+  if (f <= k[0][0]) return arr(k[0][1]);
+  for (let i = 0; i < k.length - 1; i++) if (f <= k[i + 1][0]) {
+    const [fa, a] = k[i], [fb, b] = k[i + 1], u = (f - fa) / Math.max(1e-6, fb - fa), t = c.ease === 'smooth' ? u * u * (3 - 2 * u) : u;
+    return arr(a.map((v, q) => lerp(v, b[q], t)));
+  }
+  return arr(k[k.length - 1][1]);
 }
 
 function worldBox(f, hb) {
@@ -71,7 +99,7 @@ const SP = {
     s: 10, a: 1, r: 18, special: true, pose: { ...STAND, lean: 10, aF: 150, fF: 120, aB: 60, fB: 140 },
     tick(G, f) {
       if (f.mf === this.s) {
-        G.proj.push({ type: 'bomb', owner: f, x: f.x + f.face * 14, y: f.y - 72, vx: 3.3 * f.face, vy: -2.4, t: 0, stuck: null, fuse: 0 });
+        G.proj.push({ type: 'bomb', owner: f, x: f.rig.hnB.x, y: f.rig.hnB.y, vx: 3.3 * f.face, vy: -2.4, t: 0, stuck: null, fuse: 0 });
         G.emit('sfx', { s: 'throw' });
       }
     },
@@ -160,7 +188,7 @@ export class Fighter {
     this.x = this.side ? 254 : 130; this.y = FLOOR; this.vx = 0; this.vy = 0;
     this.face = this.side ? -1 : 1; this.hp = 100; this.lagHp = 100;
     this.st = 'idle'; this.t = 0; this.mv = null; this.mf = 0; this.hasHit = false; this.airUsed = false;
-    this.pose = { ...STAND }; this.buf = []; this.prev = {}; this.inv = 0; this.stun = 0; this.bstun = 0;
+    this.pose = clipPose(this.id, 'idle', 0); this.akey = null; this.af = 0; this.buf = []; this.prev = {}; this.inv = 0; this.stun = 0; this.bstun = 0;
     this.combo = 0; this.jug = 0; this.reach = 0; this.whip = null; this.beam = false; this.nograv = false; this.wt = 0;
     this.rig = rig(this);
   }
@@ -205,7 +233,11 @@ export class Game {
     const live = this.phase === 'fight';
     for (const f of this.f) this.stepFighter(f, live ? (inputs[f.side] || {}) : {});
     this.solve();
-    for (const f of this.f) { f.pose = blend(f.pose, this.poseOf(f), f.st === 'atk' || f.st === 'ult' ? 1 : 0.45); f.rig = rig(f); }
+    for (const f of this.f) {
+      const key = f.st === 'atk' ? 'atk:' + f.mn : f.st === 'walk' ? 'walk' + (f.vx * f.face >= 0) : f.st;
+      if (key !== f.akey) { f.akey = key; f.af = 0; } else f.af++;
+      f.pose = blend(f.pose, this.poseOf(f), f.st === 'atk' || f.st === 'ult' ? 1 : 0.5); f.rig = rig(f);
+    }
     for (const f of this.f) this.attackCheck(f);
     this.stepProj();
     this.stepParts();
@@ -385,6 +417,11 @@ export class Game {
   solve() {
     const [a, b] = this.f;
     for (const f of this.f) f.x = clamp(f.x, WALL_L, WALL_R);
+    if (Math.abs(b.x - a.x) > MAX_GAP) { // упираются в края кадра: отходящий не утаскивает камеру
+      const over = Math.abs(b.x - a.x) - MAX_GAP, s = Math.sign(b.x - a.x);
+      const am = Math.abs(a.vx) > Math.abs(b.vx); // двигал тот, у кого скорость больше
+      if (am) a.x += over * s; else b.x -= over * s;
+    }
     if (a.st === 'grabbed' || b.st === 'grabbed' || a.st === 'pulled' || b.st === 'pulled') return;
     const dy = Math.abs(a.y - b.y);
     if (dy > 46) return; // перепрыгивает через голову
@@ -406,7 +443,7 @@ export class Game {
     if (!active) return;
     let hb;
     if (m.box) { hb = m.box(f); if (hb && m.multi) f.hasHit = false; }
-    else hb = m.hb;
+    else hb = HB[f.id]?.[f.mn] || m.hb;
     if (!hb || f.hasHit || !m.dmg) return;
     const wb = worldBox(f, hb);
     if (!this.hittable(o) || !overlap(wb, o.rig.box)) return;
@@ -438,7 +475,7 @@ export class Game {
     const dir = Math.sign(v.x - a.x) || a.face;
     if (this.blocks(v, h.kind, a)) {
       if (h.special) this.dmg(v, h.dmg * 0.2);
-      v.bstun = Math.round(h.hs * 0.6); v.vx = dir * Math.max(1.2, h.kb * 0.9);
+      v.bstun = Math.round(h.hs * 0.6); v.vx = dir * Math.max(1.2, (h.kb ?? 2) * 0.9);
       this.sparks(cx, cy, '#60cde3', 6); this.stop = 3; this.emit('sfx', { s: 'block' });
       return 'block';
     }
@@ -450,7 +487,7 @@ export class Game {
     const air = v.y < FLOOR - 1;
     if (v.hp <= 0 || h.kd || (air && !h.multi)) {
       v.st = 'knock'; v.vx = dir * (h.kd?.vx ?? 1.8); v.vy = h.kd?.vy ?? -3; v.jug++;
-    } else { v.st = 'hit'; v.stun = h.hs; v.vx = dir * h.kb; }
+    } else { v.st = 'hit'; v.stun = h.hs; v.vx = dir * (h.kb ?? 2); }
     this.stop = h.special ? 6 : h.dmg >= 9 ? 5 : 3;
     this.shake = Math.max(this.shake, h.dmg >= 9 ? 5 : 2);
     this.sparks(cx, cy, h.special ? '#ffe14d' : '#ff8a3d', h.dmg >= 9 ? 14 : 8);
@@ -511,32 +548,32 @@ export class Game {
   }
 
   // ----- позы -----
+  // Поза берётся из клипа ANIMS по состоянию; f.af — кадр с начала текущего состояния.
   poseOf(f) {
-    const t = this.frame;
+    const id = f.id, t = this.frame, k = f.af;
     switch (f.st) {
-      case 'idle': return { ...STAND, lean: STAND.lean + Math.sin(t / 14 + f.side) * 2, aF: STAND.aF + Math.sin(t / 14) * 4 };
-      case 'walk': { const s = Math.sin(f.wt * 0.22); return { ...STAND, tF: 10 + s * 24, sF: -8 + Math.min(0, s) * 20, tB: -8 - s * 24, sB: -16 + Math.max(0, s) * -20 }; }
-      case 'crouch': return CROUCH;
-      case 'block': return BLOCK;
-      case 'cblock': return CBLOCK;
-      case 'jump': return f.vx * f.face > 0.5 && f.vy < 3 ? { ...JUMP, rot: 0 } : JUMP;
-      case 'hit': case 'pulled': return HIT;
-      case 'dizzy': return { ...DIZZY, lean: DIZZY.lean + Math.sin(t / 6) * 8 };
-      case 'knock': case 'grabbed': return { ...KNOCK, rot: clamp(-30 - (f.vy + 4) * 9, -85, -20) };
-      case 'down': case 'ko': return DOWN;
-      case 'getup': return blend(DOWN, CROUCH, clamp(f.t / 14, 0, 1));
-      case 'win': return { ...WIN, aF: WIN.aF + Math.sin(t / 8) * 6 };
-      case 'lose': return DIZZY;
-      case 'ult': { const k = f.ct % SLAM_CYCLE; return k < 12 ? WIN : { ...STAND, lean: 30, aF: 60, fF: 40, aB: 20, fB: 60 }; }
+      case 'idle': return clipPose(id, 'idle', t + f.side * 30);
+      case 'walk': return clipPose(id, f.vx * f.face >= 0 ? 'walk_fwd' : 'walk_back', k);
+      case 'crouch': return clipPose(id, 'crouch', k);
+      case 'block': return clipPose(id, 'block', k);
+      case 'cblock': return clipPose(id, 'cblock', k);
+      case 'jump': return clipPose(id, 'jump', k);
+      case 'hit': case 'pulled': return clipPose(id, 'hit', k);
+      case 'dizzy': case 'lose': return clipPose(id, 'dizzy', k);
+      case 'knock': return clipPose(id, 'knock', k);
+      case 'grabbed': return clipPose(id, 'knock', 12);
+      case 'down': return clipPose(id, 'down', k);
+      case 'ko': return clipPose(id, 'down', 0);
+      case 'getup': return clipPose(id, 'getup', k * 22 / 15);
+      case 'win': return clipPose(id, 'win', k);
+      case 'ult': return clipPose(id, 'slam_ult', f.ct);
       case 'atk': {
-        const m = f.mv, base = m.air ? JUMP : m.crouch ? CROUCH : STAND;
-        const from = m.from || base, to = m.to || base;
-        if (f.mf < m.s) return blend(from, m.pose, (f.mf + 1) / m.s);
-        if (f.mf < m.s + m.a || !m.r) return m.pose;
-        return blend(m.pose, to, (f.mf - m.s - m.a) / m.r);
+        const m = f.mv, n = f.mn;
+        if (n === 'gstrike' && f.mf >= m.s + m.a) return clipPose(id, 'gstrike_land', f.mf - m.s - m.a);
+        return clipPose(id, n, f.mf);
       }
     }
-    return STAND;
+    return clipPose(id, 'idle', t);
   }
 }
 

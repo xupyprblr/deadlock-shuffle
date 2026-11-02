@@ -1,7 +1,7 @@
 // «Подвальный бой»: экран выбора, игровой цикл 60 кадров/с, интерфейс поверх холста, звук.
 import { CHARS, SPECIALS } from './data.js';
 import { Game } from './engine.js';
-import { render, makeStage } from './render.js';
+import { render, loadArt } from './render.js';
 import { initInput, readInput, bindTouch, setSolo, KEYCAP } from './input.js';
 import { makeAI } from './ai.js';
 import { markDev, NS } from '../../js/env.js';
@@ -10,7 +10,7 @@ markDev();
 const $ = (id) => document.getElementById(id);
 const cv = $('cv'), g = cv.getContext('2d');
 g.imageSmoothingEnabled = false;
-const stage = makeStage();
+loadArt().catch((e) => console.error('arcade art', e));
 const ICON = '../icons/images/';
 const KEY = NS + 'arcade:fight';
 
@@ -170,7 +170,7 @@ function loop(ts) {
     if (!attract) { attract = new Game(prefs.p1, prefs.p2); attract.ais = [makeAI('normal'), makeAI('normal')]; attract.phase = 'fight'; }
     acc += dt;
     while (acc >= STEP) { attract.update([attract.ais[0](attract, attract.f[0]), attract.ais[1](attract, attract.f[1])]); attract.events.length = 0; acc -= STEP; if (attract.phase === 'over') attract = null; if (!attract) break; }
-    if (attract) render(g, attract, stage);
+    if (attract) render(g, attract);
     return;
   }
   attract = null;
@@ -184,7 +184,7 @@ function loop(ts) {
       acc -= STEP;
     }
   } else acc = 0;
-  if (G) { render(g, G, stage, { debug }); hud(); }
+  if (G) { render(g, G, { debug }); hud(); }
 }
 
 // ---------- список приёмов ----------

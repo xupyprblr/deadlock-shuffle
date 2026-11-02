@@ -138,3 +138,12 @@ kbd { display: inline-block; min-width: 1.6em; padding: 1px 6px; border: 1px sol
   .cab { justify-self: center; width: min(calc(100vw - 380px), calc((96vh - 28px) * 16 / 9)); padding: 4px; }
   .play-area .tbtns { grid-template-columns: repeat(3, 52px); grid-template-rows: 52px 52px; }
 }
+
+/* тренировка */
+.tinfo { position: absolute; left: 1.6cqw; bottom: 1.4cqw; max-width: 60cqw; padding: .6cqw 1cqw; background: rgba(10,8,8,.72); border-left: .4cqw solid var(--teal); font: 500 1.45cqw/1.35 var(--f-body); text-transform: none; color: var(--fg); }
+.tinfo b { font-family: var(--f-tag); font-weight: 900; color: var(--teal); text-transform: uppercase; }
+.trainbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 10px; padding: 10px 12px; background: var(--bg-2); border: 1px solid var(--line); border-left: 4px solid var(--teal); }
+.trainbar label { display: inline-flex; align-items: center; gap: 8px; font: 900 13px var(--f-tag); text-transform: uppercase; color: var(--muted); }
+.trainbar .seg button { font-size: 12px; padding: 5px 9px; }
+.trainbar .tool { margin-left: auto; }
+.trainbar[hidden], .tinfo[hidden] { display: none; }

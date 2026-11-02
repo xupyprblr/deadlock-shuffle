@@ -14,7 +14,8 @@ loadArt().catch((e) => console.error('arcade art', e));
 const ICON = '../icons/images/';
 const KEY = NS + 'arcade:fight';
 
-const prefs = (() => { try { return { p1: 'bebop', p2: 'lash', mode: 'cpu', level: 'normal', sound: true, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { return { p1: 'bebop', p2: 'lash', mode: 'cpu', level: 'normal', sound: true }; } })();
+const DEF = { p1: 'bebop', p2: 'lash', mode: 'cpu', level: 'normal', sound: true, dummy: 'stand', immortal: true, meter: false };
+const prefs = (() => { try { return { ...DEF, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { return { ...DEF }; } })();
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch {} };
 
 let G = null, ai = null, paused = false, debug = false, acc = 0, last = 0, screen = 'select';
@@ -73,12 +74,13 @@ function heroBtns(side) {
 const seg = (key, opts) => `<div class="seg">${opts.map(([v, l]) => `<button data-set="${key}" data-v="${v}" aria-pressed="${prefs[key] === v}">${l}</button>`).join('')}</div>`;
 function showSelect() {
   screen = 'select'; G = null; attract = null; $('hud').hidden = true; msg('');
+  $('trainbar').hidden = true; $('tinfo').hidden = true;
   menu(`<div class="panel"><h2>Подвальный бой</h2>
     <div class="picks"><div class="pick"><h3>Игрок 1</h3><div class="heroes">${heroBtns(0)}</div></div>
-    <div class="pick"><h3>${prefs.mode === 'cpu' ? 'Компьютер' : 'Игрок 2'}</h3><div class="heroes">${heroBtns(1)}</div></div></div>
-    <div class="opts">${seg('mode', [['cpu', 'Против компьютера'], ['pvp', 'Два игрока']])}${prefs.mode === 'cpu' ? seg('level', [['easy', 'Легко'], ['normal', 'Нормально'], ['hard', 'Сложно']]) : ''}</div>
-    <button class="btn" data-act="start">В бой</button>
-    <div class="hint">${prefs.mode === 'pvp' ? 'Игрок 2: стрелки, <kbd>,</kbd> <kbd>;</kbd> рука, <kbd>.</kbd> <kbd>\'</kbd> нога, <kbd>/</kbd> блок — или второй геймпад.' : 'Enter — начать. Одинаковые герои — второй в другой раскраске.'}</div></div>`);
+    <div class="pick"><h3>${{ cpu: 'Компьютер', pvp: 'Игрок 2', train: 'Манекен' }[prefs.mode]}</h3><div class="heroes">${heroBtns(1)}</div></div></div>
+    <div class="opts">${seg('mode', [['cpu', 'Против компьютера'], ['pvp', 'Два игрока'], ['train', 'Тренировка']])}${prefs.mode === 'cpu' ? seg('level', [['easy', 'Легко'], ['normal', 'Нормально'], ['hard', 'Сложно']]) : ''}</div>
+    <button class="btn" data-act="start">${prefs.mode === 'train' ? 'На тренировку' : 'В бой'}</button>
+    <div class="hint">${prefs.mode === 'train' ? 'Манекен не атакует, таймер стоит, здоровье восстанавливается. Настройки — под экраном.' : prefs.mode === 'pvp' ? 'Игрок 2: стрелки, <kbd>,</kbd> <kbd>;</kbd> рука, <kbd>.</kbd> <kbd>\'</kbd> нога, <kbd>/</kbd> блок — или второй геймпад.' : 'Enter — начать. Одинаковые герои — второй в другой раскраске.'}</div></div>`);
   renderMoves();
 }
 function menu(html) { const m = $('menu'); m.innerHTML = html; m.classList.toggle('on', !!html); }
@@ -96,9 +98,11 @@ $('menu').addEventListener('click', (e) => {
 // ---------- бой ----------
 function start() {
   screen = 'fight'; menu(''); paused = false;
-  G = new Game(prefs.p1, prefs.p2);
-  ai = prefs.mode === 'cpu' ? makeAI(prefs.level) : null;
-  setSolo(prefs.mode === 'cpu');
+  const train = prefs.mode === 'train';
+  G = new Game(prefs.p1, prefs.p2, { training: train, immortal: prefs.immortal, meter: prefs.meter });
+  ai = prefs.mode === 'cpu' ? makeAI(prefs.level) : train ? dummy : null;
+  setSolo(prefs.mode !== 'pvp');
+  $('trainbar').hidden = !train; $('tinfo').hidden = !train; resetInfo(); trainBar();
   $('hud').hidden = false;
   for (const f of G.f) {
     $('ava' + f.side).style.backgroundImage = `url("${ICON}heroes/${f.ch.small}")`;
@@ -145,6 +149,46 @@ function handle(e) {
   }
 }
 
+// ---------- тренировка ----------
+// Манекен: стоит, блокирует, сидит или прыгает — сам не атакует.
+const DUMMY = { stand: {}, block: { blk: true }, cblock: { blk: true, d: true }, crouch: { d: true }, jump: { u: true } };
+let jumpT = 0;
+function dummy() {
+  if (prefs.dummy !== 'jump') return { ...DUMMY[prefs.dummy] };
+  jumpT = (jumpT + 1) % 50; return jumpT < 3 ? { u: true } : {};
+}
+const T = { last: 0, total: 0, hits: 0, at: -999, move: '' };
+function resetInfo() { Object.assign(T, { last: 0, total: 0, hits: 0, at: -999, move: '' }); }
+const MOVE_NAMES = { lp: 'Н. рука', hp: 'В. рука', lk: 'Н. нога', hk: 'В. нога', round: 'Разворот', sweep: 'Подсечка', clp: 'Рука из приседа', up: 'Апперкот', clk: 'Н. нога из приседа', chk: 'В. нога из приседа', jp: 'Рука в прыжке', jk: 'Нога в прыжке' };
+function moveName(n) { return MOVE_NAMES[n] || Object.values(SPECIALS).flat().find((s) => s.id === n)?.name || n; }
+const fmt = (n) => (Math.round(n * 10) / 10).toString().replace('.', ',');
+function trainEvent(e) {
+  if (!G?.opts.training) return;
+  if (e.type === 'dmg' && e.side === 1) {
+    if (G.frame - T.at > 60) { T.total = 0; T.hits = 0; }
+    T.last = e.n; T.total += e.n; T.hits++; T.at = G.frame;
+  }
+  if (e.type === 'move' && e.side === 0) T.move = `${moveName(e.name)}: замах ${e.s} · удар ${e.a} · возврат ${e.r} кадров${e.dmg ? ` · урон ${fmt(e.dmg)}` : ''}`;
+  $('tinfo').innerHTML = `<b>Урон</b> ${fmt(T.last)} · <b>серия</b> ${T.hits} ${plural(T.hits)}, ${fmt(T.total)} урона<br>${T.move || 'Нажмите удар — здесь появятся тайминги'}`;
+}
+const TSEG = (key, opts) => `<span class="seg">${opts.map(([v, l]) => `<button data-tset="${key}" data-v="${v}" aria-pressed="${String(prefs[key]) === v}">${l}</button>`).join('')}</span>`;
+function trainBar() {
+  $('trainbar').innerHTML = `<label>Манекен ${TSEG('dummy', [['stand', 'Стоит'], ['block', 'Блок'], ['cblock', 'Блок снизу'], ['crouch', 'Сидит'], ['jump', 'Прыгает']])}</label>
+    <label>Смерть ${TSEG('immortal', [['true', 'Выкл'], ['false', 'Вкл']])}</label>
+    <label>Шкала ульты ${TSEG('meter', [['false', 'Обычная'], ['true', 'Всегда полная']])}</label>
+    <button class="tool" data-tact="reset">Сброс позиций <kbd>R</kbd></button>`;
+}
+$('trainbar').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  b.blur(); // иначе Пробел (блок) нажмёт кнопку
+  if (b.dataset.tact === 'reset') { resetPositions(); return; }
+  const k = b.dataset.tset; if (!k) return;
+  const v = b.dataset.v; prefs[k] = v === 'true' ? true : v === 'false' ? false : v; save();
+  if (G) { G.opts.immortal = prefs.immortal; G.opts.meter = prefs.meter; }
+  trainBar();
+});
+function resetPositions() { if (G?.opts.training) { G.newRound(); resetInfo(); trainEvent({}); } }
+
 function hud() {
   if (!G) return;
   for (const f of G.f) {
@@ -156,7 +200,8 @@ function hud() {
     if (pips.innerHTML !== want) pips.innerHTML = want;
   }
   const t = String(Math.ceil(G.timer / 60));
-  if ($('timer').textContent !== t) $('timer').textContent = t;
+  const tt = G.opts.training ? '∞' : t;
+  if ($('timer').textContent !== tt) $('timer').textContent = tt;
 }
 
 // ---------- цикл ----------
@@ -179,7 +224,7 @@ function loop(ts) {
     while (acc >= STEP) {
       const inputs = [readInput(0), ai ? ai(G, G.f[1]) : readInput(1)];
       G.update(inputs);
-      for (const e of G.events) handle(e);
+      for (const e of G.events) { handle(e); trainEvent(e); }
       G.events.length = 0;
       acc -= STEP;
     }
@@ -219,6 +264,7 @@ $('dbg').addEventListener('click', () => { debug = !debug; $('dbg').classList.to
 window.addEventListener('keydown', (e) => {
   audio();
   if (e.code === 'Escape' || e.code === 'KeyP') { if (screen === 'fight' && G?.phase !== 'over') pause(!paused); }
+  if (e.code === 'KeyR' && screen === 'fight' && !paused) resetPositions();
   if (e.code === 'Enter') {
     if (screen === 'select') start();
     else if (G?.phase === 'over' && $('menu').classList.contains('on')) start();

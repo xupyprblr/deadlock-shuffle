@@ -202,6 +202,9 @@ export class Game {
     this.f = [new Fighter(p1, 0), new Fighter(p2, 1, alt)];
     this.f[0].o = this.f[1]; this.f[1].o = this.f[0];
     this.round = 1; this.frame = 0; this.events = []; this.parts = []; this.proj = [];
+    // Тренировка: таймер стоит, раунды не считаются, здоровье восстанавливается; опции можно менять на ходу.
+    // immortal — здоровье не падает ниже 1; meter — шкала ульты всегда полная.
+    this.opts = { training: false, immortal: true, meter: false, ...opts };
     this.winner = null; this.newRound();
   }
   emit(type, data = {}) { this.events.push({ type, ...data }); }
@@ -209,6 +212,7 @@ export class Game {
     for (const f of this.f) f.reset();
     this.phase = 'intro'; this.pt = 0; this.timer = ROUND_TIME * 60; this.proj = []; this.stop = 0; this.shake = 0; this.flash = 0;
     this.koBy = null;
+    if (this.opts.training) { this.phase = 'fight'; this.round = 1; }
   }
 
   update(inputs) {
@@ -223,7 +227,8 @@ export class Game {
       if (this.pt === 75) this.emit('fight');
       if (this.pt >= 95) { this.phase = 'fight'; this.pt = 0; }
     } else if (this.phase === 'fight') {
-      if (--this.timer <= 0) this.timeUp();
+      if (this.opts.training) this.training();
+      else if (--this.timer <= 0) this.timeUp();
     } else if (this.phase === 'ko') {
       if (this.pt < 50 && this.pt % 2) return; // замедление сразу после нокаута
       if (this.pt === 90 && this.winnerSide !== null) { const w = this.f[this.winnerSide]; if (w.st !== 'ult') { w.st = 'win'; w.mv = null; } }
@@ -257,7 +262,15 @@ export class Game {
     if (this.winnerSide !== null) { const l = this.f[1 - this.winnerSide]; l.st = 'dizzy'; l.stun = 999; }
     this.emit('timeup');
   }
+  training() {
+    for (const f of this.f) {
+      if (this.opts.meter) f.meter = 100;
+      // через 1,5 с без урона здоровье восстанавливается, чтобы можно было пробовать серии заново
+      if (f.hp < 100 && this.frame - (f.hurtAt || 0) > 90 && FREE.has(f.st)) f.hp = Math.min(100, f.hp + 1.5);
+    }
+  }
   endRound() {
+    if (this.opts.training) { this.newRound(); return; }
     if (this.winnerSide !== null) this.f[this.winnerSide].wins++;
     const champ = this.f.find((f) => f.wins >= WINS_NEEDED);
     if (champ) { this.phase = 'over'; this.winner = champ.side; this.emit('match', { side: champ.side }); return; }
@@ -383,6 +396,7 @@ export class Game {
 
   startMove(f, name, m = MOVES[name]) {
     f.st = 'atk'; f.mv = m; f.mn = name; f.mf = 0; f.hasHit = false; f.reach = 0; f.whip = null; f.beam = false;
+    this.emit('move', { side: f.side, name, s: m.s, a: m.a, r: m.r, dmg: m.dmg || 0 });
     if (!m.air && !m.phys && f.y >= FLOOR) f.vx = 0;
     this.emit('sfx', { s: m.special ? 'special' : 'swing', heavy: m.dmg >= 9 });
   }
@@ -494,7 +508,9 @@ export class Game {
     return true;
   }
 
-  dmg(v, n) { v.hp = Math.max(0, v.hp - n); v.meter = Math.min(100, v.meter + n * 0.9); v.o.meter = Math.min(100, v.o.meter + n * 1.25); }
+  dmg(v, n) {
+    v.hp = Math.max(this.opts.training && this.opts.immortal ? 1 : 0, v.hp - n); v.hurtAt = this.frame;
+    this.emit('dmg', { side: v.side, n, combo: v.o.combo }); v.meter = Math.min(100, v.meter + n * 0.9); v.o.meter = Math.min(100, v.o.meter + n * 1.25); }
 
   applyHit(a, v, h, wb) {
     const cx = (Math.max(wb.x0, v.rig.box.x0) + Math.min(wb.x1, v.rig.box.x1)) / 2;

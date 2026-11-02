@@ -66,3 +66,20 @@ console.log('ввод ok');
   assert.equal(G.f[0].st, 'walk', 'медленное двойное нажатие не должно давать рывок');
 }
 console.log('рывок ok');
+
+// Тренировка: таймер стоит, бессмертие держит 1 здоровья, без бессмертия нокаут не засчитывается и бой продолжается.
+{
+  const G = new Game('bebop', 'lash', { training: true, immortal: true });
+  assert.equal(G.phase, 'fight');
+  const ai = makeAI('hard'), t0 = G.timer;
+  for (let i = 0; i < 60 * 60; i++) { G.update([ai(G, G.f[0]), {}]); G.events.length = 0; }
+  assert.equal(G.timer, t0, 'таймер в тренировке идёт');
+  assert.ok(G.f[1].hp >= 1, 'манекен умер при бессмертии');
+  G.opts.immortal = false; G.opts.meter = true;
+  let kos = 0;
+  for (let i = 0; i < 60 * 120 && kos < 1; i++) { G.update([ai(G, G.f[0]), {}]); kos += G.events.filter((e) => e.type === 'ko').length; G.events.length = 0; }
+  assert.equal(kos, 1, 'без бессмертия манекен не падает');
+  for (let i = 0; i < 260; i++) { G.update([{}, {}]); G.events.length = 0; }
+  assert.equal(G.phase, 'fight'); assert.equal(G.f[0].wins + G.f[1].wins, 0); assert.equal(G.f[1].hp, 100);
+}
+console.log('тренировка ok');

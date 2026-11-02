@@ -295,6 +295,10 @@ export class Game {
         else m = atk;
         this.startMove(f, m); return;
       }
+      // двойное нажатие →→ — рывок к сопернику, ←← — отскок назад (как в МК)
+      const dd = f.aiDash || (pr[fwd] && dbl(f.buf, 'F') ? 1 : pr[back] && dbl(f.buf, 'B') ? -1 : 0);
+      f.aiDash = 0;
+      if (dd && grounded && !Dn && !inp.blk) { this.startDash(f, dd); return; }
       if (Up && !inp.blk) {
         f.st = 'jump'; f.vy = -f.ch.jump; f.vx = (F ? 2.2 : B ? -2.2 : 0) * f.face; f.airUsed = false;
         this.emit('sfx', { s: 'jump' }); return;
@@ -306,6 +310,23 @@ export class Game {
     }
 
     switch (f.st) {
+      case 'dash': { // рывок: из него сразу бьют или проводят спецприём (буфер →→ сохранён)
+        f.dt++;
+        if (atk) {
+          if (this.trySpecial(f, atk, inp, false)) return;
+          const carry = f.vx * 0.5;
+          this.startMove(f, Dn ? { lp: 'clp', hp: 'up', lk: 'clk', hk: 'chk' }[atk] : atk); f.vx = carry; return;
+        }
+        f.x += f.vx; f.vx *= 0.9;
+        if (f.dt % 5 === 0) this.dust(f.x - f.face * 6, FLOOR, 2);
+        if (f.dt >= 16) { f.st = 'idle'; f.vx = 0; }
+        return;
+      }
+      case 'bdash': { // отскок: короткий прыжок назад, первые кадры неуязвим
+        f.dt++; this.physics(f);
+        if (f.dt > 3 && f.y >= FLOOR && f.vy >= 0) { f.st = 'idle'; f.vx = 0; this.dust(f.x, FLOOR, 4); }
+        return;
+      }
       case 'jump': {
         if (atk && !f.airUsed) {
           if (this.trySpecial(f, atk, inp, true)) return;
@@ -364,6 +385,12 @@ export class Game {
     f.st = 'atk'; f.mv = m; f.mn = name; f.mf = 0; f.hasHit = false; f.reach = 0; f.whip = null; f.beam = false;
     if (!m.air && !m.phys && f.y >= FLOOR) f.vx = 0;
     this.emit('sfx', { s: m.special ? 'special' : 'swing', heavy: m.dmg >= 9 });
+  }
+  startDash(f, d) {
+    f.dt = 0;
+    if (d > 0) { f.st = 'dash'; f.vx = 5.6 * f.face; }
+    else { f.st = 'bdash'; f.vx = -3.4 * f.face; f.vy = -2.8; f.inv = Math.max(f.inv, 8); }
+    this.dust(f.x, FLOOR, 5); this.emit('sfx', { s: 'whoosh' });
   }
   endMove(f, inp = {}) {
     const m = f.mv; f.mv = null; f.reach = 0; f.whip = null; f.beam = false; f.nograv = false;
@@ -558,6 +585,8 @@ export class Game {
       case 'block': return clipPose(id, 'block', k);
       case 'cblock': return clipPose(id, 'cblock', k);
       case 'jump': return clipPose(id, 'jump', k);
+      case 'dash': { const p = clipPose(id, 'walk_fwd', k * 2.4); p.lean += 14; p.head -= 6; return p; }
+      case 'bdash': { const p = clipPose(id, 'walk_back', k * 2.4); p.lean -= 8; return p; }
       case 'hit': case 'pulled': return clipPose(id, 'hit', k);
       case 'dizzy': case 'lose': return clipPose(id, 'dizzy', k);
       case 'knock': return clipPose(id, 'knock', k);
@@ -575,6 +604,13 @@ export class Game {
     }
     return clipPose(id, 'idle', t);
   }
+}
+
+// Два последних нажатия направления — одно и то же и не дальше 12 кадров друг от друга.
+function dbl(buf, k) {
+  const n = buf.length; if (n < 2) return false;
+  const a = buf[n - 2], b = buf[n - 1];
+  return a.k === k && b.k === k && b.t - a.t <= 12;
 }
 
 export function matchSeq(buf, seq, now) {

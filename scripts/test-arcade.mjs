@@ -50,3 +50,19 @@ assert.deepEqual(play([...fr({ r: true }, 2), {}, ...fr({ r: true }, 2), ...fr({
 // Ground Strike у Lash: прыжок, затем ↓ + верхний ногой
 assert.deepEqual(play([...fr({ u: true }, 2), ...fr({}, 12), ...fr({ d: true, hk: true }, 2), ...fr({}, 40)], 'lash').names, ['Ground Strike']);
 console.log('ввод ok');
+
+// Рывок и отскок: двойное нажатие в одну сторону; одиночное — обычная ходьба.
+{
+  const G = new Game('lash', 'bebop'); while (G.phase !== 'fight') G.update([{}, {}]);
+  for (const inp of [{ r: true }, {}, {}, { r: true }]) G.update([inp, {}]);
+  assert.equal(G.f[0].st, 'dash', 'двойное → не дало рывок');
+  const x0 = G.f[0].x; for (let i = 0; i < 20; i++) G.update([{}, {}]);
+  assert.ok(G.f[0].x - x0 > 30, 'рывок короткий'); assert.equal(G.f[0].st, 'idle');
+  for (const inp of [{ l: true }, {}, {}, { l: true }]) G.update([inp, {}]);
+  assert.equal(G.f[0].st, 'bdash', 'двойное ← не дало отскок');
+  for (let i = 0; i < 40; i++) G.update([{}, {}]);
+  assert.equal(G.f[0].st, 'idle'); assert.equal(G.f[0].y, 196);
+  for (const inp of [{ r: true }, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, { r: true }]) G.update([inp, {}]);
+  assert.equal(G.f[0].st, 'walk', 'медленное двойное нажатие не должно давать рывок');
+}
+console.log('рывок ok');

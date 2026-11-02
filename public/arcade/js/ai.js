@@ -44,6 +44,7 @@ export function makeAI(level = 'normal') {
         f.aiSpecial = 'grap'; return {};
       }
       if (R() < 0.15 * L.agg) { hold = { u: true, [fwd]: true }; holdT = 3; return { ...hold }; }
+      if (R() < 0.3 * L.agg) { f.aiDash = 1; return {}; }
       hold = { [fwd]: true }; holdT = 14 + Math.floor(R() * 20); return { ...hold };
     }
     if (dist > 56) {
@@ -59,7 +60,8 @@ export function makeAI(level = 'normal') {
     // ближний бой
     const r = R();
     if (r < 0.12) { hold = { blk: true, d: R() < 0.4 }; holdT = 18; return { ...hold }; }
-    if (r < 0.2) { hold = { [back]: true }; holdT = 12; return { ...hold }; }
+    if (r < 0.16) { hold = { [back]: true }; holdT = 12; return { ...hold }; }
+    if (r < 0.2) { f.aiDash = -1; return {}; }
     if (r < 0.2 + L.agg * 0.15 && f.id === 'bebop') { f.aiSpecial = 'xup'; return {}; }
     if (r < 0.25 + L.agg * 0.15 && f.id === 'lash') { f.aiSpecial = 'flog'; return {}; }
     const moves = [['lp'], ['lp'], ['hp'], ['lk'], ['hk'], ['lk', { [back]: true }], ['hk', { [back]: true }], ['lk', { d: true }], ['hk', { d: true }], ['hp', { d: true }], ['lp', { d: true }]];

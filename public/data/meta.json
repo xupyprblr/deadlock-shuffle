@@ -1,18 +1,18 @@
 {
-  "updatedAt": "2026-11-04T06:20:21.617Z",
+  "updatedAt": "2026-11-04T23:39:23.818Z",
   "langs": {
     "ru": {
-      "hash": "2c6132b9341d",
-      "clientVersion": 6848,
-      "fetchedAt": "2026-11-04T06:20:49.464Z"
+      "hash": "fc92b53866f3",
+      "clientVersion": 6849,
+      "fetchedAt": "2026-11-04T23:40:18.926Z"
     },
     "en": {
-      "hash": "3c805104716a",
-      "clientVersion": 6848,
-      "fetchedAt": "2026-11-04T06:20:22.276Z"
+      "hash": "7e2d67d76b36",
+      "clientVersion": 6849,
+      "fetchedAt": "2026-11-04T23:39:24.201Z"
     }
   },
-  "clientVersion": 6848,
+  "clientVersion": 6849,
   "heroIds": [
     1,
     2,

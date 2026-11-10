@@ -1,6 +1,7 @@
 // Прогон файтинга «компьютер против компьютера»: нет NaN, раунды заканчиваются, спецприёмы срабатывают.
 import assert from 'node:assert/strict';
-import { Game, matchSeq } from '../public/arcade/js/engine.js';
+import { Game, matchSeq, minGap } from '../public/arcade/js/engine.js';
+import { MOVES } from '../public/arcade/js/data.js';
 import { makeAI } from '../public/arcade/js/ai.js';
 
 assert.ok(matchSeq([{ k: 'D', t: 10 }, { k: 'F', t: 14 }], ['D', 'F'], 20));
@@ -83,3 +84,35 @@ console.log('рывок ok');
   assert.equal(G.phase, 'fight'); assert.equal(G.f[0].wins + G.f[1].wins, 0); assert.equal(G.f[1].hp, 100);
 }
 console.log('тренировка ok');
+
+// Дистанция: бойцы, идущие навстречу, останавливаются на минимальной дистанции (сумма их push), корпуса не перекрываются,
+// и с этой дистанции каждый обычный удар с земли достаёт стоящего соперника.
+for (const [a, b] of [['bebop', 'lash'], ['lash', 'bebop'], ['bebop', 'bebop'], ['lash', 'lash']]) {
+  const close = () => {
+    const G = new Game(a, b, { training: true });
+    for (let i = 0; i < 200; i++) { G.update([{ r: true }, { l: true }]); G.events.length = 0; }
+    for (let i = 0; i < 20; i++) { G.update([{}, {}]); G.events.length = 0; }
+    return G;
+  };
+  const G0 = close(), [p, q] = G0.f;
+  assert.ok(Math.abs(q.x - p.x - minGap(a, b)) < 1, `${a}-${b}: дистанция ${q.x - p.x}, а нужна ${minGap(a, b)}`);
+  assert.ok(p.rig.box.x1 < q.rig.box.x0 - 12, `${a}-${b}: корпуса слишком близко`);
+  for (const [n, m] of Object.entries(MOVES)) {
+    if (m.air) continue;
+    const G = close(); let hit = false;
+    G.startMove(G.f[0], n);
+    for (let i = 0; i < m.s + m.a + 2; i++) { G.update([{}, {}]); hit ||= G.events.some((e) => e.type === 'dmg' && e.side === 1); G.events.length = 0; }
+    assert.ok(hit, `${a} не достаёт ${b} ударом ${n} с минимальной дистанции`);
+  }
+}
+// прыжок через соперника вплотную: тела не мешают в воздухе, после приземления бойцы снова на минимальной дистанции
+{
+  const G = new Game('lash', 'bebop', { training: true });
+  for (let i = 0; i < 200; i++) { G.update([{ r: true }, {}]); G.events.length = 0; }
+  const bx = G.f[1].x;
+  for (let i = 0; i < 90; i++) { G.update([i < 3 ? { u: true, r: true } : {}, {}]); G.events.length = 0; }
+  assert.ok(G.f[0].x > G.f[1].x, 'перепрыгнуть соперника вплотную не получилось');
+  assert.ok(Math.abs(G.f[1].x - bx) < 12, 'прыжок через соперника слишком сильно его сдвинул');
+  assert.ok(G.f[0].x - G.f[1].x >= minGap('lash', 'bebop') - 1, 'после прыжка бойцы стоят друг в друге');
+}
+console.log('дистанция ok');

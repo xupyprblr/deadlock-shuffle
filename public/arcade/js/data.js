@@ -22,14 +22,14 @@ export const BEAM = P(STAND, { lean: 10, aF: 92, fF: 90, aB: 88, fB: 92, tF: 30,
 // hb — зона удара относительно точки опоры бойца; kind: high (над присевшим проходит мимо), mid, low (только присев блок),
 // over (из прыжка — только стоячий блок). kd — сбивает с ног (скорость отлёта).
 export const MOVES = {
-  lp: { s: 4, a: 3, r: 8, dmg: 4, hb: { x: 8, y: -66, w: 30, h: 14 }, kind: 'mid', hs: 12, kb: 1.6, pose: P(STAND, { lean: 12, aF: 92, fF: 90, aB: 50, fB: 150 }) },
+  lp: { s: 4, a: 3, r: 8, dmg: 4, adv: 3, ret: 3, hb: { x: 8, y: -66, w: 30, h: 14 }, kind: 'mid', hs: 12, kb: 1.6, pose: P(STAND, { lean: 12, aF: 92, fF: 90, aB: 50, fB: 150 }) },
   hp: { s: 6, a: 3, r: 12, dmg: 7, hb: { x: 10, y: -78, w: 30, h: 14 }, kind: 'high', hs: 16, kb: 2.4, pose: P(STAND, { lean: 16, aF: 120, fF: 122, aB: 20, fB: 90 }) },
-  lk: { s: 6, a: 3, r: 12, dmg: 6, hb: { x: 8, y: -44, w: 34, h: 14 }, kind: 'mid', hs: 14, kb: 2.2, pose: P(STAND, { lean: -12, tF: 88, sF: 92, tB: -8, sB: -8, aF: 40, fF: 120 }) },
-  hk: { s: 8, a: 4, r: 16, dmg: 9, hb: { x: 8, y: -78, w: 34, h: 18 }, kind: 'high', hs: 18, kb: 3, pose: P(STAND, { lean: -32, head: -10, tF: 150, sF: 168, tB: -6, sB: -6, aF: 70, fF: 120, aB: -20, fB: 30 }) },
-  round: { s: 12, a: 4, r: 20, dmg: 12, hb: { x: 6, y: -82, w: 38, h: 24 }, kind: 'high', hs: 20, kb: 3, kd: { vx: 2.6, vy: -4 }, pose: P(STAND, { lean: -32, head: -15, tF: 150, sF: 162, tB: -6, sB: -6, aF: -30, fF: 0, aB: 60, fB: 90 }) },
-  sweep: { s: 8, a: 4, r: 22, dmg: 8, hb: { x: 4, y: -12, w: 42, h: 12 }, kind: 'low', hs: 20, kb: 1, kd: { vx: 1, vy: -2.5 }, crouch: true, pose: P(CROUCH, { tF: 88, sF: 90, tB: 70, sB: -80, lean: 30 }) },
+  lk: { s: 6, a: 3, r: 12, dmg: 6, adv: 8, ret: 8, hb: { x: 8, y: -44, w: 34, h: 14 }, kind: 'mid', hs: 14, kb: 2.2, pose: P(STAND, { lean: -12, tF: 88, sF: 92, tB: -8, sB: -8, aF: 40, fF: 120 }) },
+  hk: { s: 8, a: 4, r: 16, dmg: 9, adv: 8, ret: 8, hb: { x: 8, y: -78, w: 34, h: 18 }, kind: 'mid', hs: 18, kb: 3, pose: P(STAND, { lean: -32, head: -10, tF: 150, sF: 168, tB: -6, sB: -6, aF: 70, fF: 120, aB: -20, fB: 30 }) },
+  round: { s: 12, a: 4, r: 20, dmg: 12, adv: 10, ret: 10, hb: { x: 6, y: -82, w: 38, h: 24 }, kind: 'high', hs: 20, kb: 3, kd: { vx: 2.6, vy: -4 }, pose: P(STAND, { lean: -32, head: -15, tF: 150, sF: 162, tB: -6, sB: -6, aF: -30, fF: 0, aB: 60, fB: 90 }) },
+  sweep: { s: 8, a: 4, r: 22, dmg: 8, adv: 6, ret: 6, hb: { x: 4, y: -12, w: 42, h: 12 }, kind: 'low', hs: 20, kb: 1, kd: { vx: 1, vy: -2.5 }, crouch: true, pose: P(CROUCH, { tF: 88, sF: 90, tB: 70, sB: -80, lean: 30 }) },
   clp: { s: 4, a: 3, r: 8, dmg: 4, hb: { x: 8, y: -46, w: 30, h: 14 }, kind: 'mid', hs: 12, kb: 1.6, crouch: true, pose: P(CROUCH, { aF: 92, fF: 90 }) },
-  up: { s: 7, a: 5, r: 24, dmg: 14, hb: { x: 2, y: -98, w: 28, h: 64 }, kind: 'mid', hs: 30, kb: 1, kd: { vx: 1.6, vy: -7 }, crouch: true, from: CROUCH, to: STAND, pose: P(STAND, { lean: 4, head: -8, aF: 170, fF: 178, aB: 40, fB: 150 }) },
+  up: { s: 7, a: 5, r: 24, dmg: 14, adv: 6, hb: { x: 2, y: -98, w: 28, h: 64 }, kind: 'mid', hs: 30, kb: 1, kd: { vx: 1.6, vy: -7 }, crouch: true, from: CROUCH, to: STAND, pose: P(STAND, { lean: 4, head: -8, aF: 170, fF: 178, aB: 40, fB: 150 }) },
   clk: { s: 5, a: 3, r: 10, dmg: 4, hb: { x: 6, y: -12, w: 36, h: 10 }, kind: 'low', hs: 12, kb: 1.6, crouch: true, pose: P(CROUCH, { tF: 85, sF: 88 }) },
   chk: { s: 7, a: 4, r: 14, dmg: 7, hb: { x: 6, y: -16, w: 42, h: 12 }, kind: 'low', hs: 16, kb: 2.4, crouch: true, pose: P(CROUCH, { tF: 80, sF: 84, lean: 30 }) },
   jp: { s: 4, a: 12, r: 0, dmg: 7, hb: { x: 6, y: -64, w: 28, h: 22 }, kind: 'over', hs: 16, kb: 2, air: true, pose: P(JUMP, { aF: 62, fF: 55 }) },
@@ -53,26 +53,37 @@ export const SPECIALS = {
   ],
 };
 
-// Пропорции и цвета. th/sh — бедро/голень, ua/fa — плечо/предплечье, w — полуширина зоны попадания.
-// Зоны ударов под нарисованные позы (ref2game hb_check): точка кулака или стопы в позе удара должна лежать в зоне.
-// Если удара нет в списке — зона из MOVES / спецприёма.
+// Зоны ударов под нарисованные позы: кулак, шар или стопа в активной фазе лежат в зоне, зона выходит за арт не больше чем на 2 px.
+// x — от точки опоры вперёд, y — от пола вверх (отрицательные). Если удара нет в списке — зона из MOVES / спецприёма.
+// Проверка: каждый обычный удар достаёт стоящего соперника с минимальной дистанции (тест в scripts/test-arcade.mjs).
+const B = (x, y, w, h) => ({ x, y, w, h });
 export const HB = {
-  bebop: { lp: { x: 8, y: -70, w: 30, h: 14 }, hp: { x: 10, y: -88, w: 30, h: 14 }, lk: { x: 8, y: -43, w: 34, h: 14 }, hk: { x: 8, y: -77, w: 34, h: 18 }, clp: { x: 21, y: -53, w: 30, h: 14 }, up: { x: -3, y: -104, w: 28, h: 64 }, clk: { x: 6, y: -17, w: 36, h: 10 }, jp: { x: 6, y: -55, w: 28, h: 22 }, jk: { x: 6, y: -20, w: 32, h: 22 }, xup: { x: -4, y: -104, w: 34, h: 72 } },
-  lash: { lp: { x: 12, y: -66, w: 30, h: 14 }, lk: { x: 9, y: -44, w: 34, h: 14 }, clp: { x: 18, y: -45, w: 30, h: 14 }, clk: { x: 6, y: -16, w: 36, h: 10 }, jp: { x: 9, y: -45, w: 28, h: 22 }, jk: { x: 6, y: -20, w: 32, h: 22 }, grap: { x: 10, y: -53, w: 32, h: 38 } },
+  bebop: {
+    lp: B(10, -76, 39, 18), hp: B(12, -96, 36, 20), lk: B(8, -44, 38, 16), hk: B(8, -54, 36, 16), round: B(8, -56, 37, 20),
+    sweep: B(6, -22, 41, 14), clp: B(20, -62, 41, 20), up: B(0, -110, 44, 66), clk: B(6, -28, 46, 14), chk: B(6, -28, 42, 16),
+    jp: B(14, -54, 33, 26), jk: B(8, -20, 33, 22), xup: B(0, -112, 44, 74),
+  },
+  lash: {
+    lp: B(10, -64, 35, 14), hp: B(10, -78, 32, 14), lk: B(8, -45, 40, 14), hk: B(8, -56, 38, 16), round: B(8, -58, 39, 20),
+    sweep: B(6, -22, 42, 14), clp: B(14, -41, 37, 14), up: B(2, -92, 38, 56), clk: B(6, -26, 42, 14), chk: B(6, -24, 42, 14),
+    jp: B(10, -34, 31, 18), jk: B(8, -18, 34, 20), grap: B(10, -53, 32, 38),
+  },
 };
 
+// Персонажи. walk — скорость ходьбы вперёд и назад, jump — толчок прыжка, push — полуширина тела для расталкивания
+// (минимальная дистанция между бойцами — сумма их push). Цвета col/alt остались от прототипа.
 export const CHARS = {
   bebop: {
     name: 'Bebop', card: 'bebop_card.webp', small: 'bebop_sm.webp',
     dim: { th: 18, sh: 18, torso: 27, ua: 13, fa: 14, head: 8, w: 13 },
-    walk: [1.6, 1.2], jump: 6.2,
+    walk: [1.6, 1.2], jump: 6.2, push: 30,
     col: { body: '#d9622b', body2: '#a8441c', metal: '#4b4b52', yellow: '#f0b83a', cloth: '#8a7a4a', eye: '#60f0e8', ball: '#3a2a22' },
     alt: { body: '#5f8fd9', body2: '#3a5f9e', metal: '#3c3f4a', yellow: '#d9d9d9', cloth: '#4a4a3a', eye: '#ff6a4a', ball: '#262626' },
   },
   lash: {
     name: 'Lash', card: 'lash_card.webp', small: 'lash_sm.webp',
     dim: { th: 18, sh: 18, torso: 25, ua: 13, fa: 13, head: 8, w: 11 },
-    walk: [1.8, 1.3], jump: 6.6,
+    walk: [1.8, 1.3], jump: 6.6, push: 26,
     col: { skin: '#d39a72', shirt: '#3c6fb5', pants: '#3d3028', boot: '#6b3f22', hair: '#2a1c14', strap: '#5a3a1e', wrap: '#e8e0d0' },
     alt: { skin: '#c48a64', shirt: '#b53c3c', pants: '#2a2a30', boot: '#3a2a20', hair: '#5a3a1a', strap: '#2a1a10', wrap: '#ffd27a' },
   },

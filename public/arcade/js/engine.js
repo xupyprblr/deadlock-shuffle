@@ -6,7 +6,14 @@ import { ANIMS, KEYS } from './anims.js';
 
 export const ROUND_TIME = 99;
 export const WINS_NEEDED = 2;
-const WALL_L = 16, WALL_R = W - 16, GRAV = 0.32, PUSH = 32;
+const WALL_L = 16, WALL_R = W - 16, GRAV = 0.32;
+// Расталкивание тел. Минимальная дистанция между бойцами — сумма их push из CHARS (у каждого своя ширина: с руками и шаром).
+// PUSH_V — не быстрее стольких px за кадр на бойца (без рывка при приземлении рядом), PUSH_H — на такой разнице высот
+// тела уже не мешают друг другу (перепрыгивание), PUSH_DOWN — доля ширины у лежащего, PUSH_CROUCH — прибавка в приседе.
+const PUSH_V = 4, PUSH_H = 50, PUSH_DOWN = 0.55, PUSH_CROUCH = 6;
+// Зона попадания выступает вперёд от корпуса на столько px: удар по рукам в стойке — тоже попадание.
+const BOX_FRONT = 4;
+export const minGap = (a, b) => CHARS[a].push + CHARS[b].push;
 // Камера показывает часть сцены (render.js, ZOOM), поэтому бойцы не расходятся дальше MAX_GAP.
 export const MAX_GAP = 250;
 const D2R = Math.PI / 180;
@@ -50,7 +57,7 @@ export function rig(f) {
   const w = d.w * 1.3; // зона попадания чуть шире нарисованного корпуса
   if (Math.abs(r) < 25) {
     const cx = (hip.x + sh.x + shB.x) / 3;
-    j.box = { x0: cx - w, x1: cx + w, y0: hd.y - d.head, y1: Math.max(ftF.y, ftB.y, hip.y + 4) };
+    j.box = { x0: cx - w - (s < 0 ? BOX_FRONT : 0), x1: cx + w + (s > 0 ? BOX_FRONT : 0), y0: hd.y - d.head, y1: Math.max(ftF.y, ftB.y, hip.y + 4) };
   } else {
     const pts = [hip, kF, ftF, kB, ftB, sh, shB, hd];
     j.box = { x0: Math.min(...pts.map((q) => q.x)) - 4, x1: Math.max(...pts.map((q) => q.x)) + 4, y0: Math.min(...pts.map((q) => q.y)) - 5, y1: Math.max(...pts.map((q) => q.y)) + 3 };
@@ -99,7 +106,7 @@ export const SP = {
     },
     box(f) { return f.mf - this.s < 14 && f.reach > 0 ? { x: 16, y: -68, w: f.reach + 6, h: 14 } : null; },
     onHit(G, f, o) {
-      o.st = 'pulled'; o.pullTo = f.x + f.face * 30; o.vx = 0; o.vy = 0;
+      o.st = 'pulled'; o.pullTo = f.x + f.face * (f.ch.push + o.ch.push); o.vx = 0; o.vy = 0; // притягивает вплотную
       f.mf = Math.max(f.mf, this.s + 14); // сразу сматываем руку
     },
   },
@@ -193,7 +200,7 @@ export class Fighter {
     this.meter = 0; this.wins = 0; this.reset();
   }
   reset() {
-    this.x = this.side ? 254 : 130; this.y = FLOOR; this.vx = 0; this.vy = 0;
+    this.x = this.side ? 254 : 130; this.px = this.x; this.y = FLOOR; this.vx = 0; this.vy = 0;
     this.face = this.side ? -1 : 1; this.hp = 100; this.lagHp = 100;
     this.st = 'idle'; this.t = 0; this.mv = null; this.mf = 0; this.hasHit = false; this.airUsed = false;
     this.pose = clipPose(this.id, 'idle', 0); this.akey = null; this.af = 0; this.buf = []; this.prev = {}; this.inv = 0; this.stun = 0; this.bstun = 0;
@@ -244,7 +251,7 @@ export class Game {
       if (this.pt === 210) this.endRound();
     }
     const live = this.phase === 'fight';
-    for (const f of this.f) this.stepFighter(f, live ? (inputs[f.side] || {}) : {});
+    for (const f of this.f) { f.px = f.x; this.stepFighter(f, live ? (inputs[f.side] || {}) : {}); }
     this.solve();
     for (const f of this.f) {
       const key = f.st === 'atk' ? 'atk:' + f.mn : f.st === 'walk' ? 'walk' + (f.vx * f.face >= 0) : f.st;
@@ -364,7 +371,12 @@ export class Game {
         if (m.air || m.phys || f.y < FLOOR || f.vy < 0) {
           this.physics(f);
           if (m.air && f.y >= FLOOR) { this.endMove(f, inp); f.vx = 0; return; }
-        } else { f.vx *= 0.8; f.x += f.vx; }
+        } else {
+          f.vx *= 0.8; f.x += f.vx;
+          // шаг в удар: за замах боец подаётся вперёд на adv px (с разгоном), за возврат отходит на ret
+          if (m.adv && f.mf <= m.s) f.x += f.face * m.adv * (2 * f.mf - 1) / (m.s * m.s);
+          else if (m.ret && f.mf > m.s + m.a) f.x -= f.face * m.ret / m.r;
+        }
         if (f.mf >= m.s + m.a + m.r) this.endMove(f, inp);
         return;
       }
@@ -448,7 +460,7 @@ export class Game {
   stepSlam(f) {
     const o = f.o; f.ct++;
     const k = f.ct % SLAM_CYCLE;
-    o.x = clamp(f.x + f.face * 30, WALL_L, WALL_R);
+    o.x = clamp(f.x + f.face * 34, WALL_L, WALL_R);
     o.y = k < 12 ? FLOOR - (k / 12) * 64 : k < 16 ? FLOOR - 64 + ((k - 12) / 4) * 64 : FLOOR;
     o.face = -f.face;
     f.whip = { tx: o.x, ty: o.y - 40 };
@@ -472,14 +484,22 @@ export class Game {
       if (am) a.x += over * s; else b.x -= over * s;
     }
     if (a.st === 'grabbed' || b.st === 'grabbed' || a.st === 'pulled' || b.st === 'pulled') return;
-    const dy = Math.abs(a.y - b.y);
-    if (dy > 46) return; // перепрыгивает через голову
+    // Тела: у каждого бойца своя ширина. Чем больше разница высот, тем меньше мешают — в прыжке можно перелететь.
+    const lying = (f) => f.st === 'down' || f.st === 'ko';
+    const wide = (f) => f.ch.push + (f.st === 'crouch' || f.st === 'cblock' ? PUSH_CROUCH : 0); // в приседе корпус уходит вперёд
+    const need = (wide(a) + wide(b)) * clamp(1 - Math.abs(a.y - b.y) / PUSH_H, 0, 1) * (lying(a) || lying(b) ? PUSH_DOWN : 1);
     const d = b.x - a.x, ad = Math.abs(d);
-    if (ad < PUSH) {
-      const push = (PUSH - ad) / 2, s = d === 0 ? (a.face > 0 ? 1 : -1) : Math.sign(d);
-      a.x -= push * s; b.x += push * s;
-      for (const f of this.f) f.x = clamp(f.x, WALL_L, WALL_R);
-      if (Math.abs(b.x - a.x) < PUSH - 1) { if (a.x <= WALL_L + 1) b.x = a.x + PUSH; else if (b.x <= WALL_L + 1) a.x = b.x + PUSH; else if (a.x >= WALL_R - 1) b.x = a.x - PUSH; else if (b.x >= WALL_R - 1) a.x = b.x - PUSH; }
+    if (ad >= need) return;
+    const s = d === 0 ? (a.face > 0 ? 1 : -1) : Math.sign(d);
+    // Отодвигается тот, кто шёл навстречу: стоящего на месте не толкают, идущий в него просто упирается.
+    const va = Math.max(0, (a.x - a.px) * s), vb = Math.max(0, (b.px - b.x) * s);
+    const ka = va + vb > 0.01 ? va / (va + vb) : 0.5, gap = Math.min(need - ad, PUSH_V * 2);
+    a.x = clamp(a.x - gap * ka * s, WALL_L, WALL_R); b.x = clamp(b.x + gap * (1 - ka) * s, WALL_L, WALL_R);
+    // прижатый к стене не двигается — весь остаток уходит свободному
+    const left = Math.min(need - Math.abs(b.x - a.x), PUSH_V * 2);
+    if (left > 0.01) {
+      const wall = (f) => f.x <= WALL_L + 0.5 || f.x >= WALL_R - 0.5;
+      if (wall(a)) b.x = clamp(b.x + left * s, WALL_L, WALL_R); else if (wall(b)) a.x = clamp(a.x - left * s, WALL_L, WALL_R);
     }
   }
 

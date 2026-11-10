@@ -59,17 +59,25 @@ export function rig(f) {
 }
 
 // ---------- клипы анимаций ----------
-// Поза в кадре f клипа: смешение соседних ключей (linear — как удары движка, smooth — сглаженно).
+// Поза в момент f клипа: смешение соседних ключей. У обычного клипа f — кадр, у клипа удара (ph) — фаза 0..3.
+// Третий элемент ключа задаёт вход в позу: in — с разгоном, out — с торможением, io — плавно; иначе по ease клипа.
+const EASE = { in: (u) => u * u, out: (u) => 1 - (1 - u) * (1 - u), io: (u) => u * u * (3 - 2 * u), smooth: (u) => u * u * (3 - 2 * u) };
 export function clipPose(id, name, f) {
   const c = ANIMS[id][name] || ANIMS[id].idle, k = c.keys;
-  if (c.loop) f = ((f % c.n) + c.n) % c.n; else f = clamp(f, 0, c.n - 1);
+  if (c.ph) f = clamp(f, 0, 3); else if (c.loop) f = ((f % c.n) + c.n) % c.n; else f = clamp(f, 0, c.n - 1);
   const arr = (v) => { const o = {}; KEYS.forEach((q, i) => { o[q] = v[i]; }); return o; };
   if (f <= k[0][0]) return arr(k[0][1]);
   for (let i = 0; i < k.length - 1; i++) if (f <= k[i + 1][0]) {
-    const [fa, a] = k[i], [fb, b] = k[i + 1], u = (f - fa) / Math.max(1e-6, fb - fa), t = c.ease === 'smooth' ? u * u * (3 - 2 * u) : u;
+    const [fa, a] = k[i], [fb, b, e] = k[i + 1], u = (f - fa) / Math.max(1e-6, fb - fa), fn = EASE[e || c.ease], t = fn ? fn(u) : u;
     return arr(a.map((v, q) => lerp(v, b[q], t)));
   }
   return arr(k[k.length - 1][1]);
+}
+// Фаза удара по кадру: 0..1 — замах, 1..2 — активная фаза, 2..3 — возврат. По ней берётся поза из клипа удара.
+export function phaseT(mf, m) {
+  if (mf < m.s) return mf / m.s;
+  if (mf < m.s + m.a) return 1 + (mf - m.s) / m.a;
+  return m.r ? 2 + Math.min(1, (mf - m.s - m.a) / m.r) : 2;
 }
 
 function worldBox(f, hb) {
@@ -80,7 +88,7 @@ const overlap = (a, b) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.
 
 // ---------- спецприёмы ----------
 // Те же поля, что у обычных ударов, плюс tick (каждый кадр приёма), box (зона удара по кадрам), onHit.
-const SP = {
+export const SP = {
   hook: {
     s: 8, a: 22, r: 14, dmg: 6, kind: 'mid', hs: 10, kb: 0, special: true,
     pose: { ...STAND, lean: 14, aF: 92, fF: 90, aB: 30, fB: 120, tF: 30, sF: 10, tB: -26, sB: -26 },
@@ -615,7 +623,7 @@ export class Game {
       case 'atk': {
         const m = f.mv, n = f.mn;
         if (n === 'gstrike' && f.mf >= m.s + m.a) return clipPose(id, 'gstrike_land', f.mf - m.s - m.a);
-        return clipPose(id, n, f.mf);
+        return clipPose(id, n, phaseT(f.mf, m));
       }
     }
     return clipPose(id, 'idle', t);

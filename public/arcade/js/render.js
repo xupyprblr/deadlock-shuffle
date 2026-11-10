@@ -2,6 +2,7 @@
 // Логические координаты — 384×216; холст в SC раз больше, пиксели арта не сглаживаются.
 import { W, H, FLOOR, HB } from './data.js';
 import { RIGS } from './rigs.js';
+import { HOOK_EXT } from './engine.js';
 
 export const SC = 3;
 // Камера: приближение и слежение за бойцами, как в аркадных файтингах.
@@ -123,7 +124,7 @@ function drawClaw(g, f, j, lx, part) {
     g.fillStyle = '#1a1210'; g.fillRect(lx(hand), hand.y - 0.5, reach, 1);
   }
   const at = { x: f.x + (lx(hand) + reach) * f.face, y: hand.y };
-  part(k >= 0 && k < 14 ? 'claw_open' : 'claw_closed', at, 0, false);
+  part(k >= 0 && k < HOOK_EXT ? 'claw_open' : 'claw_closed', at, 0, false);
 }
 
 function drawWhip(g, f) {

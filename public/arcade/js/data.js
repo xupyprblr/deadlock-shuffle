@@ -22,19 +22,23 @@ export const BEAM = P(STAND, { lean: 10, aF: 92, fF: 90, aB: 88, fB: 92, tF: 30,
 // hb — зона удара относительно точки опоры бойца; kind: high (над присевшим проходит мимо), mid, low (только присев блок),
 // over (из прыжка — только стоячий блок). kd — сбивает с ног (скорость отлёта).
 export const MOVES = {
-  lp: { s: 4, a: 3, r: 8, dmg: 4, adv: 3, ret: 3, hb: { x: 8, y: -66, w: 30, h: 14 }, kind: 'mid', hs: 12, kb: 1.6, pose: P(STAND, { lean: 12, aF: 92, fF: 90, aB: 50, fB: 150 }) },
-  hp: { s: 6, a: 3, r: 12, dmg: 7, hb: { x: 10, y: -78, w: 30, h: 14 }, kind: 'high', hs: 16, kb: 2.4, pose: P(STAND, { lean: 16, aF: 120, fF: 122, aB: 20, fB: 90 }) },
-  lk: { s: 6, a: 3, r: 12, dmg: 6, adv: 8, ret: 8, hb: { x: 8, y: -44, w: 34, h: 14 }, kind: 'mid', hs: 14, kb: 2.2, pose: P(STAND, { lean: -12, tF: 88, sF: 92, tB: -8, sB: -8, aF: 40, fF: 120 }) },
-  hk: { s: 8, a: 4, r: 16, dmg: 9, adv: 8, ret: 8, hb: { x: 8, y: -78, w: 34, h: 18 }, kind: 'mid', hs: 18, kb: 3, pose: P(STAND, { lean: -32, head: -10, tF: 150, sF: 168, tB: -6, sB: -6, aF: 70, fF: 120, aB: -20, fB: 30 }) },
-  round: { s: 12, a: 4, r: 20, dmg: 12, adv: 10, ret: 10, hb: { x: 6, y: -82, w: 38, h: 24 }, kind: 'high', hs: 20, kb: 3, kd: { vx: 2.6, vy: -4 }, pose: P(STAND, { lean: -32, head: -15, tF: 150, sF: 162, tB: -6, sB: -6, aF: -30, fF: 0, aB: 60, fB: 90 }) },
-  sweep: { s: 8, a: 4, r: 22, dmg: 8, adv: 6, ret: 6, hb: { x: 4, y: -12, w: 42, h: 12 }, kind: 'low', hs: 20, kb: 1, kd: { vx: 1, vy: -2.5 }, crouch: true, pose: P(CROUCH, { tF: 88, sF: 90, tB: 70, sB: -80, lean: 30 }) },
-  clp: { s: 4, a: 3, r: 8, dmg: 4, hb: { x: 8, y: -46, w: 30, h: 14 }, kind: 'mid', hs: 12, kb: 1.6, crouch: true, pose: P(CROUCH, { aF: 92, fF: 90 }) },
-  up: { s: 7, a: 5, r: 24, dmg: 14, adv: 6, hb: { x: 2, y: -98, w: 28, h: 64 }, kind: 'mid', hs: 30, kb: 1, kd: { vx: 1.6, vy: -7 }, crouch: true, from: CROUCH, to: STAND, pose: P(STAND, { lean: 4, head: -8, aF: 170, fF: 178, aB: 40, fB: 150 }) },
-  clk: { s: 5, a: 3, r: 10, dmg: 4, hb: { x: 6, y: -12, w: 36, h: 10 }, kind: 'low', hs: 12, kb: 1.6, crouch: true, pose: P(CROUCH, { tF: 85, sF: 88 }) },
-  chk: { s: 7, a: 4, r: 14, dmg: 7, hb: { x: 6, y: -16, w: 42, h: 12 }, kind: 'low', hs: 16, kb: 2.4, crouch: true, pose: P(CROUCH, { tF: 80, sF: 84, lean: 30 }) },
-  jp: { s: 4, a: 12, r: 0, dmg: 7, hb: { x: 6, y: -64, w: 28, h: 22 }, kind: 'over', hs: 16, kb: 2, air: true, pose: P(JUMP, { aF: 62, fF: 55 }) },
-  jk: { s: 5, a: 14, r: 0, dmg: 9, hb: { x: 6, y: -48, w: 32, h: 22 }, kind: 'over', hs: 18, kb: 2.6, air: true, pose: P(JUMP, { tF: 62, sF: 55, tB: 100, sB: 0 }) },
+  lp: { s: 6, a: 3, r: 10, dmg: 3, adv: 3, ret: 3, hb: { x: 8, y: -66, w: 30, h: 14 }, kind: 'mid', hs: 15, kb: 1.6, pose: P(STAND, { lean: 12, aF: 92, fF: 90, aB: 50, fB: 150 }) },
+  hp: { s: 8, a: 4, r: 14, dmg: 5, hb: { x: 10, y: -78, w: 30, h: 14 }, kind: 'high', hs: 20, kb: 2.4, pose: P(STAND, { lean: 16, aF: 120, fF: 122, aB: 20, fB: 90 }) },
+  lk: { s: 9, a: 4, r: 14, dmg: 5, adv: 8, ret: 8, hb: { x: 8, y: -44, w: 34, h: 14 }, kind: 'mid', hs: 18, kb: 2.2, pose: P(STAND, { lean: -12, tF: 88, sF: 92, tB: -8, sB: -8, aF: 40, fF: 120 }) },
+  hk: { s: 11, a: 4, r: 18, dmg: 7, adv: 8, ret: 8, hb: { x: 8, y: -78, w: 34, h: 18 }, kind: 'mid', hs: 22, kb: 3, pose: P(STAND, { lean: -32, head: -10, tF: 150, sF: 168, tB: -6, sB: -6, aF: 70, fF: 120, aB: -20, fB: 30 }) },
+  round: { s: 18, a: 5, r: 24, dmg: 9, adv: 10, ret: 10, hb: { x: 6, y: -82, w: 38, h: 24 }, kind: 'high', hs: 25, kb: 3, kd: { vx: 2.1, vy: -3.2 }, pose: P(STAND, { lean: -32, head: -15, tF: 150, sF: 162, tB: -6, sB: -6, aF: -30, fF: 0, aB: 60, fB: 90 }) },
+  sweep: { s: 15, a: 5, r: 26, dmg: 6, adv: 6, ret: 6, hb: { x: 4, y: -12, w: 42, h: 12 }, kind: 'low', hs: 25, kb: 1, kd: { vx: 0.8, vy: -2 }, crouch: true, pose: P(CROUCH, { tF: 88, sF: 90, tB: 70, sB: -80, lean: 30 }) },
+  clp: { s: 6, a: 3, r: 10, dmg: 3, hb: { x: 8, y: -46, w: 30, h: 14 }, kind: 'mid', hs: 15, kb: 1.6, crouch: true, pose: P(CROUCH, { aF: 92, fF: 90 }) },
+  up: { s: 14, a: 6, r: 28, dmg: 10, adv: 6, hb: { x: 2, y: -98, w: 28, h: 64 }, kind: 'mid', hs: 36, kb: 1, kd: { vx: 1.3, vy: -5.7 }, crouch: true, from: CROUCH, to: STAND, pose: P(STAND, { lean: 4, head: -8, aF: 170, fF: 178, aB: 40, fB: 150 }) },
+  clk: { s: 7, a: 3, r: 12, dmg: 3, hb: { x: 6, y: -12, w: 36, h: 10 }, kind: 'low', hs: 15, kb: 1.6, crouch: true, pose: P(CROUCH, { tF: 85, sF: 88 }) },
+  chk: { s: 10, a: 4, r: 16, dmg: 5, hb: { x: 6, y: -16, w: 42, h: 12 }, kind: 'low', hs: 20, kb: 2.4, crouch: true, pose: P(CROUCH, { tF: 80, sF: 84, lean: 30 }) },
+  jp: { s: 6, a: 16, r: 0, dmg: 5, hb: { x: 6, y: -64, w: 28, h: 22 }, kind: 'over', hs: 20, kb: 2, air: true, pose: P(JUMP, { aF: 62, fF: 55 }) },
+  jk: { s: 7, a: 18, r: 0, dmg: 7, hb: { x: 6, y: -48, w: 32, h: 22 }, kind: 'over', hs: 22, kb: 2.6, air: true, pose: P(JUMP, { tF: 62, sF: 55, tB: 100, sB: 0 }) },
 };
+
+// Удары бойца: общая таблица MOVES плюс свои поправки. У Bebop главный удар — шар: длинный выпад рукой и урон выше.
+const OWN = { bebop: { lp: { s: 7, dmg: 4, adv: 8, ret: 8 } }, lash: {} };
+export const MV = Object.fromEntries(Object.entries(OWN).map(([id, own]) => [id, Object.fromEntries(Object.entries(MOVES).map(([n, m]) => [n, { ...m, ...own[n] }]))]));
 
 // Спецприёмы — способности героев. Последовательность: F — к сопернику, B — от него, D — вниз.
 // Кнопки: lp/hp — нижний/верхний рукой, lk/hk — нижний/верхний ногой. ult — нужна полная шкала.
@@ -71,19 +75,20 @@ export const HB = {
 };
 
 // Персонажи. walk — скорость ходьбы вперёд и назад, jump — толчок прыжка, push — полуширина тела для расталкивания
-// (минимальная дистанция между бойцами — сумма их push). Цвета col/alt остались от прототипа.
+// (минимальная дистанция между бойцами — сумма их push), power — множитель урона обычных ударов: Bebop крупнее и медленнее,
+// в него проще попасть, зато бьёт он тяжелее. Цвета col/alt остались от прототипа.
 export const CHARS = {
   bebop: {
     name: 'Bebop', card: 'bebop_card.webp', small: 'bebop_sm.webp',
     dim: { th: 18, sh: 18, torso: 27, ua: 13, fa: 14, head: 8, w: 13 },
-    walk: [1.6, 1.2], jump: 6.2, push: 30,
+    walk: [1.2, 0.95], jump: 5.1, push: 30, power: 1.25,
     col: { body: '#d9622b', body2: '#a8441c', metal: '#4b4b52', yellow: '#f0b83a', cloth: '#8a7a4a', eye: '#60f0e8', ball: '#3a2a22' },
     alt: { body: '#5f8fd9', body2: '#3a5f9e', metal: '#3c3f4a', yellow: '#d9d9d9', cloth: '#4a4a3a', eye: '#ff6a4a', ball: '#262626' },
   },
   lash: {
     name: 'Lash', card: 'lash_card.webp', small: 'lash_sm.webp',
     dim: { th: 18, sh: 18, torso: 25, ua: 13, fa: 13, head: 8, w: 11 },
-    walk: [1.8, 1.3], jump: 6.6, push: 26,
+    walk: [1.35, 1.05], jump: 5.45, push: 26, power: 1,
     col: { skin: '#d39a72', shirt: '#3c6fb5', pants: '#3d3028', boot: '#6b3f22', hair: '#2a1c14', strap: '#5a3a1e', wrap: '#e8e0d0' },
     alt: { skin: '#c48a64', shirt: '#b53c3c', pants: '#2a2a30', boot: '#3a2a20', hair: '#5a3a1a', strap: '#2a1a10', wrap: '#ffd27a' },
   },

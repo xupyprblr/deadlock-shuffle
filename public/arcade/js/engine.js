@@ -1,12 +1,22 @@
 // Движок файтинга: состояния бойцов, физика, попадания, спецприёмы, раунды. Без DOM.
 // Game.update(inputs) — один кадр (1/60 с). События для звука и надписей копятся в game.events.
-import { W, FLOOR, MOVES, SPECIALS, CHARS, HB, STAND, CROUCH, JUMP, BLOCK, CBLOCK, HIT, DIZZY, KNOCK, DOWN, WIN, BEAM } from './data.js';
+import { W, FLOOR, MV, SPECIALS, CHARS, HB, STAND, CROUCH, JUMP, BLOCK, CBLOCK, HIT, DIZZY, KNOCK, DOWN, WIN, BEAM } from './data.js';
 import { RIGS } from './rigs.js';
 import { ANIMS, KEYS } from './anims.js';
 
 export const ROUND_TIME = 99;
 export const WINS_NEEDED = 2;
-const WALL_L = 16, WALL_R = W - 16, GRAV = 0.32;
+const WALL_L = 16, WALL_R = W - 16;
+// ----- темп игры: всё, что задаёт скорость боя, собрано здесь (тайминги ударов — в data.js и в SP ниже) -----
+export const GRAV = 0.21;           // тяжесть: меньше — прыжок дольше и плавнее
+const JUMP_VX = 1.75;               // скорость прыжка вперёд и назад
+const DASH = { v: 4.2, k: 0.92, n: 22 };      // рывок: начальная скорость, затухание за кадр, длительность
+const BDASH = { vx: 2.7, vy: 2.3, inv: 10 };  // отскок: скорость назад и вверх, кадры неуязвимости
+export const HEAVY = 7;             // удар с таким уроном и выше — тяжёлый: дольше пауза, сильнее тряска, другой звук
+const HITSTOP = { light: 5, heavy: 8, special: 9, block: 4, ko: 14 }; // пауза при попадании, кадры
+const BLOCK_STUN = 0.6;             // оглушение в блоке — доля от оглушения при попадании
+const DOWN_T = 46, GETUP_T = 20, GETUP_INV = 20; // лежит, встаёт, неуязвим после подъёма
+const DMG_SCALE = 1;                // общий множитель урона: меньше — бои длиннее
 // Расталкивание тел. Минимальная дистанция между бойцами — сумма их push из CHARS (у каждого своя ширина: с руками и шаром).
 // PUSH_V — не быстрее стольких px за кадр на бойца (без рывка при приземлении рядом), PUSH_H — на такой разнице высот
 // тела уже не мешают друг другу (перепрыгивание), PUSH_DOWN — доля ширины у лежащего, PUSH_CROUCH — прибавка в приседе.
@@ -95,92 +105,93 @@ const overlap = (a, b) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.
 
 // ---------- спецприёмы ----------
 // Те же поля, что у обычных ударов, плюс tick (каждый кадр приёма), box (зона удара по кадрам), onHit.
+export const HOOK_EXT = 18; // за столько кадров клешня Bebop вылетает на всю длину
 export const SP = {
   hook: {
-    s: 8, a: 22, r: 14, dmg: 6, kind: 'mid', hs: 10, kb: 0, special: true,
+    s: 12, a: 28, r: 16, dmg: 6, kind: 'mid', hs: 12, kb: 0, special: true,
     pose: { ...STAND, lean: 14, aF: 92, fF: 90, aB: 30, fB: 120, tF: 30, sF: 10, tB: -26, sB: -26 },
     tick(G, f) {
       const k = f.mf - this.s;
-      f.reach = k < 0 ? 0 : k < 14 ? (k + 1) / 14 * 150 : k < this.a ? 150 * (1 - (k - 14) / (this.a - 14)) : 0;
+      f.reach = k < 0 ? 0 : k < HOOK_EXT ? (k + 1) / HOOK_EXT * 150 : k < this.a ? 150 * (1 - (k - HOOK_EXT) / (this.a - HOOK_EXT)) : 0;
       if (k === 0) G.emit('sfx', { s: 'chain' });
     },
-    box(f) { return f.mf - this.s < 14 && f.reach > 0 ? { x: 16, y: -68, w: f.reach + 6, h: 14 } : null; },
+    box(f) { return f.mf - this.s < HOOK_EXT && f.reach > 0 ? { x: 16, y: -68, w: f.reach + 6, h: 14 } : null; },
     onHit(G, f, o) {
       o.st = 'pulled'; o.pullTo = f.x + f.face * (f.ch.push + o.ch.push); o.vx = 0; o.vy = 0; // притягивает вплотную
-      f.mf = Math.max(f.mf, this.s + 14); // сразу сматываем руку
+      f.mf = Math.max(f.mf, this.s + HOOK_EXT); // сразу сматываем руку
     },
   },
   bomb: {
-    s: 10, a: 1, r: 18, special: true, pose: { ...STAND, lean: 10, aF: 150, fF: 120, aB: 60, fB: 140 },
+    s: 14, a: 1, r: 20, special: true, pose: { ...STAND, lean: 10, aF: 150, fF: 120, aB: 60, fB: 140 },
     tick(G, f) {
       if (f.mf === this.s) {
-        G.proj.push({ type: 'bomb', owner: f, x: f.rig.hnB.x, y: f.rig.hnB.y, vx: 3.3 * f.face, vy: -2.4, t: 0, stuck: null, fuse: 0 });
+        G.proj.push({ type: 'bomb', owner: f, x: f.rig.hnB.x, y: f.rig.hnB.y, vx: 2.6 * f.face, vy: -1.9, t: 0, stuck: null, fuse: 0 });
         G.emit('sfx', { s: 'throw' });
       }
     },
   },
   xup: {
-    s: 8, a: 5, r: 26, dmg: 15, kind: 'mid', hs: 30, kb: 1, kd: { vx: 2, vy: -8 }, special: true, from: CROUCH, to: STAND,
+    s: 14, a: 6, r: 30, dmg: 12, kind: 'mid', hs: 36, kb: 1, kd: { vx: 1.6, vy: -6.5 }, special: true, from: CROUCH, to: STAND,
     hb: { x: 0, y: -104, w: 34, h: 72 },
     pose: { ...STAND, lean: 4, head: -10, aF: 175, fF: 178, aB: 40, fB: 150 },
-    tick(G, f) { if (f.mf === this.s) { f.vx = 2.2 * f.face; G.boom(f.x + f.face * 18, f.y - 70, 0.6); } },
+    tick(G, f) { if (f.mf === this.s) { f.vx = 1.8 * f.face; G.boom(f.x + f.face * 18, f.y - 70, 0.6); } },
     onHit(G, f, o) { G.boom((f.x + o.x) / 2, f.y - 60, 1); },
   },
   beam: {
-    s: 34, a: 72, r: 22, dmg: 2.2, kind: 'mid', hs: 12, kb: 0.5, special: true, ult: true, multi: true, pose: BEAM,
+    s: 40, a: 84, r: 24, dmg: 2, kind: 'mid', hs: 14, kb: 0.5, special: true, ult: true, multi: true, pose: BEAM,
     tick(G, f) {
       if (f.mf === 1) G.emit('sfx', { s: 'charge' });
       if (f.mf === this.s) { G.emit('sfx', { s: 'beam' }); G.shake = 10; }
       if (f.mf < this.s && f.mf % 2 === 0) G.charge(f);
       f.beam = f.mf >= this.s && f.mf < this.s + this.a;
     },
-    box(f) {
+    box(f) { // луч бьёт раз в 7 кадров, последний удар сбивает с ног
       const k = f.mf - this.s;
-      if (k < 0 || k % 6) return null;
-      return { x: 18, y: -74, w: W, h: 28, last: k >= this.a - 6 };
+      if (k < 0 || k % 7) return null;
+      return { x: 18, y: -74, w: W, h: 28, last: k >= this.a - 7 };
     },
   },
   grap: {
-    s: 6, a: 24, r: 10, dmg: 9, kind: 'mid', hs: 20, kb: 2, kd: { vx: 2.5, vy: -4 }, special: true, phys: true,
+    s: 10, a: 28, r: 12, dmg: 7, kind: 'mid', hs: 25, kb: 2, kd: { vx: 2, vy: -3.2 }, special: true, phys: true,
     hb: { x: 2, y: -64, w: 32, h: 38 },
     pose: { ...JUMP, lean: -10, tF: 80, sF: 85, tB: 60, sB: -40, aF: 120, fF: 120 },
     tick(G, f) {
       const k = f.mf - this.s;
-      if (k === 0) { f.vx = 6.6 * f.face; f.vy = f.y < FLOOR - 1 ? -0.6 : -1.6; G.emit('sfx', { s: 'whip' }); }
-      f.whip = k < 8 ? { tx: f.x + f.face * (40 + k * 12), ty: f.y - 90 } : null;
-      if (k >= 0 && k < this.a) { f.nograv = true; f.vy = Math.min(f.vy + 0.1, 0.6); if (f.x <= WALL_L + 1 || f.x >= WALL_R - 1) f.mf = this.s + this.a; }
+      if (k === 0) { f.vx = 5.4 * f.face; f.vy = f.y < FLOOR - 1 ? -0.5 : -1.3; G.emit('sfx', { s: 'whip' }); }
+      f.whip = k < 10 ? { tx: f.x + f.face * (40 + k * 10), ty: f.y - 90 } : null;
+      if (k >= 0 && k < this.a) { f.nograv = true; f.vy = Math.min(f.vy + 0.07, 0.5); if (f.x <= WALL_L + 1 || f.x >= WALL_R - 1) f.mf = this.s + this.a; }
       else { f.nograv = false; f.vx *= 0.85; }
     },
-    onHit(G, f) { f.mf = this.s + this.a; f.vx = -1.5 * f.face; f.vy = -2.5; f.nograv = false; },
+    onHit(G, f) { f.mf = this.s + this.a; f.vx = -1.2 * f.face; f.vy = -2; f.nograv = false; },
   },
   flog: {
-    s: 9, a: 5, r: 18, dmg: 8, kind: 'mid', hs: 18, kb: 3, special: true,
+    s: 13, a: 5, r: 24, dmg: 5, kind: 'mid', hs: 22, kb: 3, special: true,
     hb: { x: 12, y: -76, w: 84, h: 34 },
     pose: { ...STAND, lean: 14, aF: 110, fF: 100, aB: 20, fB: 90, tF: 30, sF: 10, tB: -26, sB: -26 },
     tick(G, f) {
       const k = f.mf - this.s;
-      if (f.mf === 4) G.emit('sfx', { s: 'whip' });
-      f.whip = k >= -3 && k < this.a + 3 ? { tx: f.x + f.face * (40 + Math.min(1, (k + 4) / 6) * 56), ty: f.y - 60 + Math.sin(k) * 4 } : null;
+      if (f.mf === 6) G.emit('sfx', { s: 'whip' });
+      f.whip = k >= -4 && k < this.a + 3 ? { tx: f.x + f.face * (40 + Math.min(1, (k + 5) / 7) * 56), ty: f.y - 60 + Math.sin(k) * 4 } : null;
     },
-    onHit(G, f) { f.hp = Math.min(100, f.hp + 5); G.emit('heal', { side: f.side }); },
+    onHit(G, f) { f.hp = Math.min(100, f.hp + 2); G.emit('heal', { side: f.side }); },
   },
   gstrike: {
-    s: 4, a: 90, r: 18, special: true, phys: true, pose: { ...JUMP, lean: 20, tF: 30, sF: 0, tB: 10, sB: 0, aF: 175, fF: 178, aB: 160, fB: 175 },
+    s: 6, a: 90, r: 22, special: true, phys: true, pose: { ...JUMP, lean: 20, tF: 30, sF: 0, tB: 10, sB: 0, aF: 175, fF: 178, aB: 160, fB: 175 },
     tick(G, f, o) {
       const k = f.mf - this.s;
-      if (k === 0) { f.vx = 0; f.vy = 8.5; f.h0 = FLOOR - f.y; G.emit('sfx', { s: 'whoosh' }); }
+      if (k === 0) { f.vx = 0; f.vy = 7; f.h0 = FLOOR - f.y; G.emit('sfx', { s: 'whoosh' }); }
       if (k > 0 && k < this.a && f.y >= FLOOR) {
         f.mf = this.s + this.a;
-        const dmg = Math.round(5 + f.h0 / 9);
-        G.area(f, { x: -64, y: -26, w: 128, h: 26 }, { dmg, kind: 'low', hs: 20, kd: { vx: 2.2, vy: -5 }, special: true });
+        const dmg = Math.round(4 + f.h0 / 12);
+        G.area(f, { x: -64, y: -26, w: 128, h: 26 }, { dmg, kind: 'low', hs: 25, kd: { vx: 1.8, vy: -4 }, special: true });
         G.shake = 12; G.dust(f.x, FLOOR, 22); G.boom(f.x, FLOOR - 6, 0.5);
       }
     },
   },
   slam: {
-    s: 12, a: 1, r: 28, special: true, ult: true, pose: { ...STAND, lean: 18, aF: 100, fF: 95, aB: 30, fB: 90, tF: 30, sF: 10, tB: -26, sB: -26 },
+    s: 17, a: 1, r: 30, special: true, ult: true, pose: { ...STAND, lean: 18, aF: 100, fF: 95, aB: 30, fB: 90, tF: 30, sF: 10, tB: -26, sB: -26 },
     tick(G, f, o) {
-      f.whip = f.mf >= 6 && f.mf <= this.s + 6 ? { tx: f.x + f.face * 70, ty: f.y - 50 } : null;
+      f.whip = f.mf >= 9 && f.mf <= this.s + 6 ? { tx: f.x + f.face * 70, ty: f.y - 50 } : null;
       if (f.mf !== this.s) return;
       G.emit('sfx', { s: 'whip' });
       if (Math.abs(o.x - f.x) < 78 && G.hittable(o) && o.y > FLOOR - 50) {
@@ -190,8 +201,8 @@ export const SP = {
   },
 };
 
-// Порядок ultimate-цикла Lash: 3 удара о землю по 26 кадров.
-const SLAM_CYCLE = 26, SLAM_N = 3, SLAM_DMG = 8;
+// Ульта Lash: 3 удара о землю, цикл SLAM_CYCLE кадров — SLAM_UP вверх, до SLAM_HIT вниз, удар.
+const SLAM_CYCLE = 32, SLAM_UP = 15, SLAM_HIT = 20, SLAM_N = 3, SLAM_DMG = 5;
 
 // ---------- боец ----------
 export class Fighter {
@@ -266,8 +277,8 @@ export class Game {
   }
 
   ko(v) {
-    this.phase = 'ko'; this.pt = 0; this.winnerSide = v.o.side; this.stop = 12; this.flash = 6;
-    if (v.st !== 'grabbed' && v.st !== 'knock') { v.st = 'knock'; v.vy = -4; v.vx = Math.sign(v.x - v.o.x || -v.face) * 2; }
+    this.phase = 'ko'; this.pt = 0; this.winnerSide = v.o.side; this.stop = HITSTOP.ko; this.flash = 6;
+    if (v.st !== 'grabbed' && v.st !== 'knock') { v.st = 'knock'; v.vy = -3.2; v.vx = Math.sign(v.x - v.o.x || -v.face) * 1.6; }
     this.emit('ko'); this.emit('sfx', { s: 'ko' });
   }
   timeUp() {
@@ -328,7 +339,7 @@ export class Game {
       f.aiDash = 0;
       if (dd && grounded && !Dn && !inp.blk) { this.startDash(f, dd); return; }
       if (Up && !inp.blk) {
-        f.st = 'jump'; f.vy = -f.ch.jump; f.vx = (F ? 2.2 : B ? -2.2 : 0) * f.face; f.airUsed = false;
+        f.st = 'jump'; f.vy = -f.ch.jump; f.vx = (F ? JUMP_VX : B ? -JUMP_VX : 0) * f.face; f.airUsed = false;
         this.emit('sfx', { s: 'jump' }); return;
       }
       if (inp.blk) { f.st = Dn ? 'cblock' : 'block'; f.vx = 0; return; }
@@ -345,9 +356,9 @@ export class Game {
           const carry = f.vx * 0.5;
           this.startMove(f, Dn ? { lp: 'clp', hp: 'up', lk: 'clk', hk: 'chk' }[atk] : atk); f.vx = carry; return;
         }
-        f.x += f.vx; f.vx *= 0.9;
-        if (f.dt % 5 === 0) this.dust(f.x - f.face * 6, FLOOR, 2);
-        if (f.dt >= 16) { f.st = 'idle'; f.vx = 0; }
+        f.x += f.vx; f.vx *= DASH.k;
+        if (f.dt % 6 === 0) this.dust(f.x - f.face * 6, FLOOR, 2);
+        if (f.dt >= DASH.n) { f.st = 'idle'; f.vx = 0; }
         return;
       }
       case 'bdash': { // отскок: короткий прыжок назад, первые кадры неуязвим
@@ -394,12 +405,12 @@ export class Game {
         }
         return;
       }
-      case 'down': { f.vx *= 0.8; f.x += f.vx; if (f.t > 38) { f.st = 'getup'; f.t = 0; f.inv = 16; } return; }
-      case 'getup': { if (f.t > 14) { f.st = 'idle'; f.jug = 0; } return; }
+      case 'down': { f.vx *= 0.8; f.x += f.vx; if (f.t > DOWN_T) { f.st = 'getup'; f.t = 0; f.inv = GETUP_INV; } return; }
+      case 'getup': { if (f.t > GETUP_T) { f.st = 'idle'; f.jug = 0; } return; }
       case 'ko': { f.vx *= 0.8; f.x += f.vx; return; }
       case 'pulled': {
-        const d = f.pullTo - f.x; f.x += clamp(d, -9, 9); f.y = Math.min(FLOOR, f.y + 6);
-        if (Math.abs(d) < 1 && f.y >= FLOOR) { f.st = 'dizzy'; f.stun = 32; f.vx = 0; }
+        const d = f.pullTo - f.x; f.x += clamp(d, -7, 7); f.y = Math.min(FLOOR, f.y + 5);
+        if (Math.abs(d) < 1 && f.y >= FLOOR) { f.st = 'dizzy'; f.stun = 40; f.vx = 0; }
         return;
       }
       case 'grabbed': return;
@@ -414,16 +425,16 @@ export class Game {
     if (f.y >= FLOOR) { f.y = FLOOR; if (f.vy > 0) f.vy = 0; }
   }
 
-  startMove(f, name, m = MOVES[name]) {
+  startMove(f, name, m = MV[f.id][name]) {
     f.st = 'atk'; f.mv = m; f.mn = name; f.mf = 0; f.hasHit = false; f.reach = 0; f.whip = null; f.beam = false;
     this.emit('move', { side: f.side, name, s: m.s, a: m.a, r: m.r, dmg: m.dmg || 0 });
     if (!m.air && !m.phys && f.y >= FLOOR) f.vx = 0;
-    this.emit('sfx', { s: m.special ? 'special' : 'swing', heavy: m.dmg >= 9 });
+    this.emit('sfx', { s: m.special ? 'special' : 'swing', heavy: m.dmg >= HEAVY });
   }
   startDash(f, d) {
     f.dt = 0;
-    if (d > 0) { f.st = 'dash'; f.vx = 5.6 * f.face; }
-    else { f.st = 'bdash'; f.vx = -3.4 * f.face; f.vy = -2.8; f.inv = Math.max(f.inv, 8); }
+    if (d > 0) { f.st = 'dash'; f.vx = DASH.v * f.face; }
+    else { f.st = 'bdash'; f.vx = -BDASH.vx * f.face; f.vy = -BDASH.vy; f.inv = Math.max(f.inv, BDASH.inv); }
     this.dust(f.x, FLOOR, 5); this.emit('sfx', { s: 'whoosh' });
   }
   endMove(f, inp = {}) {
@@ -461,15 +472,15 @@ export class Game {
     const o = f.o; f.ct++;
     const k = f.ct % SLAM_CYCLE;
     o.x = clamp(f.x + f.face * 34, WALL_L, WALL_R);
-    o.y = k < 12 ? FLOOR - (k / 12) * 64 : k < 16 ? FLOOR - 64 + ((k - 12) / 4) * 64 : FLOOR;
+    o.y = k < SLAM_UP ? FLOOR - (k / SLAM_UP) * 64 : k < SLAM_HIT ? FLOOR - 64 + ((k - SLAM_UP) / (SLAM_HIT - SLAM_UP)) * 64 : FLOOR;
     o.face = -f.face;
     f.whip = { tx: o.x, ty: o.y - 40 };
-    if (k === 16) {
+    if (k === SLAM_HIT) {
       this.dmg(o, SLAM_DMG); f.meter = Math.min(100, f.meter); f.combo++; this.emit('combo', { side: f.side, n: f.combo });
-      this.shake = 9; this.dust(o.x, FLOOR, 14); this.emit('sfx', { s: 'slam' }); this.stop = 3;
+      this.shake = 9; this.dust(o.x, FLOOR, 14); this.emit('sfx', { s: 'slam' }); this.stop = HITSTOP.light;
     }
     if (f.ct >= SLAM_CYCLE * SLAM_N - 4) {
-      o.st = 'knock'; o.vx = f.face * 3; o.vy = -3; o.y = Math.min(o.y, FLOOR - 1);
+      o.st = 'knock'; o.vx = f.face * 2.4; o.vy = -2.4; o.y = Math.min(o.y, FLOOR - 1);
       f.st = 'atk'; f.mv = SP.slam; f.mf = SP.slam.s + SP.slam.a; f.whip = null;
     }
   }
@@ -517,7 +528,7 @@ export class Game {
     const wb = worldBox(f, hb);
     if (!this.hittable(o) || !overlap(wb, o.rig.box)) return;
     f.hasHit = true;
-    const res = this.applyHit(f, o, { dmg: m.dmg, kind: m.kind, hs: m.hs, kb: m.kb, kd: hb.last ? { vx: 2.4, vy: -4 } : m.kd, special: m.special, multi: m.multi }, wb);
+    const res = this.applyHit(f, o, { dmg: m.special ? m.dmg : m.dmg * (f.ch.power || 1), kind: m.kind, hs: m.hs, kb: m.kb, kd: hb.last ? { vx: 1.9, vy: -3.2 } : m.kd, special: m.special, multi: m.multi }, wb);
     if (res === 'hit') m.onHit?.(this, f, o);
   }
 
@@ -537,6 +548,7 @@ export class Game {
   }
 
   dmg(v, n) {
+    n *= DMG_SCALE;
     v.hp = Math.max(this.opts.training && this.opts.immortal ? 1 : 0, v.hp - n); v.hurtAt = this.frame;
     this.emit('dmg', { side: v.side, n, combo: v.o.combo }); v.meter = Math.min(100, v.meter + n * 0.9); v.o.meter = Math.min(100, v.o.meter + n * 1.25); }
 
@@ -546,8 +558,8 @@ export class Game {
     const dir = Math.sign(v.x - a.x) || a.face;
     if (this.blocks(v, h.kind, a)) {
       if (h.special) this.dmg(v, h.dmg * 0.2);
-      v.bstun = Math.round(h.hs * 0.6); v.vx = dir * Math.max(1.2, (h.kb ?? 2) * 0.9);
-      this.sparks(cx, cy, '#60cde3', 6); this.stop = 3; this.emit('sfx', { s: 'block' });
+      v.bstun = Math.round(h.hs * BLOCK_STUN); v.vx = dir * Math.max(1.2, (h.kb ?? 2) * 0.9);
+      this.sparks(cx, cy, '#60cde3', 6); this.stop = HITSTOP.block; this.emit('sfx', { s: 'block' });
       return 'block';
     }
     const wasHurt = ['hit', 'dizzy', 'knock', 'pulled'].includes(v.st);
@@ -557,12 +569,13 @@ export class Game {
     v.mv = null; v.whip = null; v.reach = 0; v.beam = false; v.nograv = false; v.bstun = 0;
     const air = v.y < FLOOR - 1;
     if (v.hp <= 0 || h.kd || (air && !h.multi)) {
-      v.st = 'knock'; v.vx = dir * (h.kd?.vx ?? 1.8); v.vy = h.kd?.vy ?? -3; v.jug++;
+      v.st = 'knock'; v.vx = dir * (h.kd?.vx ?? 1.5); v.vy = h.kd?.vy ?? -2.4; v.jug++;
     } else { v.st = 'hit'; v.stun = h.hs; v.vx = dir * (h.kb ?? 2); }
-    this.stop = h.special ? 6 : h.dmg >= 9 ? 5 : 3;
-    this.shake = Math.max(this.shake, h.dmg >= 9 ? 5 : 2);
-    this.sparks(cx, cy, h.special ? '#ffe14d' : '#ff8a3d', h.dmg >= 9 ? 14 : 8);
-    this.emit('sfx', { s: h.dmg >= 9 ? 'hitH' : 'hit' });
+    const heavy = h.dmg >= HEAVY;
+    this.stop = h.multi ? 2 : h.special ? HITSTOP.special : heavy ? HITSTOP.heavy : HITSTOP.light;
+    this.shake = Math.max(this.shake, heavy ? 5 : 2);
+    this.sparks(cx, cy, h.special ? '#ffe14d' : '#ff8a3d', heavy ? 14 : 8);
+    this.emit('sfx', { s: heavy ? 'hitH' : 'hit' });
     return 'hit';
   }
 
@@ -575,21 +588,21 @@ export class Game {
         p.x = v.rig.sh.x; p.y = (v.rig.sh.y + v.rig.hip.y) / 2;
         if (--p.fuse <= 0) {
           p.dead = true; this.boom(p.x, p.y, 1);
-          if (!['grabbed', 'ko'].includes(v.st)) this.applyHit(p.owner, v, { dmg: 13, kind: 'unblock', hs: 20, kd: { vx: 2.2, vy: -5 }, special: true }, { x0: p.x - 4, x1: p.x + 4, y0: p.y - 4, y1: p.y + 4 });
+          if (!['grabbed', 'ko'].includes(v.st)) this.applyHit(p.owner, v, { dmg: 10, kind: 'unblock', hs: 25, kd: { vx: 1.8, vy: -4 }, special: true }, { x0: p.x - 4, x1: p.x + 4, y0: p.y - 4, y1: p.y + 4 });
         }
         continue;
       }
-      p.x += p.vx; p.y += p.vy; p.vy += 0.16;
+      p.x += p.vx; p.y += p.vy; p.vy += 0.1;
       const box = { x0: p.x - 5, x1: p.x + 5, y0: p.y - 5, y1: p.y + 5 };
       if (this.hittable(v) && overlap(box, v.rig.box)) {
         if (this.blocks(v, 'mid', p)) { p.dead = true; this.boom(p.x, p.y, 0.4); v.bstun = 10; this.emit('sfx', { s: 'block' }); }
-        else { p.stuck = v; p.fuse = 66; this.emit('sfx', { s: 'stick' }); this.dmg(v, 2); }
+        else { p.stuck = v; p.fuse = 80; this.emit('sfx', { s: 'stick' }); this.dmg(v, 1); }
         continue;
       }
       if (p.y >= FLOOR - 3 || p.x < 0 || p.x > W) {
         p.dead = true; this.boom(p.x, Math.min(p.y, FLOOR - 4), 0.6);
         const near = { x0: p.x - 22, x1: p.x + 22, y0: FLOOR - 30, y1: FLOOR };
-        if (this.hittable(v) && overlap(near, v.rig.box)) this.applyHit(p.owner, v, { dmg: 6, kind: 'mid', hs: 16, kb: 2, special: true }, near);
+        if (this.hittable(v) && overlap(near, v.rig.box)) this.applyHit(p.owner, v, { dmg: 5, kind: 'mid', hs: 20, kb: 2, special: true }, near);
       }
     }
     this.proj = this.proj.filter((p) => !p.dead);
@@ -624,22 +637,22 @@ export class Game {
     const id = f.id, t = this.frame, k = f.af;
     switch (f.st) {
       case 'idle': return clipPose(id, 'idle', t + f.side * 30);
-      case 'walk': return clipPose(id, f.vx * f.face >= 0 ? 'walk_fwd' : 'walk_back', k);
+      case 'walk': return clipPose(id, f.vx * f.face >= 0 ? 'walk_fwd' : 'walk_back', k * 0.78); // шаг в такт скорости ходьбы
       case 'crouch': return clipPose(id, 'crouch', k);
       case 'block': return clipPose(id, 'block', k);
       case 'cblock': return clipPose(id, 'cblock', k);
-      case 'jump': return clipPose(id, 'jump', k);
-      case 'dash': { const p = clipPose(id, 'walk_fwd', k * 2.4); p.lean += 14; p.head -= 6; return p; }
-      case 'bdash': { const p = clipPose(id, 'walk_back', k * 2.4); p.lean -= 8; return p; }
+      case 'jump': return clipPose(id, 'jump', k * ANIMS[id].jump.n * GRAV / (2 * f.ch.jump)); // клип растянут на время полёта
+      case 'dash': { const p = clipPose(id, 'walk_fwd', k * 1.8); p.lean += 14; p.head -= 6; return p; }
+      case 'bdash': { const p = clipPose(id, 'walk_back', k * 1.8); p.lean -= 8; return p; }
       case 'hit': case 'pulled': return clipPose(id, 'hit', k);
       case 'dizzy': case 'lose': return clipPose(id, 'dizzy', k);
       case 'knock': return clipPose(id, 'knock', k);
       case 'grabbed': return clipPose(id, 'knock', 12);
       case 'down': return clipPose(id, 'down', k);
       case 'ko': return clipPose(id, 'down', 0);
-      case 'getup': return clipPose(id, 'getup', k * 22 / 15);
+      case 'getup': return clipPose(id, 'getup', k * 22 / (GETUP_T + 1));
       case 'win': return clipPose(id, 'win', k);
-      case 'ult': return clipPose(id, 'slam_ult', f.ct);
+      case 'ult': return clipPose(id, 'slam_ult', f.ct * 26 / SLAM_CYCLE);
       case 'atk': {
         const m = f.mv, n = f.mn;
         if (n === 'gstrike' && f.mf >= m.s + m.a) return clipPose(id, 'gstrike_land', f.mf - m.s - m.a);

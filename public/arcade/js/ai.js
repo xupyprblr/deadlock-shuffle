@@ -1,11 +1,11 @@
 // Компьютерный соперник: раз в несколько кадров решает, что делать, и «держит» кнопки как игрок.
 // Держит дистанцию своего лучшего удара: подходит ровно настолько, чтобы достать, а не ломится вплотную.
-import { FLOOR, MOVES, HB } from './data.js';
+import { FLOOR, MV, HB } from './data.js';
 
 const LEVELS = {
-  easy: { react: 24, block: 0.15, aa: 0.2, sp: 0.15, agg: 0.45 },
-  normal: { react: 14, block: 0.4, aa: 0.45, sp: 0.3, agg: 0.6 },
-  hard: { react: 7, block: 0.65, aa: 0.7, sp: 0.4, agg: 0.75 },
+  easy: { react: 30, block: 0.15, aa: 0.2, sp: 0.15, agg: 0.45 },
+  normal: { react: 18, block: 0.4, aa: 0.45, sp: 0.3, agg: 0.6 },
+  hard: { react: 10, block: 0.65, aa: 0.7, sp: 0.4, agg: 0.75 },
 };
 const R = Math.random;
 
@@ -15,9 +15,10 @@ const KIT = [
   { n: 'sweep', btn: 'lk', hold: 'back', w: 1.5 }, { n: 'round', btn: 'hk', hold: 'back', w: 1 },
   { n: 'clp', btn: 'lp', hold: 'd', w: 1 }, { n: 'up', btn: 'hp', hold: 'd', w: 1.5 }, { n: 'clk', btn: 'lk', hold: 'd', w: 1 }, { n: 'chk', btn: 'hk', hold: 'd', w: 1 },
 ];
-const POKE = 'lk'; // удар, дистанцию которого компьютер держит
+const POKE = ['lk', 'lp']; // компьютер держит дистанцию самого длинного из этих ударов
+const PUNISH = ['up', 'hk', 'lk', 'lp']; // чем наказывать оглушённого, от сильного к слабому
 // Дальность удара: докуда от точки опоры достаёт зона, с частью шага вперёд.
-export function reach(id, n) { const m = MOVES[n], hb = HB[id]?.[n] || m.hb; return hb.x + hb.w + (m.adv || 0) * 0.7; }
+export function reach(id, n) { const m = MV[id][n], hb = HB[id]?.[n] || m.hb; return hb.x + hb.w + (m.adv || 0) * 0.7; }
 
 export function makeAI(level = 'normal') {
   const L = LEVELS[level] || LEVELS.normal;
@@ -30,7 +31,7 @@ export function makeAI(level = 'normal') {
     const doPress = (btn, held = {}) => { press = { btn, held }; pressT = 2; return { ...held, [btn]: true }; };
     // сколько до ближнего края соперника и с какой дистанции достаёт основной удар
     const gap = f.face > 0 ? o.rig.box.x0 - f.x : f.x - o.rig.box.x1;
-    const pref = reach(f.id, POKE) - 3;
+    const pref = Math.max(...POKE.map((n) => reach(f.id, n))) - 3;
     const near = dist < f.ch.push + o.ch.push + 8; // почти вплотную
 
     if (f.st === 'jump' && !f.airUsed) {
@@ -49,10 +50,15 @@ export function makeAI(level = 'normal') {
     if (f.busy) return {};
     // отклик на атаку соперника — проверяем каждый кадр, но с вероятностью уровня
     const oAtk = (o.st === 'atk' && o.mv && o.mf < o.mv.s + o.mv.a) || G.proj.some((p) => p.owner === o && !p.stuck);
-    if (oAtk && dist < 130 && R() < L.block / 6) { hold = { blk: true, d: o.mv?.kind === 'low' }; holdT = 16; return { ...hold }; }
+    if (oAtk && dist < 130 && R() < L.block / 6) { hold = { blk: true, d: o.mv?.kind === 'low' }; holdT = 20; return { ...hold }; }
     if (o.st === 'jump' && gap < 50 && o.y < FLOOR - 20 && R() < L.aa / 4) return doPress('hp', { d: true });
+    // соперник оглушён и рядом — наказываем сразу самым сильным ударом, который достаёт
+    if (o.st === 'dizzy' && o.stun > 10 && o.stun < 900 && R() < L.block / 2) {
+      const k = PUNISH.map((n) => KIT.find((q) => q.n === n)).find((q) => reach(f.id, q.n) >= gap + 2);
+      if (k) { cd = L.react; return doPress(k.btn, k.hold ? { [k.hold === 'back' ? back : k.hold]: true } : {}); }
+    }
     if (--cd > 0) return {};
-    cd = L.react + Math.floor(R() * 10);
+    cd = L.react + Math.floor(R() * 12);
 
     if (f.meter >= 100 && (f.id === 'bebop' ? dist < 300 : dist < 70) && R() < 0.7) { f.aiSpecial = f.id === 'bebop' ? 'beam' : 'slam'; return {}; }
     const down = ['down', 'getup', 'ko'].includes(o.st);

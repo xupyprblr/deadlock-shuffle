@@ -1,7 +1,7 @@
 // Прогон файтинга «компьютер против компьютера»: нет NaN, раунды заканчиваются, спецприёмы срабатывают.
 import assert from 'node:assert/strict';
 import { Game, matchSeq, minGap } from '../public/arcade/js/engine.js';
-import { MOVES } from '../public/arcade/js/data.js';
+import { MV } from '../public/arcade/js/data.js';
 import { makeAI } from '../public/arcade/js/ai.js';
 
 assert.ok(matchSeq([{ k: 'D', t: 10 }, { k: 'F', t: 14 }], ['D', 'F'], 20));
@@ -57,11 +57,11 @@ console.log('ввод ok');
   const G = new Game('lash', 'bebop'); while (G.phase !== 'fight') G.update([{}, {}]);
   for (const inp of [{ r: true }, {}, {}, { r: true }]) G.update([inp, {}]);
   assert.equal(G.f[0].st, 'dash', 'двойное → не дало рывок');
-  const x0 = G.f[0].x; for (let i = 0; i < 20; i++) G.update([{}, {}]);
+  const x0 = G.f[0].x; for (let i = 0; i < 30; i++) G.update([{}, {}]);
   assert.ok(G.f[0].x - x0 > 30, 'рывок короткий'); assert.equal(G.f[0].st, 'idle');
   for (const inp of [{ l: true }, {}, {}, { l: true }]) G.update([inp, {}]);
   assert.equal(G.f[0].st, 'bdash', 'двойное ← не дало отскок');
-  for (let i = 0; i < 40; i++) G.update([{}, {}]);
+  for (let i = 0; i < 50; i++) G.update([{}, {}]);
   assert.equal(G.f[0].st, 'idle'); assert.equal(G.f[0].y, 196);
   for (const inp of [{ r: true }, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, { r: true }]) G.update([inp, {}]);
   assert.equal(G.f[0].st, 'walk', 'медленное двойное нажатие не должно давать рывок');
@@ -97,7 +97,7 @@ for (const [a, b] of [['bebop', 'lash'], ['lash', 'bebop'], ['bebop', 'bebop'], 
   const G0 = close(), [p, q] = G0.f;
   assert.ok(Math.abs(q.x - p.x - minGap(a, b)) < 1, `${a}-${b}: дистанция ${q.x - p.x}, а нужна ${minGap(a, b)}`);
   assert.ok(p.rig.box.x1 < q.rig.box.x0 - 12, `${a}-${b}: корпуса слишком близко`);
-  for (const [n, m] of Object.entries(MOVES)) {
+  for (const [n, m] of Object.entries(MV[a])) {
     if (m.air) continue;
     const G = close(); let hit = false;
     G.startMove(G.f[0], n);

@@ -1,10 +1,11 @@
 // Ввод: клавиатура (два игрока), геймпады и сенсорные кнопки. Отдаёт «зажатые» кнопки, нажатия считает движок.
+// Кнопок атаки две: p — Рука, k — Нога; blk — Блок. Раскладка одинаковая у клавиатуры, геймпада и сенсора.
 export const KEYMAP = [
-  { l: ['KeyA'], r: ['KeyD'], u: ['KeyW'], d: ['KeyS'], lp: ['KeyJ'], hp: ['KeyU'], lk: ['KeyK'], hk: ['KeyI'], blk: ['Space', 'KeyL'] },
-  { l: ['ArrowLeft'], r: ['ArrowRight'], u: ['ArrowUp'], d: ['ArrowDown'], lp: ['Numpad1', 'Comma'], hp: ['Numpad4', 'Semicolon'], lk: ['Numpad2', 'Period'], hk: ['Numpad5', 'Quote'], blk: ['Numpad0', 'Slash'] },
+  { l: ['KeyA'], r: ['KeyD'], u: ['KeyW'], d: ['KeyS'], p: ['KeyJ'], k: ['KeyK'], blk: ['Space', 'KeyL'] },
+  { l: ['ArrowLeft'], r: ['ArrowRight'], u: ['ArrowUp'], d: ['ArrowDown'], p: ['Numpad1', 'Comma'], k: ['Numpad2', 'Period'], blk: ['Numpad0', 'Numpad3', 'Slash'] },
 ];
 // Подписи кнопок для списка приёмов.
-export const KEYCAP = [{ lp: 'J', hp: 'U', lk: 'K', hk: 'I', blk: 'Пробел' }, { lp: ',', hp: ';', lk: '.', hk: "'", blk: '/' }];
+export const KEYCAP = [{ p: 'J', k: 'K', blk: 'Пробел' }, { p: ',', k: '.', blk: '/' }];
 
 const down = new Set();
 const touch = {};
@@ -28,7 +29,7 @@ function pad(i) {
   const b = (n) => !!gp.buttons[n]?.pressed, ax = gp.axes[0] || 0, ay = gp.axes[1] || 0;
   return {
     l: b(14) || ax < -0.5, r: b(15) || ax > 0.5, u: b(12) || ay < -0.6, d: b(13) || ay > 0.5,
-    lp: b(2), hp: b(3), lk: b(0), hk: b(1), blk: b(4) || b(5) || b(6) || b(7),
+    p: b(2) || b(3), k: b(0) || b(1), blk: b(4) || b(5) || b(6) || b(7), // X/Y — Рука, A/B — Нога, бамперы и курки — Блок
   };
 }
 

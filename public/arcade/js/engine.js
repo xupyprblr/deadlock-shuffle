@@ -1,6 +1,6 @@
 // Движок файтинга: состояния бойцов, физика, попадания, спецприёмы, раунды. Без DOM.
 // Game.update(inputs) — один кадр (1/60 с). События для звука и надписей копятся в game.events.
-import { W, FLOOR, MV, SPECIALS, CHARS, HB, STAND, CROUCH, JUMP, BLOCK, CBLOCK, HIT, DIZZY, KNOCK, DOWN, WIN, BEAM } from './data.js';
+import { W, FLOOR, MV, INPUTS, BTNS, SPECIALS, CHARS, HB } from './data.js';
 import { RIGS } from './rigs.js';
 import { ANIMS, KEYS } from './anims.js';
 
@@ -16,7 +16,7 @@ export const HEAVY = 7;             // удар с таким уроном и в
 const HITSTOP = { light: 5, heavy: 8, special: 9, block: 4, ko: 14 }; // пауза при попадании, кадры
 const BLOCK_STUN = 0.6;             // оглушение в блоке — доля от оглушения при попадании
 const DOWN_T = 46, GETUP_T = 20, GETUP_INV = 20; // лежит, встаёт, неуязвим после подъёма
-const DMG_SCALE = 1;                // общий множитель урона: меньше — бои длиннее
+const DMG_SCALE = 0.85;                // общий множитель урона: меньше — бои длиннее
 // Расталкивание тел. Минимальная дистанция между бойцами — сумма их push из CHARS (у каждого своя ширина: с руками и шаром).
 // PUSH_V — не быстрее стольких px за кадр на бойца (без рывка при приземлении рядом), PUSH_H — на такой разнице высот
 // тела уже не мешают друг другу (перепрыгивание), PUSH_DOWN — доля ширины у лежащего, PUSH_CROUCH — прибавка в приседе.
@@ -31,7 +31,6 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export function blend(a, b, t) { const o = {}; for (const k of KEYS) o[k] = lerp(a[k] || 0, b[k] || 0, t); return o; }
 const FREE = new Set(['idle', 'walk', 'crouch', 'block', 'cblock']);
-const BTN = ['lp', 'hp', 'lk', 'hk'];
 
 // ---------- скелет ----------
 // Кости и гнёзда — с нарисованных частей (rigs.js). Кость корпуса идёт от таза к переднему плечу и на рисунке наклонена
@@ -108,8 +107,7 @@ const overlap = (a, b) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.
 export const HOOK_EXT = 18; // за столько кадров клешня Bebop вылетает на всю длину
 export const SP = {
   hook: {
-    s: 12, a: 28, r: 16, dmg: 6, kind: 'mid', hs: 12, kb: 0, special: true,
-    pose: { ...STAND, lean: 14, aF: 92, fF: 90, aB: 30, fB: 120, tF: 30, sF: 10, tB: -26, sB: -26 },
+    s: 12, a: 28, r: 16, dmg: 5, kind: 'mid', hs: 12, kb: 0, special: true,
     tick(G, f) {
       const k = f.mf - this.s;
       f.reach = k < 0 ? 0 : k < HOOK_EXT ? (k + 1) / HOOK_EXT * 150 : k < this.a ? 150 * (1 - (k - HOOK_EXT) / (this.a - HOOK_EXT)) : 0;
@@ -122,7 +120,7 @@ export const SP = {
     },
   },
   bomb: {
-    s: 14, a: 1, r: 20, special: true, pose: { ...STAND, lean: 10, aF: 150, fF: 120, aB: 60, fB: 140 },
+    s: 14, a: 1, r: 20, special: true,
     tick(G, f) {
       if (f.mf === this.s) {
         G.proj.push({ type: 'bomb', owner: f, x: f.rig.hnB.x, y: f.rig.hnB.y, vx: 2.6 * f.face, vy: -1.9, t: 0, stuck: null, fuse: 0 });
@@ -131,14 +129,13 @@ export const SP = {
     },
   },
   xup: {
-    s: 14, a: 6, r: 30, dmg: 12, kind: 'mid', hs: 36, kb: 1, kd: { vx: 1.6, vy: -6.5 }, special: true, from: CROUCH, to: STAND,
+    s: 14, a: 6, r: 30, dmg: 12, kind: 'mid', hs: 36, kb: 1, kd: { vx: 1.6, vy: -6.5 }, special: true,
     hb: { x: 0, y: -104, w: 34, h: 72 },
-    pose: { ...STAND, lean: 4, head: -10, aF: 175, fF: 178, aB: 40, fB: 150 },
     tick(G, f) { if (f.mf === this.s) { f.vx = 1.8 * f.face; G.boom(f.x + f.face * 18, f.y - 70, 0.6); } },
     onHit(G, f, o) { G.boom((f.x + o.x) / 2, f.y - 60, 1); },
   },
   beam: {
-    s: 40, a: 84, r: 24, dmg: 2, kind: 'mid', hs: 14, kb: 0.5, special: true, ult: true, multi: true, pose: BEAM,
+    s: 40, a: 84, r: 24, dmg: 2, kind: 'mid', hs: 14, kb: 0.5, special: true, ult: true, multi: true,
     tick(G, f) {
       if (f.mf === 1) G.emit('sfx', { s: 'charge' });
       if (f.mf === this.s) { G.emit('sfx', { s: 'beam' }); G.shake = 10; }
@@ -154,7 +151,6 @@ export const SP = {
   grap: {
     s: 10, a: 28, r: 12, dmg: 7, kind: 'mid', hs: 25, kb: 2, kd: { vx: 2, vy: -3.2 }, special: true, phys: true,
     hb: { x: 2, y: -64, w: 32, h: 38 },
-    pose: { ...JUMP, lean: -10, tF: 80, sF: 85, tB: 60, sB: -40, aF: 120, fF: 120 },
     tick(G, f) {
       const k = f.mf - this.s;
       if (k === 0) { f.vx = 5.4 * f.face; f.vy = f.y < FLOOR - 1 ? -0.5 : -1.3; G.emit('sfx', { s: 'whip' }); }
@@ -165,18 +161,17 @@ export const SP = {
     onHit(G, f) { f.mf = this.s + this.a; f.vx = -1.2 * f.face; f.vy = -2; f.nograv = false; },
   },
   flog: {
-    s: 13, a: 5, r: 24, dmg: 5, kind: 'mid', hs: 22, kb: 3, special: true,
+    s: 13, a: 5, r: 24, dmg: 6, kind: 'mid', hs: 22, kb: 3, special: true,
     hb: { x: 12, y: -76, w: 84, h: 34 },
-    pose: { ...STAND, lean: 14, aF: 110, fF: 100, aB: 20, fB: 90, tF: 30, sF: 10, tB: -26, sB: -26 },
     tick(G, f) {
       const k = f.mf - this.s;
       if (f.mf === 6) G.emit('sfx', { s: 'whip' });
       f.whip = k >= -4 && k < this.a + 3 ? { tx: f.x + f.face * (40 + Math.min(1, (k + 5) / 7) * 56), ty: f.y - 60 + Math.sin(k) * 4 } : null;
     },
-    onHit(G, f) { f.hp = Math.min(100, f.hp + 2); G.emit('heal', { side: f.side }); },
+    onHit(G, f) { f.hp = Math.min(100, f.hp + 3); G.emit('heal', { side: f.side }); },
   },
   gstrike: {
-    s: 6, a: 90, r: 22, special: true, phys: true, pose: { ...JUMP, lean: 20, tF: 30, sF: 0, tB: 10, sB: 0, aF: 175, fF: 178, aB: 160, fB: 175 },
+    s: 6, a: 90, r: 22, special: true, phys: true,
     tick(G, f, o) {
       const k = f.mf - this.s;
       if (k === 0) { f.vx = 0; f.vy = 7; f.h0 = FLOOR - f.y; G.emit('sfx', { s: 'whoosh' }); }
@@ -189,7 +184,7 @@ export const SP = {
     },
   },
   slam: {
-    s: 17, a: 1, r: 30, special: true, ult: true, pose: { ...STAND, lean: 18, aF: 100, fF: 95, aB: 30, fB: 90, tF: 30, sF: 10, tB: -26, sB: -26 },
+    s: 17, a: 1, r: 30, special: true, ult: true,
     tick(G, f, o) {
       f.whip = f.mf >= 9 && f.mf <= this.s + 6 ? { tx: f.x + f.face * 70, ty: f.y - 50 } : null;
       if (f.mf !== this.s) return;
@@ -307,7 +302,7 @@ export class Game {
   stepFighter(f, inp) {
     const o = f.o;
     const pr = {};
-    for (const k of ['lp', 'hp', 'lk', 'hk', 'u', 'd', 'l', 'r', 'blk']) { pr[k] = !!inp[k] && !f.prev[k]; }
+    for (const k of [...BTNS, 'u', 'd', 'l', 'r', 'blk']) { pr[k] = !!inp[k] && !f.prev[k]; }
     f.prev = { ...inp };
     const fwd = f.face > 0 ? 'r' : 'l', back = f.face > 0 ? 'l' : 'r';
     if (pr[fwd]) f.buf.push({ k: 'F', t: this.frame });
@@ -315,7 +310,7 @@ export class Game {
     if (pr.d) f.buf.push({ k: 'D', t: this.frame });
     while (f.buf.length && this.frame - f.buf[0].t > 40) f.buf.shift();
     const F = !!inp[fwd], B = !!inp[back], Dn = !!inp.d, Up = !!inp.u;
-    let atk = BTN.find((k) => pr[k]);
+    let atk = BTNS.find((k) => pr[k]);
     if (f.ai) { atk = f.ai.press || atk; f.ai.press = null; }
     if (f.inv > 0) f.inv--;
     f.t++;
@@ -327,13 +322,7 @@ export class Game {
       f.face = o.x >= f.x ? 1 : -1;
       if (f.aiSpecial) { const id = f.aiSpecial; f.aiSpecial = null; if (this.startSpecial(f, id)) return; }
       if (atk && this.trySpecial(f, atk, inp, false)) return;
-      if (atk) {
-        let m;
-        if (Dn) m = { lp: 'clp', hp: 'up', lk: 'clk', hk: 'chk' }[atk];
-        else if (B && (atk === 'lk' || atk === 'hk')) m = atk === 'lk' ? 'sweep' : 'round';
-        else m = atk;
-        this.startMove(f, m); return;
-      }
+      if (atk) { this.startMove(f, ground(atk, F, B, Dn)); return; }
       // двойное нажатие →→ — рывок к сопернику, ←← — отскок назад (как в МК)
       const dd = f.aiDash || (pr[fwd] && dbl(f.buf, 'F') ? 1 : pr[back] && dbl(f.buf, 'B') ? -1 : 0);
       f.aiDash = 0;
@@ -353,8 +342,8 @@ export class Game {
         f.dt++;
         if (atk) {
           if (this.trySpecial(f, atk, inp, false)) return;
-          const carry = f.vx * 0.5;
-          this.startMove(f, Dn ? { lp: 'clp', hp: 'up', lk: 'clk', hk: 'chk' }[atk] : atk); f.vx = carry; return;
+          const carry = f.vx * 0.5; // удар из рывка сохраняет часть разгона
+          this.startMove(f, ground(atk, F, B, Dn)); f.vx = carry; return;
         }
         f.x += f.vx; f.vx *= DASH.k;
         if (f.dt % 6 === 0) this.dust(f.x - f.face * 6, FLOOR, 2);
@@ -369,7 +358,7 @@ export class Game {
       case 'jump': {
         if (atk && !f.airUsed) {
           if (this.trySpecial(f, atk, inp, true)) return;
-          f.airUsed = true; this.startMove(f, atk === 'lp' || atk === 'hp' ? 'jp' : 'jk'); return;
+          f.airUsed = true; this.startMove(f, INPUTS[atk].air); return;
         }
         this.physics(f);
         if (f.y >= FLOOR && f.vy >= 0) { f.st = 'idle'; f.vx = 0; this.dust(f.x, FLOOR, 4); }
@@ -427,7 +416,7 @@ export class Game {
 
   startMove(f, name, m = MV[f.id][name]) {
     f.st = 'atk'; f.mv = m; f.mn = name; f.mf = 0; f.hasHit = false; f.reach = 0; f.whip = null; f.beam = false;
-    this.emit('move', { side: f.side, name, s: m.s, a: m.a, r: m.r, dmg: m.dmg || 0 });
+    this.emit('move', { side: f.side, name, s: m.s, a: m.a, r: m.r, dmg: (m.dmg || 0) * (m.special ? 1 : f.ch.power || 1) * DMG_SCALE }); // урон — как его получит соперник
     if (!m.air && !m.phys && f.y >= FLOOR) f.vx = 0;
     this.emit('sfx', { s: m.special ? 'special' : 'swing', heavy: m.dmg >= HEAVY });
   }
@@ -440,7 +429,7 @@ export class Game {
   endMove(f, inp = {}) {
     const m = f.mv; f.mv = null; f.reach = 0; f.whip = null; f.beam = false; f.nograv = false;
     if (f.y < FLOOR) { f.st = 'jump'; f.airUsed = true; return; }
-    f.st = m && m.crouch && m.to !== STAND && inp.d ? 'crouch' : 'idle';
+    f.st = m && m.crouch && !m.stand && inp.d ? 'crouch' : 'idle';
   }
   trySpecial(f, btn, inp, air) {
     for (const sp of SPECIALS[f.id]) {
@@ -670,12 +659,23 @@ function dbl(buf, k) {
   return a.k === k && b.k === k && b.t - a.t <= 12;
 }
 
+// Комбинация спецприёма: направления набраны подряд, не дальше SEQ_GAP кадров друг от друга и от кнопки,
+// и последнее нажатое направление — последнее в комбинации (иначе ходьба и приседания давали бы приёмы случайно).
+const SEQ_GAP = 16;
 export function matchSeq(buf, seq, now) {
+  const n = buf.length;
+  if (!n || buf[n - 1].k !== seq[seq.length - 1]) return false;
   let i = seq.length - 1, last = now;
-  for (let j = buf.length - 1; j >= 0 && i >= 0; j--) {
+  for (let j = n - 1; j >= 0 && i >= 0; j--) {
     const e = buf[j];
-    if (last - e.t > 16) break;
+    if (last - e.t > SEQ_GAP) break;
     if (e.k === seq[i]) { i--; last = e.t; }
   }
   return i < 0;
+}
+
+// Обычный удар с земли по кнопке и направлению (INPUTS в data.js): вниз важнее, чем вперёд и назад.
+function ground(btn, F, B, Dn) {
+  const t = INPUTS[btn];
+  return (Dn && t.d) || (F && t.f) || (B && t.b) || t.n;
 }

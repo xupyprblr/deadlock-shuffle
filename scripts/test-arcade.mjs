@@ -31,25 +31,73 @@ for (const [a, b] of [['bebop', 'lash'], ['lash', 'bebop'], ['bebop', 'bebop'], 
   }
 }
 console.log('матчей:', matches, '\nприёмы:', used, '\nзвуки:', Object.keys(sfx).join(' '));
-for (const id of ['Hyper Beam', 'Grapple Arm', 'Sticky Bomb', 'Exploding Uppercut', 'Death Slam', 'Grapple', 'Flog']) assert.ok(Object.keys(used).some((k) => k.endsWith(id)), `не сработал ${id}`);
+for (const id of ['Hyper Beam', 'Grapple Arm', 'Sticky Bomb', 'Exploding Uppercut', 'Death Slam', 'Grapple', 'Flog', 'Ground Strike']) assert.ok(Object.keys(used).some((k) => k.endsWith(id)), `не сработал ${id}`);
 console.log('ok');
 
-// Ввод игрока: ↓ → + верхний рукой у Bebop (смотрит вправо) — липкая бомба; ← → + нижний рукой — рука-захват.
-function play(seq, id = 'bebop') {
+// Ввод игрока. Кнопок атаки две: p — Рука, k — Нога. Боец слева смотрит вправо: r — «к сопернику», l — «от него».
+function play(seq, id = 'bebop', meter = 0) {
   const G = new Game(id, 'lash');
   while (G.phase !== 'fight') G.update([{}, {}]);
-  const names = [];
-  for (const inp of seq) { G.update([inp, {}]); for (const e of G.events) if (e.type === 'special') names.push(e.name); G.events.length = 0; }
-  return { G, names };
+  G.f[0].meter = meter;
+  const names = [], moves = [];
+  for (const inp of seq) { G.update([inp, {}]); for (const e of G.events) { if (e.type === 'special') names.push(e.name); if (e.type === 'move' && e.side === 0) moves.push(e.name); } G.events.length = 0; }
+  return { G, names, moves };
 }
 const fr = (o, n = 1) => Array(n).fill(o);
-assert.deepEqual(play([...fr({ d: true }, 3), ...fr({ d: true, r: true }, 2), ...fr({ r: true, hp: true }, 2), ...fr({}, 5)]).names, ['Sticky Bomb']);
-assert.deepEqual(play([...fr({ l: true }, 3), ...fr({ r: true }, 2), ...fr({ r: true, lp: true }, 2), ...fr({}, 5)]).names, ['Grapple Arm']);
-assert.deepEqual(play([...fr({ r: true }, 2), {}, ...fr({ r: true }, 2), ...fr({ r: true, hp: true }, 2), ...fr({}, 5)]).names, ['Exploding Uppercut']);
-// апперкот: присед + верхний рукой
-{ const { G } = play([...fr({ d: true }, 3), ...fr({ d: true, hp: true }, 2)]); assert.equal(G.f[0].mn, 'up'); }
-// Ground Strike у Lash: прыжок, затем ↓ + верхний ногой
-assert.deepEqual(play([...fr({ u: true }, 2), ...fr({}, 12), ...fr({ d: true, hk: true }, 2), ...fr({}, 40)], 'lash').names, ['Ground Strike']);
+const tail = fr({}, 6);
+const D = { d: true }, Rt = { r: true }, Lt = { l: true };
+// обычные удары: кнопка + направление
+for (const [inp, want] of [[{ p: true }, 'p'], [{ k: true }, 'k'], [{ r: true, p: true }, 'fp'], [{ r: true, k: true }, 'fk'], [{ d: true, p: true }, 'up'],
+  [{ d: true, k: true }, 'sweep'], [{ l: true, k: true }, 'round'], [{ l: true, p: true }, 'p'], [{ d: true, r: true, p: true }, 'up'], [{ d: true, l: true, k: true }, 'sweep']]) {
+  const hold = { ...inp }; delete hold.p; delete hold.k;
+  for (const id of ['bebop', 'lash']) {
+    const { moves, names } = play([...fr(hold, 30), ...fr(inp, 2), ...tail], id);
+    assert.deepEqual(moves, [want], `${id}: ${JSON.stringify(inp)} дал ${moves}, а нужен ${want}`);
+    assert.deepEqual(names, [], `${id}: ${JSON.stringify(inp)} случайно дал спецприём ${names}`);
+  }
+}
+// удары в прыжке
+assert.deepEqual(play([...fr({ u: true }, 2), ...fr({}, 14), ...fr({ p: true }, 2), ...tail]).moves, ['jp']);
+assert.deepEqual(play([...fr({ u: true }, 2), ...fr({}, 14), ...fr({ k: true }, 2), ...tail]).moves, ['jk']);
+// спецприёмы Bebop
+assert.deepEqual(play([...fr(Lt, 3), ...fr(Rt, 2), ...fr({ r: true, p: true }, 2), ...tail]).names, ['Grapple Arm']);
+assert.deepEqual(play([...fr(D, 3), ...fr({ d: true, r: true }, 2), ...fr({ r: true, p: true }, 2), ...tail]).names, ['Sticky Bomb']);
+assert.deepEqual(play([...fr(D, 3), ...fr({}, 2), ...fr(D, 2), ...fr({ d: true, p: true }, 2), ...tail]).names, ['Exploding Uppercut']);
+assert.deepEqual(play([...fr(D, 3), ...fr({}, 2), ...fr(D, 2), ...fr(Rt, 2), ...fr({ r: true, p: true }, 2), ...tail], 'bebop', 100).names, ['Hyper Beam']);
+assert.deepEqual(play([...fr(D, 3), ...fr({}, 2), ...fr(D, 2), ...fr(Rt, 2), ...fr({ r: true, p: true }, 2), ...tail], 'bebop', 50).names, ['Sticky Bomb'], 'без шкалы ↓↓→+Рука — обычная бомба');
+// спецприёмы Lash
+assert.deepEqual(play([...fr(Lt, 3), ...fr(Rt, 2), ...fr({ r: true, k: true }, 2), ...tail], 'lash').names, ['Grapple']);
+assert.deepEqual(play([...fr(D, 3), ...fr({ d: true, r: true }, 2), ...fr({ r: true, p: true }, 2), ...tail], 'lash').names, ['Flog']);
+assert.deepEqual(play([...fr({ u: true }, 2), ...fr({}, 16), ...fr({ d: true, k: true }, 2), ...fr({}, 40)], 'lash').names, ['Ground Strike']);
+assert.deepEqual(play([...fr({ u: true }, 2), ...fr({}, 10), ...fr(Lt, 2), ...fr(Rt, 2), ...fr({ r: true, k: true }, 2), ...tail], 'lash').names, ['Grapple'], 'Grapple в прыжке');
+{ const G0 = play([...fr(D, 3), ...fr({}, 2), ...fr(D, 2), ...fr(Rt, 2)], 'lash', 100).G; // ульта Lash рядом с соперником
+  const G = new Game('lash', 'bebop'); while (G.phase !== 'fight') G.update([{}, {}]);
+  for (let i = 0; i < 200; i++) G.update([Rt, {}]);
+  for (let i = 0; i < 20; i++) G.update([{}, {}]);
+  G.f[0].meter = 100; G.events.length = 0; const names = [];
+  for (const inp of [...fr(D, 3), ...fr({}, 2), ...fr(D, 2), ...fr(Rt, 2), ...fr({ r: true, p: true }, 2), ...tail]) { G.update([inp, {}]); for (const e of G.events) if (e.type === 'special') names.push(e.name); G.events.length = 0; }
+  assert.deepEqual(names, ['Death Slam']); assert.ok(G0); }
+// случайных срабатываний нет: приём выходит, только если направления набраны только что и последнее — как в комбинации
+for (const id of ['bebop', 'lash']) for (const btn of ['p', 'k']) {
+  const fwdMove = btn === 'p' ? 'fp' : 'fk';
+  const cases = {
+    'шёл назад, потом долго вперёд': [...fr(Lt, 30), ...fr(Rt, 24), ...fr({ r: true, [btn]: true }, 2), ...tail],
+    'сидел, встал, шаг вперёд': [...fr(D, 40), ...fr({}, 20), ...fr(Rt, 3), ...fr({ r: true, [btn]: true }, 2), ...tail],
+    'долго сидел, потом вперёд': [...fr(D, 40), ...fr(Rt, 3), ...fr({ r: true, [btn]: true }, 2), ...tail],
+    'рывок и удар': [...fr(Rt, 2), ...fr({}, 2), ...fr(Rt, 3), ...fr({ r: true, [btn]: true }, 2), ...tail],
+  };
+  for (const [what, seq] of Object.entries(cases)) {
+    const { moves, names } = play(seq, id);
+    assert.deepEqual(names, [], `${id}, ${btn}: «${what}» случайно дал ${names}`);
+    assert.deepEqual(moves, [fwdMove], `${id}, ${btn}: «${what}» дал ${moves}`);
+  }
+  // последнее направление не из комбинации: ← → ↓ + кнопка — это удар из приседа, а не приём
+  const r = play([...fr(Lt, 3), ...fr(Rt, 3), ...fr(D, 3), ...fr({ d: true, [btn]: true }, 2), ...tail], id);
+  assert.deepEqual(r.names, [], `${id}, ${btn}: ← → ↓ дал ${r.names}`);
+  assert.deepEqual(r.moves, [btn === 'p' ? 'up' : 'sweep']);
+  // долго сидел и ударил рукой — обычный апперкот, а не взрывной
+  assert.deepEqual(play([...fr(D, 40), ...fr({ d: true, [btn]: true }, 2), ...tail], id).names, []);
+}
 console.log('ввод ok');
 
 // Рывок и отскок: двойное нажатие в одну сторону; одиночное — обычная ходьба.

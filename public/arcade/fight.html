@@ -14,7 +14,6 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:wght@800&family=Jost:wght@400;500;600;800&family=Rubik:wght@700;900&display=swap">
   <link rel="stylesheet" href="css/arcade.css">
   <title>Подвальный бой — RANDOMLOCK</title>
-  <!-- Прототип файтинга. Бойцы пока нарисованы примитивами; спрайты появятся после генерации референсов. -->
 </head>
 <body>
   <div class="wrap">
@@ -42,14 +41,13 @@
       <div class="touch" id="touch">
         <div class="dpad" data-pad></div>
         <div class="tbtns">
-          <button data-btn="hp">В.рука</button><button data-btn="hk">В.нога</button><button data-btn="blk">Блок</button>
-          <button data-btn="lp">Н.рука</button><button data-btn="lk">Н.нога</button>
+          <button data-btn="blk">Блок</button><button data-btn="p">Рука</button><button data-btn="k">Нога</button>
         </div>
       </div>
     </div>
     <div class="trainbar" id="trainbar" hidden></div>
     <div class="below">
-      <div class="keys"><kbd>A</kbd><kbd>D</kbd> ходьба · <kbd>W</kbd> прыжок · <kbd>S</kbd> присед · <kbd>J</kbd> <kbd>U</kbd> рука · <kbd>K</kbd> <kbd>I</kbd> нога · <kbd>Пробел</kbd> блок · <kbd>Esc</kbd> пауза. Геймпад тоже работает.</div>
+      <div class="keys"><kbd>A</kbd><kbd>D</kbd> ходьба · <kbd>W</kbd> прыжок · <kbd>S</kbd> присед · <kbd>J</kbd> рука · <kbd>K</kbd> нога · <kbd>Пробел</kbd> блок · <kbd>Esc</kbd> пауза. Геймпад тоже работает.</div>
       <div><button class="tool" id="snd">Звук: вкл</button> <button class="tool" id="dbg">Зоны ударов</button></div>
     </div>
     <section class="moves" id="moves"></section>

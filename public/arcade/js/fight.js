@@ -80,7 +80,7 @@ function showSelect() {
     <div class="pick"><h3>${{ cpu: 'Компьютер', pvp: 'Игрок 2', train: 'Манекен' }[prefs.mode]}</h3><div class="heroes">${heroBtns(1)}</div></div></div>
     <div class="opts">${seg('mode', [['cpu', 'Против компьютера'], ['pvp', 'Два игрока'], ['train', 'Тренировка']])}${prefs.mode === 'cpu' ? seg('level', [['easy', 'Легко'], ['normal', 'Нормально'], ['hard', 'Сложно']]) : ''}</div>
     <button class="btn" data-act="start">${prefs.mode === 'train' ? 'На тренировку' : 'В бой'}</button>
-    <div class="hint">${prefs.mode === 'train' ? 'Манекен не атакует, таймер стоит, здоровье восстанавливается. Настройки — под экраном.' : prefs.mode === 'pvp' ? 'Игрок 2: стрелки, <kbd>,</kbd> <kbd>;</kbd> рука, <kbd>.</kbd> <kbd>\'</kbd> нога, <kbd>/</kbd> блок — или второй геймпад.' : 'Enter — начать. Одинаковые герои — второй в другой раскраске.'}</div></div>`);
+    <div class="hint">${prefs.mode === 'train' ? 'Манекен не атакует, таймер стоит, здоровье восстанавливается. Настройки — под экраном.' : prefs.mode === 'pvp' ? 'Игрок 2: стрелки, <kbd>,</kbd> рука, <kbd>.</kbd> нога, <kbd>/</kbd> блок — или второй геймпад.' : 'Enter — начать. Одинаковые герои — второй в другой раскраске.'}</div></div>`);
   renderMoves();
 }
 function menu(html) { const m = $('menu'); m.innerHTML = html; m.classList.toggle('on', !!html); }
@@ -125,7 +125,7 @@ function msg(text, sub = '', ms = 1200) {
   m.innerHTML = `${text}${sub ? `<small>${sub}</small>` : ''}`; m.classList.add('show');
   if (ms) msgT = setTimeout(() => m.classList.remove('show'), ms);
 }
-const plural = (n) => n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'удара' : 'ударов';
+const plural = (n) => n % 10 === 1 && n % 100 !== 11 ? 'удар' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'удара' : 'ударов';
 function combo(side, html) { const c = $('cb' + side); c.classList.remove('show'); void c.offsetWidth; c.innerHTML = html; c.classList.add('show'); }
 
 function handle(e) {
@@ -159,7 +159,7 @@ function dummy() {
 }
 const T = { last: 0, total: 0, hits: 0, at: -999, move: '' };
 function resetInfo() { Object.assign(T, { last: 0, total: 0, hits: 0, at: -999, move: '' }); }
-const MOVE_NAMES = { lp: 'Н. рука', hp: 'В. рука', lk: 'Н. нога', hk: 'В. нога', round: 'Разворот', sweep: 'Подсечка', clp: 'Рука из приседа', up: 'Апперкот', clk: 'Н. нога из приседа', chk: 'В. нога из приседа', jp: 'Рука в прыжке', jk: 'Нога в прыжке' };
+const MOVE_NAMES = { p: 'Рука', k: 'Нога', fp: 'Выпад', fk: 'Низкий удар с шагом', up: 'Апперкот', sweep: 'Подсечка', round: 'Удар с разворота', jp: 'Рука в прыжке', jk: 'Нога в прыжке' };
 function moveName(n) { return MOVE_NAMES[n] || Object.values(SPECIALS).flat().find((s) => s.id === n)?.name || n; }
 const fmt = (n) => (Math.round(n * 10) / 10).toString().replace('.', ',');
 function trainEvent(e) {
@@ -234,24 +234,28 @@ function loop(ts) {
 
 // ---------- список приёмов ----------
 const ARROW = { F: '→', B: '←', D: '↓', U: '↑' };
-const BTN_NAME = { lp: 'Н. рука', hp: 'В. рука', lk: 'Н. нога', hk: 'В. нога' };
-function keyFor(b) { return `<kbd>${KEYCAP[0][b]}</kbd>`; }
+// На сенсорном экране клавиш нет — в списке приёмов показываем названия кнопок.
+const TOUCH = window.matchMedia?.('(pointer: coarse)').matches;
+const BTN_NAME = { p: 'Рука', k: 'Нога', blk: 'Блок' };
+function keyFor(b) { return `<kbd>${TOUCH ? BTN_NAME[b] : KEYCAP[0][b]}</kbd>`; }
+const named = (b) => (TOUCH ? keyFor(b) : `${keyFor(b)} ${BTN_NAME[b]}`);
 function renderMoves() {
   const ids = [...new Set([prefs.p1, prefs.p2])];
   const base = `<div class="mcol"><h3>Базовые удары</h3><dl class="base">
-    <dt>${keyFor('lp')} ${keyFor('hp')}</dt><dd>Нижний и верхний удар рукой. Верхний проходит над присевшим.</dd>
-    <dt>${keyFor('lk')} ${keyFor('hk')}</dt><dd>Нижний и верхний удар ногой.</dd>
-    <dt>↓ + ${keyFor('hp')}</dt><dd>Апперкот — сбивает с ног.</dd>
-    <dt>↓ + ${keyFor('lp')} / ${keyFor('lk')} / ${keyFor('hk')}</dt><dd>Удары из приседа. Ногами — низкие, их держит только блок в приседе.</dd>
-    <dt>← + ${keyFor('lk')}</dt><dd>Подсечка.</dd>
-    <dt>← + ${keyFor('hk')}</dt><dd>Удар с разворота — сбивает с ног.</dd>
+    <dt>${named('p')}</dt><dd>Быстрый удар рукой.</dd>
+    <dt>${named('k')}</dt><dd>Удар ногой: медленнее, но достаёт дальше.</dd>
+    <dt>→ + ${keyFor('p')}</dt><dd>Выпад: удар рукой с шагом вперёд — так сближаются.</dd>
+    <dt>→ + ${keyFor('k')}</dt><dd>Низкий удар с шагом вперёд. Держит только блок в приседе.</dd>
+    <dt>↓ + ${keyFor('p')}</dt><dd>Апперкот — сбивает с ног.</dd>
+    <dt>↓ + ${keyFor('k')}</dt><dd>Подсечка — низкая, сбивает с ног.</dd>
+    <dt>← + ${keyFor('k')}</dt><dd>Удар с разворота — медленный и сильный, сбивает с ног.</dd>
     <dt>В прыжке</dt><dd>Рука или нога сверху — держит только стоячий блок.</dd>
     <dt>→ → / ← ←</dt><dd>Двойное нажатие: рывок к сопернику или отскок назад (в начале отскока неуязвим). Из рывка можно сразу ударить.</dd>
-    <dt>${keyFor('blk')}</dt><dd>Блок; с ↓ — блок в приседе. Спецприёмы через блок снимают немного здоровья.</dd>
+    <dt>${named('blk')}</dt><dd>С ↓ — блок в приседе. Спецприёмы через блок снимают немного здоровья.</dd>
     </dl><p class="hint">→ — к сопернику, ← — от него. Шкала под здоровьем копится от ударов; полная открывает ульту.</p></div>`;
   const col = (id) => `<div class="mcol"><h3><img src="${ICON}heroes/${CHARS[id].small}" alt="">${CHARS[id].name}</h3>${SPECIALS[id].map((s) => `
     <div class="mrow"><img src="${ICON}abilities/${s.icon}" alt=""><b>${s.name}${s.ult ? '<span class="ult">ульта</span>' : ''}<small>${s.desc}</small></b>
-    <span class="in">${s.hold ? 'прыжок, ↓' : s.seq.map((k) => ARROW[k]).join(' ')} + ${keyFor(s.btn)}</span></div>`).join('')}</div>`;
+    <span class="in">${s.hold ? 'в прыжке ↓' : s.seq.map((k) => ARROW[k]).join(' ')} + ${keyFor(s.btn)}</span></div>`).join('')}</div>`;
   $('moves').innerHTML = base + ids.map(col).join('');
 }
 

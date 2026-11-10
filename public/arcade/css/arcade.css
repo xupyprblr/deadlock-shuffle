@@ -126,17 +126,18 @@ kbd { display: inline-block; min-width: 1.6em; padding: 1px 6px; border: 1px sol
 .dpad::before { left: 38%; right: 38%; top: 12%; bottom: 12%; } .dpad::after { top: 38%; bottom: 38%; left: 12%; right: 12%; }
 .dpad[data-dir*="l"]::after { box-shadow: inset 30px 0 0 var(--orange); } .dpad[data-dir*="r"]::after { box-shadow: inset -30px 0 0 var(--orange); }
 .dpad[data-dir*="u"]::before { box-shadow: inset 0 30px 0 var(--orange); } .dpad[data-dir*="d"]::before { box-shadow: inset 0 -30px 0 var(--orange); }
-.tbtns { display: grid; grid-template-columns: repeat(3, 58px); grid-template-rows: 58px 58px; gap: 8px; }
-.tbtns button { border-radius: 50%; border: 2px solid var(--line); background: #2a2622; color: var(--fg); font: 900 12px var(--f-tag); touch-action: none; }
+.tbtns { display: grid; grid-template-columns: 60px 76px; grid-template-rows: 76px 76px; grid-template-areas: "blk p" "blk k"; gap: 10px; }
+.tbtns button { border-radius: 50%; border: 2px solid var(--line); background: #2a2622; color: var(--fg); font: 900 14px var(--f-tag); text-transform: uppercase; touch-action: none; }
 .tbtns button.on { background: var(--orange); color: var(--ink); }
-.tbtns [data-btn="blk"] { grid-row: span 2; border-radius: 30px; background: #1d2a2c; }
+.tbtns [data-btn="blk"] { grid-area: blk; border-radius: 30px; background: #1d2a2c; font-size: 12px; }
+.tbtns [data-btn="p"] { grid-area: p; } .tbtns [data-btn="k"] { grid-area: k; }
 @media (orientation: landscape) and (pointer: coarse) and (max-height: 520px) {
   .wrap { padding: 4px 8px; } .top, .moves, .below { display: none; }
   .play-area { display: grid; grid-template-columns: 150px 1fr 200px; align-items: center; gap: 8px; }
   .play-area .touch { display: contents; }
   .play-area .dpad { order: -1; }
   .cab { justify-self: center; width: min(calc(100vw - 380px), calc((96vh - 28px) * 16 / 9)); padding: 4px; }
-  .play-area .tbtns { grid-template-columns: repeat(3, 52px); grid-template-rows: 52px 52px; }
+  .play-area .tbtns { grid-template-columns: 56px 68px; grid-template-rows: 68px 68px; justify-self: center; }
 }
 
 /* тренировка */

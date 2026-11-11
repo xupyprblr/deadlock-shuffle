@@ -98,6 +98,14 @@ for (const id of ['bebop', 'lash']) for (const btn of ['p', 'k']) {
   // долго сидел и ударил рукой — обычный апперкот, а не взрывной
   assert.deepEqual(play([...fr(D, 40), ...fr({ d: true, [btn]: true }, 2), ...tail], id).names, []);
 }
+// буфер удара: нажал за несколько кадров до конца прошлого удара — следующий удар выходит сам; нажал слишком рано — нет
+{
+  const total = 6 + 3 + 10; // замах, удар и возврат «Руки» у Lash
+  const late = play([...fr({ p: true }, 2), ...fr({}, total - 7), ...fr({ k: true }, 2), ...fr({}, 12)], 'lash');
+  assert.deepEqual(late.moves, ['p', 'k'], `буфер удара: ${late.moves}`);
+  const early = play([...fr({ p: true }, 2), ...fr({}, 3), ...fr({ k: true }, 2), ...fr({}, 30)], 'lash');
+  assert.deepEqual(early.moves, ['p'], `раннее нажатие не должно давать второй удар: ${early.moves}`);
+}
 console.log('ввод ok');
 
 // Рывок и отскок: двойное нажатие в одну сторону; одиночное — обычная ходьба.

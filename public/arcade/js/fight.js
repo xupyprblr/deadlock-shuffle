@@ -2,7 +2,7 @@
 import { CHARS, SPECIALS } from './data.js';
 import { Game } from './engine.js';
 import { render, loadArt } from './render.js';
-import { initInput, readInput, bindTouch, setSolo, KEYCAP } from './input.js';
+import { initInput, readInput, endFrame, bindTouch, setSolo, KEYCAP } from './input.js';
 import { makeAI } from './ai.js';
 import { markDev, NS } from '../../js/env.js';
 
@@ -223,7 +223,9 @@ function loop(ts) {
     acc += dt;
     while (acc >= STEP) {
       const inputs = [readInput(0), ai ? ai(G, G.f[1]) : readInput(1)];
+      const frozen = G.stop > 0; // во время паузы от удара движок ввод не читает — короткое нажатие придержим до её конца
       G.update(inputs);
+      if (!frozen) endFrame();
       for (const e of G.events) { handle(e); trainEvent(e); }
       G.events.length = 0;
       acc -= STEP;

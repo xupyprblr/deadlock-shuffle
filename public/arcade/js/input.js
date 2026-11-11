@@ -1,4 +1,5 @@
 // Ввод: клавиатура (два игрока), геймпады и сенсорные кнопки. Отдаёт «зажатые» кнопки, нажатия считает движок.
+// Короткое нажатие не теряется: оно запоминается (tapped, touchTap) и держится до конца кадра игры, который его прочитал.
 // Кнопок атаки две: p — Рука, k — Нога; blk — Блок. Раскладка одинаковая у клавиатуры, геймпада и сенсора.
 export const KEYMAP = [
   { l: ['KeyA'], r: ['KeyD'], u: ['KeyW'], d: ['KeyS'], p: ['KeyJ'], k: ['KeyK'], blk: ['Space', 'KeyL'] },
@@ -7,8 +8,8 @@ export const KEYMAP = [
 // Подписи кнопок для списка приёмов.
 export const KEYCAP = [{ p: 'J', k: 'K', blk: 'Пробел' }, { p: ',', k: '.', blk: '/' }];
 
-const down = new Set();
-const touch = {};
+const down = new Set(), tapped = new Set();
+const touch = {}, touchTap = {};
 let solo = true; // в одиночной игре стрелки тоже управляют первым игроком
 
 export function initInput(target = window) {
@@ -16,12 +17,14 @@ export function initInput(target = window) {
     if (e.target && /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
     const all = KEYMAP.flatMap((m) => Object.values(m).flat());
     if (all.includes(e.code)) e.preventDefault();
-    down.add(e.code);
+    down.add(e.code); if (!e.repeat) tapped.add(e.code);
   });
   target.addEventListener('keyup', (e) => down.delete(e.code));
-  window.addEventListener('blur', () => down.clear());
+  window.addEventListener('blur', () => { down.clear(); endFrame(); });
 }
 export function setSolo(v) { solo = v; }
+// Вызывается после кадра игры, который прочитал ввод: запомненные короткие нажатия больше не нужны.
+export function endFrame() { tapped.clear(); for (const k in touchTap) touchTap[k] = false; }
 
 function pad(i) {
   const gp = navigator.getGamepads?.()[i];
@@ -36,10 +39,10 @@ function pad(i) {
 export function readInput(side) {
   const o = {};
   const maps = solo && side === 0 ? [KEYMAP[0], KEYMAP[1]] : [KEYMAP[side]];
-  for (const m of maps) for (const k in m) if (m[k].some((c) => down.has(c))) o[k] = true;
+  for (const m of maps) for (const k in m) if (m[k].some((c) => down.has(c) || tapped.has(c))) o[k] = true;
   const p = pad(side);
   if (p) for (const k in p) if (p[k]) o[k] = true;
-  if (side === 0) for (const k in touch) if (touch[k]) o[k] = true;
+  if (side === 0) { for (const k in touch) if (touch[k]) o[k] = true; for (const k in touchTap) if (touchTap[k]) o[k] = true; }
   return o;
 }
 export const anyKey = () => down.size > 0;
@@ -59,7 +62,7 @@ export function bindTouch(root) {
   padEl.addEventListener('pointerup', clear); padEl.addEventListener('pointercancel', clear);
   for (const btn of root.querySelectorAll('[data-btn]')) {
     const k = btn.dataset.btn;
-    btn.addEventListener('pointerdown', (e) => { touch[k] = true; btn.classList.add('on'); btn.setPointerCapture(e.pointerId); e.preventDefault(); });
+    btn.addEventListener('pointerdown', (e) => { touch[k] = true; touchTap[k] = true; btn.classList.add('on'); btn.setPointerCapture(e.pointerId); e.preventDefault(); });
     const up = () => { touch[k] = false; btn.classList.remove('on'); };
     btn.addEventListener('pointerup', up); btn.addEventListener('pointercancel', up);
   }

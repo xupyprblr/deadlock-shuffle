@@ -16,7 +16,8 @@ export const HEAVY = 7;             // удар с таким уроном и в
 const HITSTOP = { light: 5, heavy: 8, special: 9, block: 4, ko: 14 }; // пауза при попадании, кадры
 const BLOCK_STUN = 0.6;             // оглушение в блоке — доля от оглушения при попадании
 const DOWN_T = 46, GETUP_T = 20, GETUP_INV = 20; // лежит, встаёт, неуязвим после подъёма
-const DMG_SCALE = 0.85;                // общий множитель урона: меньше — бои длиннее
+const DMG_SCALE = 0.85;             // общий множитель урона: меньше — бои длиннее
+const ATK_BUF = 8;                  // нажатие удара помнится столько кадров: нажал чуть раньше конца прошлого удара — удар всё равно выйдет
 // Расталкивание тел. Минимальная дистанция между бойцами — сумма их push из CHARS (у каждого своя ширина: с руками и шаром).
 // PUSH_V — не быстрее стольких px за кадр на бойца (без рывка при приземлении рядом), PUSH_H — на такой разнице высот
 // тела уже не мешают друг другу (перепрыгивание), PUSH_DOWN — доля ширины у лежащего, PUSH_CROUCH — прибавка в приседе.
@@ -209,7 +210,7 @@ export class Fighter {
     this.x = this.side ? 254 : 130; this.px = this.x; this.y = FLOOR; this.vx = 0; this.vy = 0;
     this.face = this.side ? -1 : 1; this.hp = 100; this.lagHp = 100;
     this.st = 'idle'; this.t = 0; this.mv = null; this.mf = 0; this.hasHit = false; this.airUsed = false;
-    this.pose = clipPose(this.id, 'idle', 0); this.akey = null; this.af = 0; this.buf = []; this.prev = {}; this.inv = 0; this.stun = 0; this.bstun = 0;
+    this.pose = clipPose(this.id, 'idle', 0); this.akey = null; this.af = 0; this.buf = []; this.want = null; this.prev = {}; this.inv = 0; this.stun = 0; this.bstun = 0;
     this.combo = 0; this.jug = 0; this.reach = 0; this.whip = null; this.beam = false; this.nograv = false; this.wt = 0;
     this.rig = rig(this);
   }
@@ -310,7 +311,10 @@ export class Game {
     if (pr.d) f.buf.push({ k: 'D', t: this.frame });
     while (f.buf.length && this.frame - f.buf[0].t > 40) f.buf.shift();
     const F = !!inp[fwd], B = !!inp[back], Dn = !!inp.d, Up = !!inp.u;
-    let atk = BTNS.find((k) => pr[k]);
+    const hit = BTNS.find((k) => pr[k]);
+    if (hit) f.want = { k: hit, t: this.frame };
+    else if (f.want && this.frame - f.want.t > ATK_BUF) f.want = null;
+    let atk = f.want ? f.want.k : undefined;
     if (f.ai) { atk = f.ai.press || atk; f.ai.press = null; }
     if (f.inv > 0) f.inv--;
     f.t++;
@@ -415,7 +419,7 @@ export class Game {
   }
 
   startMove(f, name, m = MV[f.id][name]) {
-    f.st = 'atk'; f.mv = m; f.mn = name; f.mf = 0; f.hasHit = false; f.reach = 0; f.whip = null; f.beam = false;
+    f.st = 'atk'; f.mv = m; f.mn = name; f.mf = 0; f.hasHit = false; f.reach = 0; f.whip = null; f.beam = false; f.want = null;
     this.emit('move', { side: f.side, name, s: m.s, a: m.a, r: m.r, dmg: (m.dmg || 0) * (m.special ? 1 : f.ch.power || 1) * DMG_SCALE }); // урон — как его получит соперник
     if (!m.air && !m.phys && f.y >= FLOOR) f.vx = 0;
     this.emit('sfx', { s: m.special ? 'special' : 'swing', heavy: m.dmg >= HEAVY });

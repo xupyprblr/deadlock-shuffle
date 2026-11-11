@@ -106,6 +106,12 @@ function drawFighter(g, f, t) {
         break;
       }
       case 'torso': part('torso', j.hip, j.la); break;
+      case 'pauldF': { // наплечник сидит на корпусе и лишь слегка идёт за рукой
+        const q = R.pauld, p = R.parts.pauldF, im = img(n, false); if (!im) break;
+        g.save(); g.translate(lx(j.hip), j.hip.y); g.rotate(j.la * D2R); g.translate(q.at[0], q.at[1]);
+        g.rotate((q.tilt - q.follow * (Math.max(-40, Math.min(180, P.aF)) - q.ref)) * D2R); g.drawImage(im, -p.pivot[0], -p.pivot[1]); g.restore();
+        break;
+      }
       case 'head': part('head', j.neck, j.ha); break;
     }
   }

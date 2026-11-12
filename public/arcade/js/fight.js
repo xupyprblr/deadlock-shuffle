@@ -4,6 +4,7 @@ import { Game } from './engine.js';
 import { render, loadArt } from './render.js';
 import { initInput, readInput, endFrame, bindTouch, setSolo, KEYCAP } from './input.js';
 import { makeAI } from './ai.js';
+import { sfx, music, duck, say, setSound, unlock } from './sound.js';
 import { markDev, NS } from '../../js/env.js';
 
 markDev();
@@ -14,58 +15,17 @@ loadArt().catch((e) => console.error('arcade art', e));
 const ICON = '../icons/images/';
 const KEY = NS + 'arcade:fight';
 
-const DEF = { p1: 'bebop', p2: 'lash', mode: 'cpu', level: 'normal', sound: true, dummy: 'stand', immortal: true, meter: false };
+const DEF = { p1: 'bebop', p2: 'lash', mode: 'cpu', level: 'normal', sound: true, music: true, voice: true, dummy: 'stand', immortal: true, meter: false };
 const prefs = (() => { try { return { ...DEF, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { return { ...DEF }; } })();
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch {} };
 
 let G = null, ai = null, paused = false, debug = false, acc = 0, last = 0, screen = 'select';
 
-// ---------- звук: синтез, без файлов ----------
-let AC = null, noiseBuf = null;
-function audio() {
-  if (!prefs.sound) return null;
-  if (!AC) {
-    try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; }
-    noiseBuf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
-    const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-  }
-  if (AC.state === 'suspended') AC.resume();
-  return AC;
-}
-function tone(f0, dur, type = 'square', vol = 0.08, f1 = f0) {
-  const a = audio(); if (!a) return;
-  const o = a.createOscillator(), v = a.createGain(), t = a.currentTime;
-  o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
-  v.gain.setValueAtTime(vol, t); v.gain.exponentialRampToValueAtTime(0.001, t + dur);
-  o.connect(v).connect(a.destination); o.start(t); o.stop(t + dur + 0.02);
-}
-function noise(dur, vol = 0.2, freq = 1200, type = 'lowpass') {
-  const a = audio(); if (!a) return;
-  const s = a.createBufferSource(), f = a.createBiquadFilter(), v = a.createGain(), t = a.currentTime;
-  s.buffer = noiseBuf; f.type = type; f.frequency.value = freq;
-  v.gain.setValueAtTime(vol, t); v.gain.exponentialRampToValueAtTime(0.001, t + dur);
-  s.connect(f).connect(v).connect(a.destination); s.start(t); s.stop(t + dur + 0.02);
-}
-const SFX = {
-  swing: () => noise(0.07, 0.07, 2500, 'highpass'),
-  special: () => tone(520, 0.07, 'square', 0.04),
-  hit: () => { noise(0.08, 0.25, 900); tone(140, 0.08, 'square', 0.06, 70); },
-  hitH: () => { noise(0.14, 0.35, 700); tone(100, 0.14, 'square', 0.08, 40); },
-  block: () => { tone(900, 0.05, 'square', 0.05, 600); noise(0.04, 0.1, 3000, 'highpass'); },
-  jump: () => tone(260, 0.09, 'square', 0.035, 480),
-  land: () => noise(0.12, 0.2, 300),
-  boom: () => { noise(0.45, 0.4, 500); tone(70, 0.35, 'sine', 0.2, 30); },
-  whip: () => { noise(0.12, 0.15, 4500, 'highpass'); tone(1800, 0.08, 'sawtooth', 0.03, 400); },
-  whoosh: () => noise(0.25, 0.15, 1200, 'bandpass'),
-  chain: () => tone(700, 0.18, 'sawtooth', 0.04, 220),
-  throw: () => tone(420, 0.1, 'triangle', 0.08, 260),
-  stick: () => tone(1300, 0.05, 'square', 0.05),
-  charge: () => tone(180, 0.55, 'sawtooth', 0.05, 1400),
-  beam: () => { noise(1.2, 0.2, 1600, 'bandpass'); tone(110, 1.2, 'sawtooth', 0.06, 90); },
-  grab: () => tone(160, 0.12, 'square', 0.08, 90),
-  slam: () => { noise(0.25, 0.45, 260); tone(55, 0.25, 'sine', 0.25, 30); },
-  ko: () => tone(240, 0.7, 'square', 0.1, 50),
-};
+// ---------- звук ----------
+const audio = unlock; // первое нажатие будит звук
+const applySound = () => setSound({ sound: prefs.sound, music: prefs.music, voice: prefs.voice });
+const SAY_NAME = { bebop: 'Бибоп', lash: 'Лэш' }; // как диктору произносить имена
+const ROUND_WORD = ['один', 'два', 'три', 'четыре', 'пять'];
 
 // ---------- экран выбора ----------
 function heroBtns(side) {
@@ -73,6 +33,7 @@ function heroBtns(side) {
 }
 const seg = (key, opts) => `<div class="seg">${opts.map(([v, l]) => `<button data-set="${key}" data-v="${v}" aria-pressed="${prefs[key] === v}">${l}</button>`).join('')}</div>`;
 function showSelect() {
+  music('menu'); duck(false);
   screen = 'select'; G = null; attract = null; $('hud').hidden = true; msg('');
   $('trainbar').hidden = true; $('tinfo').hidden = true;
   menu(`<div class="panel"><h2>Подвальный бой</h2>
@@ -86,18 +47,19 @@ function showSelect() {
 function menu(html) { const m = $('menu'); m.innerHTML = html; m.classList.toggle('on', !!html); }
 $('menu').addEventListener('click', (e) => {
   const h = e.target.closest('[data-hero]');
-  if (h) { prefs['p' + (+h.dataset.side + 1)] = h.dataset.hero; save(); showSelect(); return; }
+  audio();
+  if (h) { prefs['p' + (+h.dataset.side + 1)] = h.dataset.hero; save(); showSelect(); sfx('ui'); return; }
   const s = e.target.closest('[data-set]');
-  if (s) { prefs[s.dataset.set] = s.dataset.v; save(); showSelect(); return; }
+  if (s) { prefs[s.dataset.set] = s.dataset.v; save(); showSelect(); sfx('ui'); return; }
   const a = e.target.closest('[data-act]');
   if (!a) return;
-  audio();
+  sfx(a.dataset.act === 'start' || a.dataset.act === 'rematch' ? 'uiGo' : 'ui');
   ({ start, rematch: start, resume: () => pause(false), select: showSelect })[a.dataset.act]?.();
 });
 
 // ---------- бой ----------
 function start() {
-  screen = 'fight'; menu(''); paused = false;
+  screen = 'fight'; menu(''); paused = false; music('fight', true); duck(false);
   const train = prefs.mode === 'train';
   G = new Game(prefs.p1, prefs.p2, { training: train, immortal: prefs.immortal, meter: prefs.meter });
   ai = prefs.mode === 'cpu' ? makeAI(prefs.level) : train ? dummy : null;
@@ -113,7 +75,7 @@ function start() {
 }
 function pause(on) {
   if (screen !== 'fight' || !G || G.phase === 'over') return;
-  paused = on;
+  paused = on; duck(on);
   menu(on ? `<div class="panel stack"><h2>Пауза</h2><button class="btn" data-act="resume">Продолжить</button><button class="btn ghost" data-act="rematch">Заново</button><button class="btn ghost" data-act="select">Сменить бойцов</button></div>` : '');
 }
 
@@ -130,16 +92,19 @@ function combo(side, html) { const c = $('cb' + side); c.classList.remove('show'
 
 function handle(e) {
   switch (e.type) {
-    case 'sfx': SFX[e.s]?.(); break;
-    case 'round': $('rl').textContent = 'Раунд ' + e.n; msg('Раунд ' + e.n, '', 1100); break;
-    case 'fight': msg('Бой!', '', 700); break;
-    case 'ko': msg('Нокаут', '', 1500); break;
-    case 'timeup': msg('Время!', '', 1500); break;
-    case 'result': msg(e.side === null ? 'Ничья' : G.f[e.side].ch.name + ' побеждает', e.flawless ? 'Без единой царапины' : '', 1700); break;
-    case 'combo': combo(e.side, `<em>${e.n}</em> ${plural(e.n)}`); break;
+    case 'sfx': sfx(e.s, e); break;
+    case 'round': $('rl').textContent = 'Раунд ' + e.n; msg('Раунд ' + e.n, '', 1100); duck(false); if (!G.opts.training) { sfx('gong'); say('v_round' + e.n, 'Раунд ' + (ROUND_WORD[e.n - 1] || e.n)); } break;
+    case 'fight': msg('Бой!', '', 700); if (!G.opts.training) { sfx('go'); say('v_fight', 'Бой!'); } break;
+    case 'ko': msg('Нокаут', '', 1500); duck(true); say('v_ko', 'Нокаут!'); break;
+    case 'timeup': msg('Время!', '', 1500); duck(true); sfx('gong'); say('v_time', 'Время!'); break;
+    case 'result': msg(e.side === null ? 'Ничья' : G.f[e.side].ch.name + ' побеждает', e.flawless ? 'Без единой царапины' : '', 1700);
+      if (e.side === null) say('v_draw', 'Ничья'); else say(e.flawless ? 'v_flawless' : 'v_win_' + G.f[e.side].id, SAY_NAME[G.f[e.side].id] + ' побеждает' + (e.flawless ? '. Безупречно!' : '')); break;
+    case 'combo': combo(e.side, `<em>${e.n}</em> ${plural(e.n)}`); sfx('combo', e); break;
     case 'special': combo(e.side, e.name); break;
-    case 'ult': msg(e.name, '', 900); break;
+    case 'ult': msg(e.name, '', 900); sfx('ult'); break;
+    case 'heal': sfx('heal'); break;
     case 'match':
+      music(null); sfx(prefs.mode === 'cpu' && e.side === 1 ? 'lose' : 'win');
       setTimeout(() => {
         const w = G.f[e.side];
         msg('');
@@ -201,7 +166,7 @@ function hud() {
   }
   const t = String(Math.ceil(G.timer / 60));
   const tt = G.opts.training ? '∞' : t;
-  if ($('timer').textContent !== tt) $('timer').textContent = tt;
+  if ($('timer').textContent !== tt) { $('timer').textContent = tt; if (+tt <= 10 && +tt > 0 && G.phase === 'fight') sfx('tick'); } // последние 10 секунд тикают
 }
 
 // ---------- цикл ----------
@@ -265,8 +230,14 @@ function renderMoves() {
 // ---------- кнопки и клавиши ----------
 initInput();
 bindTouch($('touch'));
-$('snd').textContent = 'Звук: ' + (prefs.sound ? 'вкл' : 'выкл');
-$('snd').addEventListener('click', () => { prefs.sound = !prefs.sound; save(); $('snd').textContent = 'Звук: ' + (prefs.sound ? 'вкл' : 'выкл'); });
+// переключатели звука: всё, музыка, диктор
+for (const [id, key, label] of [['snd', 'sound', 'Звук'], ['mus', 'music', 'Музыка'], ['voc', 'voice', 'Диктор']]) {
+  const show = () => { $(id).textContent = `${label}: ${prefs[key] ? 'вкл' : 'выкл'}`; };
+  show();
+  $(id).addEventListener('click', () => { prefs[key] = !prefs[key]; save(); show(); audio(); applySound(); sfx('ui'); });
+}
+applySound();
+window.addEventListener('pointerdown', audio, { once: true });
 $('dbg').addEventListener('click', () => { debug = !debug; $('dbg').classList.toggle('on', debug); });
 window.addEventListener('keydown', (e) => {
   audio();

@@ -15,7 +15,7 @@ const BDASH = { vx: 2.7, vy: 2.3, inv: 10 };  // отскок: скорость 
 export const HEAVY = 7;             // удар с таким уроном и выше — тяжёлый: дольше пауза, сильнее тряска, другой звук
 const HITSTOP = { light: 5, heavy: 8, special: 9, block: 4, ko: 14 }; // пауза при попадании, кадры
 const BLOCK_STUN = 0.6;             // оглушение в блоке — доля от оглушения при попадании
-const PULL_STUN = 24;               // оглушение после притягивания клешнёй: хватает на быстрый удар и серию, но не на апперкот с места
+const PULL_STUN = 30;               // оглушение после притягивания клешнёй: хватает на быстрый удар и серию, но не на апперкот с места
 const DOWN_T = 46, GETUP_T = 20, GETUP_INV = 20; // лежит, встаёт, неуязвим после подъёма
 const DMG_SCALE = 1;                // общий множитель урона: меньше — бои длиннее
 const ATK_BUF = 8;                  // нажатие удара помнится столько кадров: нажал чуть раньше конца прошлого удара — удар всё равно выйдет
@@ -27,11 +27,11 @@ const COMBO_DMG = [1, 1, 0.85, 0.7, 0.6, 0.5, 0.4];
 const COMBO_STUN = 0.08, COMBO_STUN_MIN = 0.6; // с третьего удара оглушение короче на 8% за удар, но не меньше 60%
 const COMBO_PUSH = 0.12;                        // отброс сильнее на 12% за каждый удар серии
 const CHAIN_STEP = 2.6;                         // скорость подшага при продолжении серии (затухает, всего около 10 px)
-const BLOCK_PUSH = 0.8;                         // отброс в блоке — доля от отброса при попадании
+const BLOCK_PUSH = 0.5;                         // отброс в блоке — доля от отброса при попадании
 // Расталкивание тел. Минимальная дистанция между бойцами — сумма их push из CHARS (у каждого своя ширина: с руками и шаром).
 // PUSH_V — не быстрее стольких px за кадр на бойца (без рывка при приземлении рядом), PUSH_H — на такой разнице высот
 // тела уже не мешают друг другу (перепрыгивание), PUSH_DOWN — доля ширины у лежащего, PUSH_CROUCH — прибавка в приседе.
-const PUSH_V = 4, PUSH_H = 50, PUSH_DOWN = 0.55, PUSH_CROUCH = 6;
+const PUSH_V = 4, PUSH_H = 50, PUSH_DOWN = 0.55, PUSH_CROUCH = 5;
 // Зона попадания выступает вперёд от корпуса на столько px: удар по рукам в стойке — тоже попадание.
 const BOX_FRONT = 4;
 export const minGap = (a, b) => CHARS[a].push + CHARS[b].push;
@@ -578,7 +578,7 @@ export class Game {
     const dir = Math.sign(v.x - a.x) || a.face;
     if (this.blocks(v, h.kind, a)) {
       if (h.special) this.dmg(v, h.dmg * 0.2);
-      v.bstun = Math.round(h.hs * BLOCK_STUN); v.vx = dir * Math.max(1, (h.kb ?? 2) * BLOCK_PUSH);
+      v.bstun = Math.round(h.hs * BLOCK_STUN); v.vx = dir * Math.max(0.6, (h.kb ?? 2) * BLOCK_PUSH);
       this.sparks(cx, cy, '#60cde3', 6); this.stop = HITSTOP.block; this.emit('sfx', { s: 'block' });
       return 'block';
     }

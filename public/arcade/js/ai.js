@@ -2,10 +2,13 @@
 // Держит дистанцию своего лучшего удара: подходит ровно настолько, чтобы достать, а не ломится вплотную.
 import { FLOOR, MV, HB } from './data.js';
 
+// combo — как часто продолжает серию, react — пауза между решениями (кадры), block — доля ударов соперника, которые блокирует,
+// see — через сколько кадров после начала замаха реагирует, punish — как часто отвечает ударом после блока или промаха соперника,
+// aa — сбивает прыжки, sp — спецприёмы, agg — напор.
 const LEVELS = {
-  easy: { combo: 0.15, react: 30, block: 0.15, aa: 0.2, sp: 0.15, agg: 0.45 },
-  normal: { combo: 0.5, react: 18, block: 0.4, aa: 0.45, sp: 0.3, agg: 0.6 },
-  hard: { combo: 0.85, react: 10, block: 0.65, aa: 0.7, sp: 0.4, agg: 0.75 },
+  easy: { combo: 0.15, react: 30, block: 0.25, see: 11, punish: 0.15, aa: 0.2, sp: 0.15, agg: 0.45 },
+  normal: { combo: 0.5, react: 18, block: 0.55, see: 7, punish: 0.5, aa: 0.45, sp: 0.3, agg: 0.6 },
+  hard: { combo: 0.85, react: 10, block: 0.8, see: 4, punish: 0.85, aa: 0.7, sp: 0.4, agg: 0.75 },
 };
 const R = Math.random;
 
@@ -22,7 +25,7 @@ export function reach(id, n) { const m = MV[id][n], hb = HB[id]?.[n] || m.hb; re
 
 export function makeAI(level = 'normal') {
   const L = LEVELS[level] || LEVELS.normal;
-  let hold = {}, holdT = 0, cd = 20, press = null, pressT = 0, walk = 0, chained = -1;
+  let hold = {}, holdT = 0, cd = 20, press = null, pressT = 0, walk = 0, chained = -1, seen = -1, guard = false, punished = -1;
   return function think(G, f) {
     const o = f.o, dist = Math.abs(o.x - f.x), fwd = f.face > 0 ? 'r' : 'l', back = f.face > 0 ? 'l' : 'r';
     if (G.phase !== 'fight') { hold = {}; holdT = 0; walk = 0; return {}; }
@@ -56,12 +59,22 @@ export function makeAI(level = 'normal') {
       if (gap > pref && !f.busy) return { [fwd]: true };
       walk = 0; cd = Math.min(cd, 2 + Math.floor(R() * L.react * 0.5));
     }
+    // защита: на каждый удар соперника решаем один раз, блокировать ли; блок встаёт с задержкой реакции и по высоте удара
+    const om = o.st === 'atk' ? o.mv : null, oStart = G.frame - o.mf;
+    if (om && om.dmg && seen !== oStart) { seen = oStart; guard = gap < 95 + (om.special ? 80 : 0) && R() < L.block; }
+    if (om && guard && o.mf >= L.see && o.mf < om.s + om.a + 2 && !f.busy) { holdT = 0; walk = 0; return { blk: true, d: om.kind === 'low' }; }
+    // ответ: соперник ещё возвращается после удара (попал в блок или промахнулся), а мы уже свободны — бьём тем, что успеет
+    if (om && !om.air && !om.special && o.mf >= om.s + om.a && !f.busy && punished !== oStart) {
+      punished = oStart;
+      const left = om.s + om.a + om.r - o.mf;
+      const k = R() < L.punish && PUNISH.map((n) => KIT.find((q) => q.n === n)).find((q) => reach(f.id, q.n) >= gap + 2 && MV[f.id][q.n].s <= left + 2);
+      if (k) { holdT = 0; walk = 0; cd = L.react; return doPress(k.btn, held(k)); }
+    }
     if (holdT > 0) { holdT--; return { ...hold }; }
     hold = {};
     if (f.busy) return {};
-    // отклик на атаку соперника — проверяем каждый кадр, но с вероятностью уровня
-    const oAtk = (o.st === 'atk' && o.mv && o.mf < o.mv.s + o.mv.a) || G.proj.some((p) => p.owner === o && !p.stuck);
-    if (oAtk && dist < 130 && R() < L.block / 6) { hold = { blk: true, d: o.mv?.kind === 'low' }; holdT = 20; return { ...hold }; }
+    // снаряды: блок с вероятностью уровня
+    if (G.proj.some((p) => p.owner === o && !p.stuck) && dist < 130 && R() < L.block / 6) { hold = { blk: true }; holdT = 20; return { ...hold }; }
     if (o.st === 'jump' && gap < 50 && o.y < FLOOR - 20 && R() < L.aa / 4) return doPress('p', { d: true });
     // соперник оглушён и рядом — наказываем сразу самым сильным ударом, который достаёт
     if (o.st === 'dizzy' && o.stun > 7 && o.stun < 900 && R() < L.block / 2) {

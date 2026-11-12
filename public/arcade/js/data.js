@@ -17,9 +17,9 @@ export const MOVES = {
   k: { s: 9, a: 4, r: 14, dmg: 5, adv: 8, ret: 8, kind: 'mid', hs: 22, kb: 1.6, lv: 2 },
   fp: { s: 13, a: 4, r: 18, dmg: 6, adv: 26, kind: 'mid', hs: 26, kb: 2, lv: 3 },
   fk: { s: 15, a: 4, r: 20, dmg: 5, adv: 18, kind: 'low', hs: 27, kb: 1.4, lv: 3 },
-  up: { s: 14, a: 6, r: 28, dmg: 10, adv: 6, kind: 'mid', hs: 36, kb: 1, kd: { vx: 1.3, vy: -5.7 }, crouch: true, stand: true, lv: 4 },
+  up: { s: 14, a: 6, r: 32, dmg: 10, adv: 14, kind: 'mid', hs: 36, kb: 1, kd: { vx: 1.3, vy: -5.7 }, crouch: true, stand: true, lv: 4 },
   sweep: { s: 15, a: 5, r: 26, dmg: 6, adv: 6, ret: 6, kind: 'low', hs: 25, kb: 1, kd: { vx: 0.8, vy: -2 }, crouch: true, lv: 4 },
-  round: { s: 18, a: 5, r: 24, dmg: 8, adv: 10, ret: 10, kind: 'mid', hs: 25, kb: 3, kd: { vx: 2.1, vy: -3.2 }, lv: 4 },
+  round: { s: 18, a: 5, r: 27, dmg: 8, adv: 10, ret: 10, kind: 'mid', hs: 25, kb: 3, kd: { vx: 2.1, vy: -3.2 }, lv: 4 },
   jp: { s: 6, a: 16, r: 0, dmg: 5, kind: 'over', hs: 20, kb: 1.6, air: true },
   jk: { s: 7, a: 18, r: 0, dmg: 7, kind: 'over', hs: 22, kb: 2, air: true },
 };
@@ -74,7 +74,7 @@ export const CHARS = {
   bebop: {
     name: 'Bebop', card: 'bebop_card.webp', small: 'bebop_sm.webp',
     dim: { th: 18, sh: 18, torso: 27, ua: 13, fa: 14, head: 8, w: 13 },
-    walk: [1.2, 0.95], jump: 5.1, push: 30, power: 1.2,
+    walk: [1.2, 0.95], jump: 5.1, push: 30, power: 1.25,
     col: { body: '#d9622b', body2: '#a8441c', metal: '#4b4b52', yellow: '#f0b83a', cloth: '#8a7a4a', eye: '#60f0e8', ball: '#3a2a22' },
     alt: { body: '#5f8fd9', body2: '#3a5f9e', metal: '#3c3f4a', yellow: '#d9d9d9', cloth: '#4a4a3a', eye: '#ff6a4a', ball: '#262626' },
   },

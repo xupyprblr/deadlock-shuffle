@@ -213,4 +213,19 @@ console.log('дистанция ok');
     const x0 = G.f[0].x; for (let i = 0; i < 40; i++) { G.update([i < 2 ? { k: true } : {}, {}]); G.events.length = 0; }
     assert.ok(G.f[0].x < x0 - 3, `у стены бьющий не отошёл: ${x0} → ${G.f[0].x}`); }
 }
+// после блока в приседе ответный апперкот достаёт (отброс в блоке небольшой, у апперкота длинный шаг)
+for (const [a, b] of [['bebop', 'lash'], ['lash', 'bebop'], ['lash', 'lash'], ['bebop', 'bebop']]) for (const atk of [{ k: true }, { r: true, p: true }, { l: true, k: true }]) {
+  const G = new Game(a, b, { training: true });
+  for (let i = 0; i < 220; i++) { G.update([i < 200 ? { r: true } : {}, {}]); G.events.length = 0; }
+  let stage = 0, hold = 0, hit = false;
+  for (let t = 0; t < 200; t++) {
+    const f = G.f[0], o = G.f[1]; let di = { blk: true, d: true };
+    if (stage === 0 && f.contact === 'block') stage = 1;
+    if (stage === 1 && o.bstun === 0 && !G.stop) { stage = 2; hold = 2; }
+    if (stage === 2) di = hold-- > 0 ? { d: true, p: true } : {};
+    G.update([t < 2 ? atk : {}, di]);
+    hit ||= G.events.some((e) => e.type === 'dmg' && e.side === 0); G.events.length = 0;
+  }
+  assert.ok(stage === 2 && hit, `${b} после блока в приседе не достал апперкотом (${a} бил ${JSON.stringify(atk)})`);
+}
 console.log('серии ok');

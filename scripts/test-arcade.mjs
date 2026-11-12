@@ -172,3 +172,45 @@ for (const [a, b] of [['bebop', 'lash'], ['lash', 'bebop'], ['bebop', 'bebop'], 
   assert.ok(G.f[0].x - G.f[1].x >= minGap('lash', 'bebop') - 1, 'после прыжка бойцы стоят друг в друге');
 }
 console.log('дистанция ok');
+
+// Серии: удар, который попал, прерывается более тяжёлым; после удара в блок следующий удар достаёт; у стены отходит бьющий.
+{
+  const near = (a, b) => { const G = new Game(a, b, { training: true }); for (let i = 0; i < 220; i++) { G.update([i < 200 ? { r: true } : {}, {}]); G.events.length = 0; } return G; };
+  const BT = { p: { p: true }, k: { k: true }, fp: { r: true, p: true }, up: { d: true, p: true }, sweep: { d: true, k: true }, round: { l: true, k: true } };
+  const chain = (a, b, seq, def = {}) => {
+    const G = near(a, b); let i = 0, hold = 0, cur = {}, combo = 0; const moves = [], contacts = [];
+    for (let t = 0; t < 200; t++) {
+      const f = G.f[0];
+      if (i < seq.length && hold <= 0 && (i === 0 || (f.st === 'atk' && f.contact && f.mn === seq[i - 1] && !G.stop))) { cur = BT[seq[i]]; hold = 2; i++; }
+      G.update([hold-- > 0 ? cur : {}, def]);
+      for (const e of G.events) { if (e.type === 'combo') combo = Math.max(combo, e.n); if (e.type === 'move' && e.side === 0) moves.push(e.name); }
+      G.events.length = 0;
+      if (f.st === 'atk' && f.contact && contacts.length < moves.length) contacts[moves.length - 1] = f.contact;
+    }
+    return { combo, moves, contacts, G };
+  };
+  for (const [a, b] of [['bebop', 'lash'], ['lash', 'bebop']]) {
+    for (const seq of [['p', 'k', 'fp'], ['p', 'k', 'up'], ['p', 'k', 'sweep'], ['p', 'k', 'fp', 'round']]) {
+      const r = chain(a, b, seq);
+      assert.deepEqual(r.moves, seq, `${a}: серия ${seq} вышла как ${r.moves}`);
+      assert.equal(r.combo, seq.length, `${a}: серия ${seq} — попало ${r.combo}`);
+    }
+    // вниз по ступеням серия не идёт: Нога не прерывается Рукой
+    assert.equal(chain(a, b, ['k', 'p']).combo, 0, `${a}: Нога → Рука не должна быть серией`);
+    // удар в блок, затем ещё удар — достаёт (бьющий больше не отъезжает)
+    const bl = chain(a, b, ['p', 'k'], { blk: true });
+    assert.deepEqual(bl.contacts, ['block', 'block'], `${a}: после удара в блок следующий не достал (${bl.contacts})`);
+  }
+  // серия слабее суммы ударов: третий удар наносит 85%
+  { const G = near('lash', 'bebop'); const d = []; let i = 0, hold = 0, cur = {}; const seq = ['p', 'k', 'fp'];
+    for (let t = 0; t < 120; t++) { const f = G.f[0]; if (i < 3 && hold <= 0 && (i === 0 || (f.st === 'atk' && f.contact && f.mn === seq[i - 1] && !G.stop))) { cur = BT[seq[i]]; hold = 2; i++; }
+      G.update([hold-- > 0 ? cur : {}, {}]); for (const e of G.events) if (e.type === 'dmg') d.push(e.n); G.events.length = 0; }
+    assert.ok(Math.abs(d[2] / MV.lash.fp.dmg - d[0] / MV.lash.p.dmg * 0.85) < 0.01, `ослабление серии: ${d}`); }
+  // у стены: соперник прижат, от удара отходит бьющий
+  { const G = new Game('lash', 'bebop', { training: true }); G.f[1].x = 368; G.f[0].x = 300;
+    for (let i = 0; i < 80; i++) { G.update([{ r: true }, {}]); G.events.length = 0; }
+    for (let i = 0; i < 20; i++) { G.update([{}, {}]); G.events.length = 0; }
+    const x0 = G.f[0].x; for (let i = 0; i < 40; i++) { G.update([i < 2 ? { k: true } : {}, {}]); G.events.length = 0; }
+    assert.ok(G.f[0].x < x0 - 3, `у стены бьющий не отошёл: ${x0} → ${G.f[0].x}`); }
+}
+console.log('серии ok');

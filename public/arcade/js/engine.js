@@ -4,7 +4,7 @@ import { W, FLOOR, MV, INPUTS, BTNS, SPECIALS, CHARS, HB } from './data.js';
 import { RIGS } from './rigs.js';
 import { ANIMS, KEYS } from './anims.js';
 
-export const ROUND_TIME = 99;
+export const ROUND_TIME = 60;
 export const WINS_NEEDED = 2;
 const WALL_L = 16, WALL_R = W - 16;
 // ----- темп игры: всё, что задаёт скорость боя, собрано здесь (тайминги ударов — в data.js и в SP ниже) -----
@@ -15,9 +15,19 @@ const BDASH = { vx: 2.7, vy: 2.3, inv: 10 };  // отскок: скорость 
 export const HEAVY = 7;             // удар с таким уроном и выше — тяжёлый: дольше пауза, сильнее тряска, другой звук
 const HITSTOP = { light: 5, heavy: 8, special: 9, block: 4, ko: 14 }; // пауза при попадании, кадры
 const BLOCK_STUN = 0.6;             // оглушение в блоке — доля от оглушения при попадании
+const PULL_STUN = 24;               // оглушение после притягивания клешнёй: хватает на быстрый удар и серию, но не на апперкот с места
 const DOWN_T = 46, GETUP_T = 20, GETUP_INV = 20; // лежит, встаёт, неуязвим после подъёма
-const DMG_SCALE = 0.85;             // общий множитель урона: меньше — бои длиннее
+const DMG_SCALE = 1;                // общий множитель урона: меньше — бои длиннее
 const ATK_BUF = 8;                  // нажатие удара помнится столько кадров: нажал чуть раньше конца прошлого удара — удар всё равно выйдет
+// ----- серии ударов (комбо) -----
+// Удар, который попал или пришёл в блок, можно сразу прервать следующим — более тяжёлым (lv в MOVES выше) или спецприёмом.
+// Так собирается серия: Рука → Нога → удар с направлением → спецприём. Каждый спецприём — один раз за серию.
+// Чтобы серии не были бесконечными: с каждым ударом серии урон ниже (COMBO_DMG), оглушение короче, а отброс сильнее.
+const COMBO_DMG = [1, 1, 0.85, 0.7, 0.6, 0.5, 0.4];
+const COMBO_STUN = 0.08, COMBO_STUN_MIN = 0.6; // с третьего удара оглушение короче на 8% за удар, но не меньше 60%
+const COMBO_PUSH = 0.12;                        // отброс сильнее на 12% за каждый удар серии
+const CHAIN_STEP = 2.6;                         // скорость подшага при продолжении серии (затухает, всего около 10 px)
+const BLOCK_PUSH = 0.8;                         // отброс в блоке — доля от отброса при попадании
 // Расталкивание тел. Минимальная дистанция между бойцами — сумма их push из CHARS (у каждого своя ширина: с руками и шаром).
 // PUSH_V — не быстрее стольких px за кадр на бойца (без рывка при приземлении рядом), PUSH_H — на такой разнице высот
 // тела уже не мешают друг другу (перепрыгивание), PUSH_DOWN — доля ширины у лежащего, PUSH_CROUCH — прибавка в приседе.
@@ -211,8 +221,9 @@ export class Fighter {
     this.face = this.side ? -1 : 1; this.hp = 100; this.lagHp = 100;
     this.st = 'idle'; this.t = 0; this.mv = null; this.mf = 0; this.hasHit = false; this.airUsed = false;
     this.pose = clipPose(this.id, 'idle', 0); this.akey = null; this.af = 0; this.buf = []; this.want = null; this.prev = {}; this.inv = 0; this.stun = 0; this.bstun = 0;
-    this.combo = 0; this.jug = 0; this.reach = 0; this.whip = null; this.beam = false; this.nograv = false; this.wt = 0;
+    this.combo = 0; this.used = null; this.contact = null; this.jug = 0; this.reach = 0; this.whip = null; this.beam = false; this.nograv = false; this.wt = 0;
     this.rig = rig(this);
+    this.front = (this.face > 0 ? this.rig.box.x1 - this.x : this.x - this.rig.box.x0); // передний край зоны попадания в стойке
   }
   get busy() { return !FREE.has(this.st) || this.bstun > 0; }
 }
@@ -264,6 +275,8 @@ export class Game {
       const key = f.st === 'atk' ? 'atk:' + f.mn : f.st === 'walk' ? 'walk' + (f.vx * f.face >= 0) : f.st;
       if (key !== f.akey) { f.akey = key; f.af = 0; } else f.af++;
       f.pose = blend(f.pose, this.poseOf(f), f.st === 'atk' || f.st === 'ult' ? 1 : 0.5); f.rig = rig(f);
+      // от удара боец отклоняется назад, но зона попадания спереди не уходит: иначе следующий удар серии мазал бы по позе
+      if (f.st === 'hit' || f.st === 'dizzy') { const b = f.rig.box; if (f.face > 0) b.x1 = Math.max(b.x1, f.x + f.front); else b.x0 = Math.min(b.x0, f.x - f.front); }
     }
     for (const f of this.f) this.attackCheck(f);
     this.stepProj();
@@ -321,8 +334,8 @@ export class Game {
     const grounded = f.y >= FLOOR;
 
     if (FREE.has(f.st)) {
-      if (f.bstun > 0) { f.bstun--; f.vx *= 0.85; f.x += f.vx; return; }
-      o.combo = 0; f.jug = 0;
+      if (f.bstun > 0) { f.bstun--; f.vx *= 0.85; this.slide(f); return; }
+      o.combo = 0; o.used = null; f.jug = 0;
       f.face = o.x >= f.x ? 1 : -1;
       if (f.aiSpecial) { const id = f.aiSpecial; f.aiSpecial = null; if (this.startSpecial(f, id)) return; }
       if (atk && this.trySpecial(f, atk, inp, false)) return;
@@ -372,6 +385,13 @@ export class Game {
         const m = f.mv; f.mf++;
         m.tick?.(this, f, o);
         if (f.st !== 'atk') return; // приём сменил состояние (захват ульты)
+        // серия: удар попал или пришёл в блок — его можно прервать более тяжёлым ударом или спецприёмом
+        if (f.contact && m.lv && grounded && (atk || f.aiSpecial)) {
+          const sp = f.aiSpecial; f.aiSpecial = null;
+          if (sp ? !f.used?.has(sp) && this.startSpecial(f, sp) : this.trySpecial(f, atk, inp, false, f.used)) { if (f.st === 'atk' && !f.mv.phys) f.vx = f.face * CHAIN_STEP; return; }
+          const nx = atk && ground(atk, F, B, Dn);
+          if (nx && MV[f.id][nx].lv > m.lv) { this.startMove(f, nx); f.vx = f.face * CHAIN_STEP; return; } // подшаг вслед за отъезжающим соперником
+        }
         if (m.air || m.phys || f.y < FLOOR || f.vy < 0) {
           this.physics(f);
           if (m.air && f.y >= FLOOR) { this.endMove(f, inp); f.vx = 0; return; }
@@ -379,13 +399,13 @@ export class Game {
           f.vx *= 0.8; f.x += f.vx;
           // шаг в удар: за замах боец подаётся вперёд на adv px (с разгоном), за возврат отходит на ret
           if (m.adv && f.mf <= m.s) f.x += f.face * m.adv * (2 * f.mf - 1) / (m.s * m.s);
-          else if (m.ret && f.mf > m.s + m.a) f.x -= f.face * m.ret / m.r;
+          else if (m.ret && !f.contact && f.mf > m.s + m.a) f.x -= f.face * m.ret / m.r; // попал — остаётся рядом, промахнулся — отходит
         }
         if (f.mf >= m.s + m.a + m.r) this.endMove(f, inp);
         return;
       }
       case 'hit': case 'dizzy': {
-        f.vx *= 0.86; f.x += f.vx;
+        f.vx *= 0.86; this.slide(f);
         if (f.y < FLOOR) this.physics(f);
         if (--f.stun <= 0) f.st = 'idle';
         return;
@@ -403,7 +423,7 @@ export class Game {
       case 'ko': { f.vx *= 0.8; f.x += f.vx; return; }
       case 'pulled': {
         const d = f.pullTo - f.x; f.x += clamp(d, -7, 7); f.y = Math.min(FLOOR, f.y + 5);
-        if (Math.abs(d) < 1 && f.y >= FLOOR) { f.st = 'dizzy'; f.stun = 40; f.vx = 0; }
+        if (Math.abs(d) < 1 && f.y >= FLOOR) { f.st = 'dizzy'; f.stun = PULL_STUN; f.vx = 0; }
         return;
       }
       case 'grabbed': return;
@@ -419,7 +439,7 @@ export class Game {
   }
 
   startMove(f, name, m = MV[f.id][name]) {
-    f.st = 'atk'; f.mv = m; f.mn = name; f.mf = 0; f.hasHit = false; f.reach = 0; f.whip = null; f.beam = false; f.want = null;
+    f.st = 'atk'; f.mv = m; f.mn = name; f.mf = 0; f.hasHit = false; f.contact = null; f.reach = 0; f.whip = null; f.beam = false; f.want = null;
     this.emit('move', { side: f.side, name, s: m.s, a: m.a, r: m.r, dmg: (m.dmg || 0) * (m.special ? 1 : f.ch.power || 1) * DMG_SCALE }); // урон — как его получит соперник
     if (!m.air && !m.phys && f.y >= FLOOR) f.vx = 0;
     this.emit('sfx', { s: m.special ? 'special' : 'swing', heavy: m.dmg >= HEAVY });
@@ -435,9 +455,9 @@ export class Game {
     if (f.y < FLOOR) { f.st = 'jump'; f.airUsed = true; return; }
     f.st = m && m.crouch && !m.stand && inp.d ? 'crouch' : 'idle';
   }
-  trySpecial(f, btn, inp, air) {
+  trySpecial(f, btn, inp, air, used) {
     for (const sp of SPECIALS[f.id]) {
-      if (sp.btn !== btn) continue;
+      if (sp.btn !== btn || used?.has(sp.id)) continue;
       if (air && !sp.air && !sp.airOnly) continue;
       if (!air && sp.airOnly) continue;
       if (sp.ult && f.meter < 100) continue;
@@ -507,6 +527,12 @@ export class Game {
     }
   }
 
+  // Отъезд от удара. Если отъезжать некуда (стена), назад отходит тот, кто бил — иначе в углу серии были бы бесконечными.
+  slide(f) {
+    const to = f.x + f.vx, x = clamp(to, WALL_L, WALL_R), o = f.o;
+    f.x = x;
+    if (to !== x && o.y >= FLOOR && Math.abs(o.x - x) < 90) o.x = clamp(o.x - (to - x), WALL_L, WALL_R);
+  }
   hittable(o) { return !o.inv && !['down', 'getup', 'grabbed', 'pulled', 'ko'].includes(o.st) && !(o.st === 'knock' && o.jug >= 3); }
 
   attackCheck(f) {
@@ -522,7 +548,8 @@ export class Game {
     if (!this.hittable(o) || !overlap(wb, o.rig.box)) return;
     f.hasHit = true;
     const res = this.applyHit(f, o, { dmg: m.special ? m.dmg : m.dmg * (f.ch.power || 1), kind: m.kind, hs: m.hs, kb: m.kb, kd: hb.last ? { vx: 1.9, vy: -3.2 } : m.kd, special: m.special, multi: m.multi }, wb);
-    if (res === 'hit') m.onHit?.(this, f, o);
+    f.contact = res;
+    if (res === 'hit') { (f.used ||= new Set()).add(f.mn); m.onHit?.(this, f, o); }
   }
 
   area(f, hb, h) {
@@ -551,19 +578,23 @@ export class Game {
     const dir = Math.sign(v.x - a.x) || a.face;
     if (this.blocks(v, h.kind, a)) {
       if (h.special) this.dmg(v, h.dmg * 0.2);
-      v.bstun = Math.round(h.hs * BLOCK_STUN); v.vx = dir * Math.max(1.2, (h.kb ?? 2) * 0.9);
+      v.bstun = Math.round(h.hs * BLOCK_STUN); v.vx = dir * Math.max(1, (h.kb ?? 2) * BLOCK_PUSH);
       this.sparks(cx, cy, '#60cde3', 6); this.stop = HITSTOP.block; this.emit('sfx', { s: 'block' });
       return 'block';
     }
     const wasHurt = ['hit', 'dizzy', 'knock', 'pulled'].includes(v.st);
-    this.dmg(v, h.dmg);
     a.combo = wasHurt ? a.combo + 1 : 1;
+    const n = h.multi ? 1 : a.combo; // луч бьёт много раз подряд — его удары серию не ослабляют
+    this.dmg(v, h.dmg * COMBO_DMG[Math.min(n, COMBO_DMG.length) - 1]);
     if (a.combo >= 2) this.emit('combo', { side: a.side, n: a.combo });
     v.mv = null; v.whip = null; v.reach = 0; v.beam = false; v.nograv = false; v.bstun = 0;
     const air = v.y < FLOOR - 1;
     if (v.hp <= 0 || h.kd || (air && !h.multi)) {
       v.st = 'knock'; v.vx = dir * (h.kd?.vx ?? 1.5); v.vy = h.kd?.vy ?? -2.4; v.jug++;
-    } else { v.st = 'hit'; v.stun = h.hs; v.vx = dir * (h.kb ?? 2); }
+    } else {
+      v.st = 'hit'; v.stun = Math.round(h.hs * Math.max(COMBO_STUN_MIN, 1 - COMBO_STUN * Math.max(0, n - 2)));
+      v.vx = dir * (h.kb ?? 2) * (1 + COMBO_PUSH * (n - 1));
+    }
     const heavy = h.dmg >= HEAVY;
     this.stop = h.multi ? 2 : h.special ? HITSTOP.special : heavy ? HITSTOP.heavy : HITSTOP.light;
     this.shake = Math.max(this.shake, heavy ? 5 : 2);

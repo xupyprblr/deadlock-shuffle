@@ -3,9 +3,9 @@
 import { FLOOR, MV, HB } from './data.js';
 
 const LEVELS = {
-  easy: { react: 30, block: 0.15, aa: 0.2, sp: 0.15, agg: 0.45 },
-  normal: { react: 18, block: 0.4, aa: 0.45, sp: 0.3, agg: 0.6 },
-  hard: { react: 10, block: 0.65, aa: 0.7, sp: 0.4, agg: 0.75 },
+  easy: { combo: 0.15, react: 30, block: 0.15, aa: 0.2, sp: 0.15, agg: 0.45 },
+  normal: { combo: 0.5, react: 18, block: 0.4, aa: 0.45, sp: 0.3, agg: 0.6 },
+  hard: { combo: 0.85, react: 10, block: 0.65, aa: 0.7, sp: 0.4, agg: 0.75 },
 };
 const R = Math.random;
 
@@ -16,13 +16,13 @@ const KIT = [
   { n: 'up', btn: 'p', hold: 'd', w: 1.2 }, { n: 'sweep', btn: 'k', hold: 'd', w: 1.2 }, { n: 'round', btn: 'k', hold: 'back', w: 1 },
 ];
 const POKE = ['k', 'p']; // компьютер держит дистанцию самого длинного из этих ударов
-const PUNISH = ['up', 'round', 'k', 'p']; // чем наказывать оглушённого, от сильного к слабому
+const PUNISH = ['up', 'k', 'p']; // чем наказывать оглушённого, от сильного к слабому
 // Дальность удара: докуда от точки опоры достаёт зона, с частью шага вперёд.
 export function reach(id, n) { const m = MV[id][n], hb = HB[id]?.[n] || m.hb; return hb.x + hb.w + (m.adv || 0) * 0.7; }
 
 export function makeAI(level = 'normal') {
   const L = LEVELS[level] || LEVELS.normal;
-  let hold = {}, holdT = 0, cd = 20, press = null, pressT = 0, walk = 0;
+  let hold = {}, holdT = 0, cd = 20, press = null, pressT = 0, walk = 0, chained = -1;
   return function think(G, f) {
     const o = f.o, dist = Math.abs(o.x - f.x), fwd = f.face > 0 ? 'r' : 'l', back = f.face > 0 ? 'l' : 'r';
     if (G.phase !== 'fight') { hold = {}; holdT = 0; walk = 0; return {}; }
@@ -35,6 +35,16 @@ export function makeAI(level = 'normal') {
     const pref = Math.max(...POKE.map((n) => reach(f.id, n))) - 3;
     const near = dist < f.ch.push + o.ch.push + 8; // почти вплотную
 
+    // серия: удар попал (реже — пришёл в блок) — продолжаем следующей ступенью: Рука → Нога → тяжёлый удар или спецприём
+    if (f.st === 'atk' && f.contact && f.mv.lv && chained !== G.frame - f.mf) {
+      chained = G.frame - f.mf; // решаем один раз на удар
+      if (R() < L.combo * (f.contact === 'hit' ? 1 : 0.35)) {
+        if (f.mv.lv === 1) return doPress('k');
+        const r = R();
+        if (f.mv.lv === 2) return r < 0.5 ? doPress('p', { [fwd]: true }) : r < 0.75 ? doPress('p', { d: true }) : doPress('k', { d: true });
+        if (f.mv.lv === 3) { if (r < 0.4) { f.aiSpecial = f.id === 'bebop' ? (R() < 0.5 ? 'xup' : 'hook') : 'flog'; return {}; } return r < 0.7 ? doPress('p', { d: true }) : doPress('k', { [back]: true }); }
+      }
+    }
     if (f.st === 'jump' && !f.airUsed) {
       if (f.id === 'lash' && f.y < FLOOR - 40 && dist < 40 && R() < 0.15) return doPress('k', { d: true });
       if (f.vy > -1 && gap < 36 && R() < 0.35) return doPress(R() < 0.5 ? 'k' : 'p');
@@ -54,8 +64,8 @@ export function makeAI(level = 'normal') {
     if (oAtk && dist < 130 && R() < L.block / 6) { hold = { blk: true, d: o.mv?.kind === 'low' }; holdT = 20; return { ...hold }; }
     if (o.st === 'jump' && gap < 50 && o.y < FLOOR - 20 && R() < L.aa / 4) return doPress('p', { d: true });
     // соперник оглушён и рядом — наказываем сразу самым сильным ударом, который достаёт
-    if (o.st === 'dizzy' && o.stun > 10 && o.stun < 900 && R() < L.block / 2) {
-      const k = PUNISH.map((n) => KIT.find((q) => q.n === n)).find((q) => reach(f.id, q.n) >= gap + 2);
+    if (o.st === 'dizzy' && o.stun > 7 && o.stun < 900 && R() < L.block / 2) {
+      const k = PUNISH.map((n) => KIT.find((q) => q.n === n)).find((q) => reach(f.id, q.n) >= gap + 2 && MV[f.id][q.n].s < o.stun); // только то, что успеет
       if (k) { cd = L.react; return doPress(k.btn, held(k)); }
     }
     if (--cd > 0) return {};

@@ -8,19 +8,20 @@ export const W = 384, H = 216, FLOOR = 196;
 
 // Обычные удары. Кнопок атаки две: p — Рука, k — Нога; глубину дают направления (INPUTS ниже).
 // s/a/r — кадры замаха, активной фазы и возврата (60 кадров = 1 с). dmg — урон, hs — оглушение при попадании, kb — отброс.
-// adv — на столько px боец подаётся вперёд за замах, ret — на столько отходит за возврат (у выпадов ret нет: шаг остаётся).
+// adv — на столько px боец подаётся вперёд за замах, ret — на столько отходит за возврат, если удар никого не задел.
+// lv — ступень в серии: удар, который попал или пришёл в блок, прерывается ударом с большим lv или спецприёмом (см. engine.js).
 // kind: mid — обычный, low — держит только блок в приседе, over (из прыжка) — только стоячий блок. kd — сбивает с ног (скорость отлёта).
 // crouch — удар из приседа; stand — заканчивается стоя. Зоны ударов — в HB, у каждого бойца свои.
 export const MOVES = {
-  p: { s: 6, a: 3, r: 10, dmg: 3, adv: 3, ret: 3, kind: 'mid', hs: 15, kb: 1.6 },
-  k: { s: 9, a: 4, r: 14, dmg: 5, adv: 8, ret: 8, kind: 'mid', hs: 18, kb: 2.2 },
-  fp: { s: 13, a: 4, r: 18, dmg: 6, adv: 26, kind: 'mid', hs: 20, kb: 2.6 },
-  fk: { s: 15, a: 4, r: 20, dmg: 5, adv: 18, kind: 'low', hs: 20, kb: 1.8 },
-  up: { s: 14, a: 6, r: 28, dmg: 10, adv: 6, kind: 'mid', hs: 36, kb: 1, kd: { vx: 1.3, vy: -5.7 }, crouch: true, stand: true },
-  sweep: { s: 15, a: 5, r: 26, dmg: 6, adv: 6, ret: 6, kind: 'low', hs: 25, kb: 1, kd: { vx: 0.8, vy: -2 }, crouch: true },
-  round: { s: 18, a: 5, r: 24, dmg: 8, adv: 10, ret: 10, kind: 'mid', hs: 25, kb: 3, kd: { vx: 2.1, vy: -3.2 } },
-  jp: { s: 6, a: 16, r: 0, dmg: 5, kind: 'over', hs: 20, kb: 2, air: true },
-  jk: { s: 7, a: 18, r: 0, dmg: 7, kind: 'over', hs: 22, kb: 2.6, air: true },
+  p: { s: 6, a: 3, r: 10, dmg: 3, adv: 3, ret: 3, kind: 'mid', hs: 18, kb: 1.2, lv: 1 },
+  k: { s: 9, a: 4, r: 14, dmg: 5, adv: 8, ret: 8, kind: 'mid', hs: 22, kb: 1.6, lv: 2 },
+  fp: { s: 13, a: 4, r: 18, dmg: 6, adv: 26, kind: 'mid', hs: 26, kb: 2, lv: 3 },
+  fk: { s: 15, a: 4, r: 20, dmg: 5, adv: 18, kind: 'low', hs: 27, kb: 1.4, lv: 3 },
+  up: { s: 14, a: 6, r: 28, dmg: 10, adv: 6, kind: 'mid', hs: 36, kb: 1, kd: { vx: 1.3, vy: -5.7 }, crouch: true, stand: true, lv: 4 },
+  sweep: { s: 15, a: 5, r: 26, dmg: 6, adv: 6, ret: 6, kind: 'low', hs: 25, kb: 1, kd: { vx: 0.8, vy: -2 }, crouch: true, lv: 4 },
+  round: { s: 18, a: 5, r: 24, dmg: 8, adv: 10, ret: 10, kind: 'mid', hs: 25, kb: 3, kd: { vx: 2.1, vy: -3.2 }, lv: 4 },
+  jp: { s: 6, a: 16, r: 0, dmg: 5, kind: 'over', hs: 20, kb: 1.6, air: true },
+  jk: { s: 7, a: 18, r: 0, dmg: 7, kind: 'over', hs: 22, kb: 2, air: true },
 };
 // Какой удар выходит: кнопка + направление. Вниз важнее, чем вперёд и назад (↘ + Рука — апперкот).
 export const INPUTS = {
@@ -30,7 +31,7 @@ export const INPUTS = {
 export const BTNS = Object.keys(INPUTS);
 
 // Удары бойца: общая таблица MOVES плюс свои поправки. У Bebop главный удар — шар: рука бьёт дальше и сильнее, но медленнее.
-const OWN = { bebop: { p: { s: 7, dmg: 4, adv: 8, ret: 8 }, fp: { dmg: 7 } }, lash: {} };
+const OWN = { bebop: { p: { s: 7, adv: 8, ret: 8 } }, lash: {} };
 export const MV = Object.fromEntries(Object.entries(OWN).map(([id, own]) => [id, Object.fromEntries(Object.entries(MOVES).map(([n, m]) => [n, { ...m, ...own[n] }]))]));
 
 // Спецприёмы — способности героев. Последовательность: F — к сопернику, B — от него, D — вниз; btn — кнопка (p или k).
@@ -73,7 +74,7 @@ export const CHARS = {
   bebop: {
     name: 'Bebop', card: 'bebop_card.webp', small: 'bebop_sm.webp',
     dim: { th: 18, sh: 18, torso: 27, ua: 13, fa: 14, head: 8, w: 13 },
-    walk: [1.2, 0.95], jump: 5.1, push: 30, power: 1.1,
+    walk: [1.2, 0.95], jump: 5.1, push: 30, power: 1.2,
     col: { body: '#d9622b', body2: '#a8441c', metal: '#4b4b52', yellow: '#f0b83a', cloth: '#8a7a4a', eye: '#60f0e8', ball: '#3a2a22' },
     alt: { body: '#5f8fd9', body2: '#3a5f9e', metal: '#3c3f4a', yellow: '#d9d9d9', cloth: '#4a4a3a', eye: '#ff6a4a', ball: '#262626' },
   },

@@ -23,7 +23,7 @@ const I18N = {
     how3T: 'Нажми «Создать сборку»', how3: 'Откроется пустая сборка этого героя.',
     how4T: 'Нажми «Вставить сборку»', how4: 'Маленькая квадратная кнопка рядом с «i». Предметы и прокачка встанут сами — останется сохранить.',
     howWarn: '<b>Нет кнопки «Вставить сборку»?</b> Значит, в игре выбран другой герой или код пропал из буфера обмена. Проверь героя и скопируй код ещё раз.',
-    view_solo: 'Соло', view_team: 'Собрать команду', view_slots: 'Крутить билд', teamT: '[Команда]',
+    view_solo: 'Соло', view_team: 'Команда', sec_rand: 'Рандом', sec_casino: 'Казино билдов', viewMode: 'Режим', teamT: '[Команда]',
     teamSub: 'Крути игроков по очереди: «+ Следующий игрок» добавляет нового, герои в команде не повторяются. Готово — кидай ссылку в чат пати, каждый откроет своего героя и заберёт затар кнопкой «Скопировать в игру».',
     teamLink: 'Ссылка на команду', teamLinkShort: 'Команда', roT: 'Команда от [капитана]', roSub: 'Капитан уже раскидал героев и затары. Найди своего героя и нажми «Скопировать в игру» — код сборки скопируется, дальше в Deadlock: Поиск сборок → Создать сборку → Вставить сборку.', roOwn: 'Крутить свой затар', roBadge: 'Только просмотр', teamLinkCopied: 'Ссылка на команду скопирована — по ней только забрать затары, без перекрута', playerN: 'Игрок',
     addPlayer: 'Следующий игрок', nextPlayer: 'Следующий игрок', onStage: 'на экране', openSlot: 'Показать сверху', removeSlot: 'Убрать игрока', rerollAll: 'Всё',
@@ -73,7 +73,7 @@ const I18N = {
     how3T: 'Press “Create new Build”', how3: 'An empty build for this hero opens.',
     how4T: 'Press “Paste Build”', how4: 'The small square button next to the “i”. Items and abilities fill in on their own — just save.',
     howWarn: '<b>No “Paste Build” button?</b> The game has a different hero selected, or the code is no longer in your clipboard. Check the hero and copy the code again.',
-    view_solo: 'Solo', view_team: 'Build a team', view_slots: 'Spin a build', teamT: '[Team]',
+    view_solo: 'Solo', view_team: 'Team', sec_rand: 'Randomizer', sec_casino: 'Build Casino', viewMode: 'Mode', teamT: '[Team]',
     teamSub: 'Roll players one by one: “+ Next player” adds a new one, heroes never repeat within the team. Done — drop the link in party chat; everyone opens their hero and grabs the build with “Copy to game”.',
     teamLink: 'Team link', teamLinkShort: 'Team', roT: 'Team from the [captain]', roSub: 'The captain has already picked the heroes and builds. Find your hero and hit “Copy to game” — the build code is copied; then in Deadlock: Build Browser → Create new Build → Paste Build.', roOwn: 'Roll your own build', roBadge: 'View only', teamLinkCopied: 'Team link copied — teammates can only grab builds, no rerolls', playerN: 'Player',
     addPlayer: 'Next player', nextPlayer: 'Next player', onStage: 'on screen', openSlot: 'Show on top', removeSlot: 'Remove player', rerollAll: 'All',
@@ -976,11 +976,15 @@ function renderViews() {
     document.getElementById('team').hidden = false;
     return;
   }
+  // два раздела: «Рандом» (эта страница) и «Казино билдов» (slots.html); под ними — режим раздела: Соло / Команда
   document.getElementById('views').innerHTML = `
-    <div class="views-seg views-3" role="tablist">
-      <button role="tab" data-act="view" data-v="solo" aria-selected="${v === 'solo'}" aria-pressed="${v === 'solo'}">${ICON.mask}<span>${t('view_solo')}</span></button>
-      <button role="tab" data-act="view" data-v="team" aria-selected="${v === 'team'}" aria-pressed="${v === 'team'}">${ICON.team}<span>${t('view_team')}</span></button>
-      <a role="tab" href="slots.html" aria-selected="false" data-track="slots_open" data-track-v="tabs">${ICON.slot}<span>${t('view_slots')}</span></a>
+    <div class="views-seg views-2" role="tablist">
+      <span role="tab" aria-selected="true" aria-current="page">${ICON.dice}<span>${t('sec_rand')}</span></span>
+      <a role="tab" href="slots.html" aria-selected="false" data-track="slots_open" data-track-v="tabs">${ICON.slot}<span>${t('sec_casino')}</span></a>
+    </div>
+    <div class="mode-seg" role="radiogroup" aria-label="${t('viewMode')}">
+      <button data-act="view" data-v="solo" aria-pressed="${v === 'solo'}">${ICON.mask}<span>${t('view_solo')}</span></button>
+      <button data-act="view" data-v="team" aria-pressed="${v === 'team'}">${ICON.team}<span>${t('view_team')}</span></button>
     </div>`;
   document.getElementById('team').hidden = v !== 'team';
 }
@@ -1359,7 +1363,7 @@ async function boot() {
   else state.res = roll(state.data, state.opts, newSeed());
   state.res.orders = { [state.opts.order || 'chaos']: state.res.build };
   if (!state.res.skills || state.res.skills.length !== 16) state.res.skills = rollSkillOrder(rng(newSeed()), 4, ultIndexOf(state.res.hero));
-  // со страницы «Крутить билд» вкладка «Собрать команду» ведёт на ./#team
+  // старые ссылки ./#team (раньше так вела вкладка «Собрать команду» со страницы казино) открывают команду
   if (location.hash === '#team' && state.view !== 'team' && !state.readonly) {
     const saved = store.get('ds:team', null);
     state.team = (saved && decodeTeam(saved, state.data)) || { slots: [{ res: state.res, order: state.opts.order, mode: state.opts.mode }], active: 0 };

@@ -1,4 +1,4 @@
-// Режим «Крутить билд»: случайная опубликованная сборка игрока.
+// Раздел «Казино билдов»: случайная опубликованная сборка игрока.
 // Соло — слот-машина (три барабана: герой, инвест, редкость), пати 2–6 игроков — лутбокс с карточками.
 // Редкость — по винрейту сборки за 30 дней: Trash … Legendary (60%+ — джекпот).
 // Все данные — напрямую из Deadlock API в браузере, как в лаборатории.
@@ -18,7 +18,7 @@ const HOUR = 3600, DAY = 86400;
 const RND = { days: 30, minMatches: 50, minPlayers: 10, maxChecks: 24, extraHeroes: 10 };
 const PARTY_MAX = 6;
 // Гарантия лутбокса: одна карточка не ниже этой редкости (индекс в RARITY) — по размеру пати.
-// 2–3 → Unique+, 4–5 → Rare+, 6 → Ultra Rare+. Остальные карточки крутятся как обычно.
+// 2–3 → Unique+, 4–5 → Rare+, 6 → Ultra Rare+; на 1 карточку гарантии нет. Остальные карточки крутятся как обычно.
 const GUARANTEE = { 2: 2, 3: 2, 4: 3, 5: 3, 6: 4 };
 
 // Редкости по винрейту сборки. min — нижняя граница (доля побед).
@@ -49,11 +49,11 @@ const reduced = () => { try { return matchMedia('(prefers-reduced-motion: reduce
 
 // ---------- справочник ----------
 let D = null;
-let heroById = {}, itemById = {};
+let heroById = {}, itemById = {}, abilityById = {};
 
 // ---------- настройки (запоминаются) ----------
 const OPT_KEY = NS + 'slots:opts';
-const opts = { heroes: [], lean: 'any', floor: 0, party: 1, sound: true };
+const opts = { mode: 'slot', heroes: [], lean: 'any', floor: 0, party: 1, sound: true }; // mode: 'slot' — автомат, 'box' — лутбокс
 function loadOpts() {
   try {
     const v = JSON.parse(localStorage.getItem(OPT_KEY) || 'null');
@@ -63,6 +63,7 @@ function loadOpts() {
     if (Number.isInteger(v.floor) && v.floor >= 0 && v.floor < RARITY.length) opts.floor = v.floor;
     if (Number.isInteger(v.party) && v.party >= 1 && v.party <= PARTY_MAX) opts.party = v.party;
     opts.sound = v.sound !== false;
+    if (v.mode === 'slot' || v.mode === 'box') opts.mode = v.mode;
   } catch {}
 }
 function saveOpts() { try { localStorage.setItem(OPT_KEY, JSON.stringify(opts)); } catch {} }
@@ -132,12 +133,17 @@ async function freshBuild(id, old) {
   } catch { return old; }
 }
 
-// склонность: куда вложено больше всего душ (по всем предметам сборки)
+// склонность: куда вложено больше всего душ. Разделы «Необязательно» (optional) не считаем — это запасные варианты,
+// а не то, что игрок реально собирает; если в сборке только такие разделы — считаем по всем.
 function leanOf(b) {
-  const sum = { weapon: 0, spirit: 0, vitality: 0 };
-  for (const cat of (b && b.details && b.details.mod_categories) || []) {
-    for (const m of cat.mods || []) { const it = itemById[m.ability_id >>> 0]; if (it && sum[it.cat] !== undefined) sum[it.cat] += it.cost || 0; }
-  }
+  const cats = (b && b.details && b.details.mod_categories) || [];
+  const tally = (list) => {
+    const sum = { weapon: 0, spirit: 0, vitality: 0 };
+    for (const cat of list) for (const m of cat.mods || []) { const it = itemById[m.ability_id >>> 0]; if (it && sum[it.cat] !== undefined) sum[it.cat] += it.cost || 0; }
+    return sum;
+  };
+  let sum = tally(cats.filter((c) => !c.optional));
+  if (!(sum.weapon + sum.spirit + sum.vitality)) sum = tally(cats);
   const total = sum.weapon + sum.spirit + sum.vitality;
   if (!total) return null;
   const cat = CATS.slice().sort((a, b2) => sum[b2] - sum[a])[0];
@@ -188,18 +194,20 @@ async function rollLucky(rar) {
 }
 
 // n сборок на разных героев. Возвращает { list, short } — short: в выбранном пуле не хватило героев.
-async function rollBuilds(n) {
+// skip — герои, которых брать нельзя (уже в команде автомата); при непустом skip можно добрать героя вне пула.
+async function rollBuilds(n, skip = new Set()) {
   // лутбокс: сначала гарантированная карточка, остальные — обычной круткой без её героя
   const g0 = n > 1 && GUARANTEE[n] > opts.floor ? await rollLucky(GUARANTEE[n]) : null;
-  const [res, fresh] = await Promise.all([rollRest(g0 ? n - 1 : n, g0 ? g0.hero.id : 0, n === 1), g0 && freshBuild(g0.row.id, g0.build)]);
+  const skip2 = new Set(skip); if (g0) skip2.add(g0.hero.id);
+  const [res, fresh] = await Promise.all([rollRest(g0 ? n - 1 : n, skip2, n === 1 && !skip.size), g0 && freshBuild(g0.row.id, g0.build)]);
   if (g0) {
     if (fresh && fresh !== g0.build) { g0.build = fresh; if (opts.lean === 'any') g0.lean = leanOf(fresh) || g0.lean; }
     res.list.splice(Math.floor(Math.random() * (res.list.length + 1)), 0, g0); seen.add(g0.row.id); // место случайное, вскроется всё равно последней
   }
   return res;
 }
-async function rollRest(n, skipHero, solo) {
-  const all = D.heroes.filter((h) => h.id !== skipHero);
+async function rollRest(n, skip, solo) {
+  const all = D.heroes.filter((h) => !skip.has(h.id));
   const picked = opts.heroes.length ? all.filter((h) => opts.heroes.includes(h.id)) : all;
   let queue = shuffled(picked);
   let limit = opts.heroes.length ? queue.length : Math.min(queue.length, n + RND.extraHeroes);
@@ -361,16 +369,21 @@ function loop(t) {
 function runLoop() { if (!raf) raf = requestAnimationFrame(loop); }
 
 // ---------- состояние ----------
-const state = { busy: false, solo: null, party: null, open: -1, shared: false }; // shared — открыта ссылка тиммейта (?party=)
+// Результаты у каждого режима свои: переключение их не стирает. open — чья сборка раскрыта внизу.
+// slot.cur — игрок команды, который сейчас на автомате (его перекручивает «Крутить»).
+const state = { busy: false, slot: { list: [], cur: 0, open: -1 }, box: { list: [], short: false, open: -1 }, shared: false }; // shared — открыта ссылка тиммейта (?party=)
 
 // ---------- разметка ----------
 const SPEAKER = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" fill="currentColor"/><path class="snd-on" d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.6 7.6 0 0 1 0 11"/><path class="snd-off" d="m16 9.5 5 5M21 9.5l-5 5"/></svg>';
 const svg = (p) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 const ICON = {
+  dice: svg('<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none"/><circle cx="16" cy="8" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="8" cy="16" r="1.4" fill="currentColor" stroke="none"/><circle cx="16" cy="16" r="1.4" fill="currentColor" stroke="none"/>'),
   mask: svg('<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>'),
   team: svg('<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.8-3.6 3.2-5.5 6-5.5s5.2 1.9 6 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M16 14.6c2.6.1 4.3 1.8 5 5.4"/>'),
   slot: svg('<rect x="3" y="5" width="15" height="14" rx="2"/><path d="M8 5v14M13 5v14M21 6v7M18 13h3"/><circle cx="21" cy="5" r="1.4" fill="currentColor"/>'),
   game: svg('<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v3h16v-3"/>'),
+  plus: svg('<path d="M12 5v14M5 12h14"/>'),
+  box: svg('<path d="M3 9h18v11H3z"/><path d="M2 5h20v4H2z"/><path d="M10 13h4"/>'),
   link: svg('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'),
   flask: svg('<path d="M9 3h6"/><path d="M10 3v6L4.5 18.5A1.7 1.7 0 0 0 6 21h12a1.7 1.7 0 0 0 1.5-2.5L14 9V3"/><path d="M7 15h10"/>'),
 };
@@ -380,28 +393,33 @@ function segHtml(attr, items, val, cls = '') {
 }
 function shell() {
   document.getElementById('views').innerHTML = `
-    <div class="views-seg views-3" role="tablist">
-      <a role="tab" href="./" aria-selected="false">${ICON.mask}<span>${L('Соло', 'Solo')}</span></a>
-      <a role="tab" href="./#team" aria-selected="false">${ICON.team}<span>${L('Собрать команду', 'Build a team')}</span></a>
-      <a role="tab" href="slots.html" aria-selected="true" aria-current="page">${ICON.slot}<span>${L('Крутить билд', 'Spin a build')}</span></a>
-    </div>`;
+    <div class="views-seg views-2" role="tablist">
+      <a role="tab" href="./" aria-selected="false">${ICON.dice}<span>${L('Рандом', 'Randomizer')}</span></a>
+      <span role="tab" aria-selected="true" aria-current="page">${ICON.slot}<span>${L('Казино билдов', 'Build Casino')}</span></span>
+    </div>
+    <div id="modes"></div>`;
   root.innerHTML = `
     <div class="sl-head">
-      <h1 class="lab-title">${L('Крутить <mark>билд</mark>', 'Spin a <mark>build</mark>')}</h1>
-      <p class="lab-summary">${L('Случайная сборка настоящего игрока. Чем выше её винрейт — тем реже дроп: от <b>Trash</b> до <b>Legendary</b>. Играете пати — ставь, сколько вас, и открывай лутбокс.', 'A random build from a real player. The higher its win rate, the rarer the drop: from <b>Trash</b> to <b>Legendary</b>. Playing as a party? Set the headcount and crack open a loot box.')}</p>
+      <h1 class="lab-title">${L('Казино <mark>билдов</mark>', 'Build <mark>casino</mark>')}</h1>
+      <p class="lab-summary">${L('Случайная сборка настоящего игрока. Чем выше её винрейт — тем реже дроп: от <b>Trash</b> до <b>Legendary</b>. Крути автомат по одному игроку или открой лутбокс сразу на всю пати.', 'A random build from a real player. The higher its win rate, the rarer the drop: from <b>Trash</b> to <b>Legendary</b>. Spin the machine one player at a time or crack a loot box for the whole party.')}</p>
     </div>
     <div id="stage" class="sl-stage"></div>
     <div id="out" class="sl-out"></div>
     <section class="rnd-box sl-opts" id="opts"></section>
     <section class="sl-legend" id="legend"></section>`;
-  renderOpts(); renderStage(); renderLegend();
+  renderModes(); renderOpts(); renderStage(); renderLegend();
+}
+function renderModes() {
+  document.getElementById('modes').innerHTML = `<div class="mode-seg" role="radiogroup" aria-label="${L('Режим', 'Mode')}">
+    ${[['slot', ICON.slot, L('Автомат', 'Slot machine')], ['box', ICON.box, L('Лутбокс', 'Loot box')]].map(([m, ic, l]) => `<button data-mode="${m}" aria-pressed="${mode() === m}">${ic}<span>${l}</span></button>`).join('')}
+  </div>`;
 }
 
 function renderOpts() {
   const any = !opts.heroes.length;
   document.getElementById('opts').innerHTML = `
     <div class="rnd-row">
-      <div class="rnd-opt"><span class="rnd-lbl">${L('Сколько вас', 'Party size')}</span>${segHtml('party', Array.from({ length: PARTY_MAX }, (_, i) => [i + 1, String(i + 1)]), opts.party, 'sl-party')}</div>
+      ${isParty() ? `<div class="rnd-opt"><span class="rnd-lbl">${L('Сколько вас', 'Party size')}</span>${segHtml('party', Array.from({ length: PARTY_MAX }, (_, i) => [i + 1, String(i + 1)]), opts.party, 'sl-party')}</div>` : ''}
       <div class="rnd-opt"><span class="rnd-lbl">${L('Инвест в билде', 'Build investment')}</span>${segHtml('lean', LEANS.map(([k, l]) => [k, esc(l)]), opts.lean, 'sl-lean')}</div>
     </div>
     <div class="rnd-opt"><span class="rnd-lbl">${L('Нижняя планка винрейта', 'Win-rate floor')}</span>
@@ -422,10 +440,18 @@ function renderLegend() {
     <p class="lab-legend">${L(`В пуле — опубликованные сборки с ${RND.minMatches}+ матчами от ${RND.minPlayers}+ игроков за ${RND.days} дней. На малом числе матчей высокий винрейт часто просто везение: Legendary — это редкий дроп, а не гарантия побед.`, `The pool is published builds with ${RND.minMatches}+ matches from ${RND.minPlayers}+ players over ${RND.days} days. On a small sample a high win rate is often just luck: Legendary is a rare drop, not a guaranteed win.`)}</p>`;
 }
 
-const isParty = () => opts.party > 1;
-const boxLabel = () => (state.shared ? L('Открыть свой лутбокс', 'Open your own box') : state.party ? L('Открыть ещё', 'Open another') : L('Открыть лутбокс', 'Open the loot box'));
-const boxGo = () => `<button class="btn btn-main sl-roll" data-spin="1">${boxLabel()}</button>${state.party ? `<button class="btn btn-game sl-share" data-share="1">${ICON.link}<span>${L('Ссылка на команду', 'Team link')}</span></button>` : ''}`;
-function paintBoxGo() { const go = document.getElementById('lbgo'); if (go) go.innerHTML = boxGo(); }
+const mode = () => (state.shared ? 'box' : opts.mode); // ссылка тиммейта всегда показывается видом лутбокса
+const isParty = () => mode() === 'box';
+const S = () => (isParty() ? state.box : state.slot); // результаты активного режима
+const shareBtn = () => (S().list.length ? `<button class="btn btn-game sl-share" data-share="1">${ICON.link}<span>${S().list.length > 1 ? L('Ссылка на команду', 'Team link') : L('Ссылка на сборку', 'Build link')}</span></button>` : '');
+const boxLabel = () => (state.shared ? L('Открыть свой лутбокс', 'Open your own box') : state.box.list.length ? L('Открыть ещё', 'Open another') : L('Открыть лутбокс', 'Open the loot box'));
+const boxGo = () => `<button class="btn btn-main sl-roll" data-spin="1">${boxLabel()}</button>${shareBtn()}`;
+const slotGo = () => {
+  const n = state.slot.list.length;
+  return `<button class="btn btn-main sl-roll" data-spin="1">${L('Крутить билд', 'Spin a build')}</button>
+    ${n && n < PARTY_MAX ? `<button class="btn btn-next sl-next" data-next="1">${ICON.plus}<span>${L('Следующий игрок', 'Next player')}</span><small>${n + 1}/${PARTY_MAX}</small></button>` : ''}${shareBtn()}`;
+};
+function paintGo() { const go = document.getElementById('go'); if (go) go.innerHTML = isParty() ? boxGo() : slotGo(); }
 function renderStage() {
   const st = document.getElementById('stage');
   reels = [];
@@ -441,11 +467,11 @@ function renderStage() {
             <b class="lb-n">${opts.party}</b>
           </button>
         </div>
-        <div class="sl-go" id="lbgo">${boxGo()}</div>
+        <div class="sl-go" id="go">${boxGo()}</div>
         <p class="sl-msg" id="msg" role="status"></p>
         <div class="lb-cards" id="cards"></div>
       </div>`;
-    if (state.party) paintParty(false);
+    if (state.box.list.length) paintParty(false);
   } else {
     st.innerHTML = `
       <div class="sm-wrap">
@@ -462,10 +488,9 @@ function renderStage() {
           <div class="sm-plate" id="plate" role="status"><span class="sm-idle">${L('Дёрни рычаг', 'Pull the lever')}</span></div>
         </div>
       </div>
-      <div class="sl-go">
-        <button class="btn btn-main sl-roll" data-spin="1">${L('Крутить билд', 'Spin a build')}</button>
-      </div>
-      <p class="sl-msg" id="msg" role="status"></p>`;
+      <div class="sl-go" id="go">${slotGo()}</div>
+      <p class="sl-msg" id="msg" role="status"></p>
+      <div class="lb-cards sl-team" id="cards"></div>`;
     const els = st.querySelectorAll('.reel');
     reels = [
       new Reel(els[0], () => shuffled(D.heroes), heroCell),
@@ -474,7 +499,9 @@ function renderStage() {
     ];
     reels.forEach((r, i) => { r.idx = i; });
     reels[2].ticks = true;
-    if (state.solo) { const g = state.solo; reels[0].show(g.hero); reels[1].show(g.lean.cat); reels[2].show(g.rar); paintSoloWin(false); }
+    const g = state.slot.list[state.slot.cur];
+    if (g) { reels[0].show(g.hero); reels[1].show(g.lean.cat); reels[2].show(g.rar); paintSoloWin(false); }
+    paintTeam();
   }
   renderOut();
 }
@@ -482,30 +509,38 @@ function renderStage() {
 function setBusy(b) {
   state.busy = b;
   document.body.classList.toggle('sl-busy', b);
-  for (const el of root.querySelectorAll('[data-spin]')) el.disabled = b;
+  for (const el of document.querySelectorAll('[data-spin],[data-next],[data-mode],[data-drop]')) el.disabled = b;
 }
 function showMsg(html) { const m = document.getElementById('msg'); if (m) m.innerHTML = html || ''; }
 const emptyMsg = () => (opts.heroes.length === 1
   ? L(`У ${esc(heroById[opts.heroes[0]].name)} нет сборок под эти условия. Опусти планку винрейта или смени инвест.`, `${esc(heroById[opts.heroes[0]].name)} has no builds for these settings. Lower the win-rate floor or change the investment.`)
   : L('Не нашёл сборок под эти условия. Опусти планку винрейта или смени инвест и крутани ещё раз.', 'No builds found for these settings. Lower the win-rate floor or change the investment and spin again.'));
 
-// ---------- соло: слот-машина ----------
-async function spinSolo() {
+// ---------- автомат: соло и команда ----------
+// kind: 'reroll' — перекрутить игрока на автомате (первая крутка создаёт его), 'next' — добавить игрока в команду
+async function spinSolo(kind = 'reroll') {
   if (state.busy) return;
+  const T = state.slot;
+  if (kind === 'next' && (!T.list.length || T.list.length >= PARTY_MAX)) return;
+  const slot = kind === 'next' || !T.list.length ? T.list.length : T.cur; // куда ляжет результат
   setBusy(true); showMsg('');
   const sm = document.getElementById('sm'), plate = document.getElementById('plate');
   sm.dataset.state = 'spin'; delete sm.dataset.rar;
-  plate.innerHTML = `<span class="sm-idle">${L('Кручу…', 'Spinning…')}</span>`;
-  state.solo = null; state.open = -1; renderOut();
+  plate.innerHTML = `<span class="sm-idle">${kind === 'next' ? L(`Игрок ${slot + 1}…`, `Player ${slot + 1}…`) : L('Кручу…', 'Spinning…')}</span>`;
+  T.open = -1; renderOut();
+  for (const el of document.querySelectorAll('#cards .lc')) el.classList.toggle('spinning', +el.dataset.card === slot);
   const lever = sm.querySelector('.sm-lever'); lever.classList.remove('pull'); void lever.offsetWidth; lever.classList.add('pull');
   SFX.lever();
   const still = reduced();
   if (!still) { for (const r of reels) { r.measure(); r.free(); } runLoop(); }
   const t0 = performance.now();
   let res = null, err = '';
-  try { res = (await rollBuilds(1)).list[0] || null; } catch (e) { err = e.message; }
+  // герои остальных игроков команды не повторяются
+  const skip = new Set(T.list.filter((_, i) => i !== slot).map((g) => g.hero.id));
+  let short = false;
+  try { const got = await rollBuilds(1, skip); res = got.list[0] || null; short = got.short; } catch (e) { err = e.message; }
   if (!still) await sleep(Math.max(0, 700 - (performance.now() - t0)));
-  track('slots_spin', { mode: 'solo', hero: opts.heroes.length === 1 ? heroById[opts.heroes[0]].name : opts.heroes.length ? 'pool' : 'any', invest: opts.lean, floor: RARITY[opts.floor].k, found: res ? 1 : 0, rarity: res ? RARITY[res.rar].k : '', build: res ? res.row.id : '' });
+  track('slots_spin', { mode: 'slot', kind, team: T.list.length + (kind === 'next' ? 1 : 0), hero: opts.heroes.length === 1 ? heroById[opts.heroes[0]].name : opts.heroes.length ? 'pool' : 'any', invest: opts.lean, floor: RARITY[opts.floor].k, found: res ? 1 : 0, rarity: res ? RARITY[res.rar].k : '', build: res ? res.row.id : '' });
   if (!res) {
     // нечего показать — барабаны просто останавливаются где были
     if (!still) await Promise.all(reels.map((r, i) => r.stopOn(r.syms[mod(Math.floor(r.p) - 6 - i * 2, r.L)], 6 + i * 2)));
@@ -513,6 +548,7 @@ async function spinSolo() {
     sm.dataset.state = 'idle';
     plate.innerHTML = `<span class="sm-idle">${L('Пусто', 'Nothing')}</span>`;
     showMsg(err ? L('Не удалось получить статистику: ', 'Could not load the stats: ') + esc(err) : emptyMsg());
+    paintTeam(); paintGo();
     setBusy(false);
     return;
   }
@@ -528,14 +564,37 @@ async function spinSolo() {
     SFX.spinOff();
     await sleep(180);
   }
-  state.solo = res;
+  T.list[slot] = res; T.cur = slot; T.open = slot;
   paintSoloWin(true);
-  renderOut();
+  if (short) showMsg(L('В пуле не хватило героев без повторов — добрал из остальных.', 'Not enough unique heroes in the pool — filled in from the rest.'));
+  paintTeam(); paintGo(); renderOut();
   setBusy(false);
+}
+// ряд карточек команды под автоматом (когда игроков 2+)
+function paintTeam() {
+  const cards = document.getElementById('cards'), T = state.slot;
+  if (!cards || isParty()) return;
+  cards.style.setProperty('--n', T.list.length);
+  cards.innerHTML = T.list.length > 1 ? T.list.map((g, i) => partyCard(g, i, true)).join('') : '';
+}
+// поставить игрока команды на автомат: барабаны и табло показывают его, «Крутить» перекручивает его
+function pickSlot(i) {
+  const T = state.slot; if (!T.list[i]) return;
+  T.cur = i; T.open = i;
+  const g = T.list[i];
+  reels[0].show(g.hero); reels[1].show(g.lean.cat); reels[2].show(g.rar);
+  paintSoloWin(false); paintTeam(); renderOut();
+}
+function dropSlot(i) {
+  const T = state.slot; if (!T.list[i]) return;
+  T.list.splice(i, 1);
+  if (T.cur > i || T.cur >= T.list.length) T.cur = Math.max(0, T.cur - 1);
+  T.open = T.list.length ? T.cur : -1;
+  renderStage();
 }
 
 function paintSoloWin(animate) {
-  const g = state.solo, sm = document.getElementById('sm'), plate = document.getElementById('plate');
+  const g = state.slot.list[state.slot.cur], sm = document.getElementById('sm'), plate = document.getElementById('plate');
   if (!g || !sm) return;
   const r = RARITY[g.rar];
   sm.dataset.state = 'win'; sm.dataset.rar = r.k;
@@ -561,7 +620,7 @@ async function openBox() {
   if (state.shared) leaveShared();
   setBusy(true); showMsg('');
   const lb = document.getElementById('lb'), cards = document.getElementById('cards');
-  state.party = null; state.open = -1; cards.innerHTML = ''; renderOut();
+  state.box = { list: [], short: false, open: -1 }; cards.innerHTML = ''; renderOut(); paintGo();
   lb.dataset.state = 'shake';
   const still = reduced();
   const t0 = performance.now();
@@ -571,7 +630,7 @@ async function openBox() {
   if (!still) await sleep(Math.max(0, 1500 - (performance.now() - t0)));
   const list = got ? got.list : [];
   const best = list.reduce((m, g) => Math.max(m, g.rar), 0);
-  track('slots_spin', { mode: 'party', size: opts.party, hero: opts.heroes.length ? 'pool' : 'any', invest: opts.lean, floor: RARITY[opts.floor].k, found: list.length, rarity: list.length ? RARITY[best].k : '' });
+  track('slots_spin', { mode: 'box', size: opts.party, hero: opts.heroes.length ? 'pool' : 'any', invest: opts.lean, floor: RARITY[opts.floor].k, found: list.length, rarity: list.length ? RARITY[best].k : '' });
   SFX.shake(false);
   if (!list.length) {
     lb.dataset.state = 'idle';
@@ -579,7 +638,7 @@ async function openBox() {
     setBusy(false);
     return;
   }
-  state.party = { list, short: got.short };
+  state.box = { list, short: got.short, open: list.length === 1 ? 0 : -1 }; // одна карточка — сборку сразу раскрываем
   lb.dataset.state = 'burst'; lb.dataset.rar = RARITY[best].k;
   SFX.pop();
   const box = lb.querySelector('.lb-box');
@@ -607,24 +666,24 @@ async function openBox() {
     }
   }
   lb.dataset.state = 'open';
-  paintBoxGo();
+  paintGo(); renderOut();
   setBusy(false);
 }
 
 function partyCard(g, i, flipped) {
-  const r = RARITY[g.rar];
-  return `<article class="lc rar-${r.k}${flipped ? ' flipped' : ''}" style="--i:${i}" data-card="${i}">
+  const r = RARITY[g.rar], team = !isParty(), cur = team && state.slot.cur === i;
+  return `<article class="lc rar-${r.k}${flipped ? ' flipped' : ''}${cur ? ' cur' : ''}" style="--i:${i}" data-card="${i}">
     <div class="lc-in">
       <div class="lc-back"></div>
       <div class="lc-front">
-        <div class="lc-art">${g.hero.card ? `<img src="${esc(g.hero.card)}" alt="" loading="lazy">` : ''}<span class="lc-n">${L('Игрок', 'Player')} ${i + 1}</span></div>
+        <div class="lc-art">${g.hero.card ? `<img src="${esc(g.hero.card)}" alt="" loading="lazy">` : ''}<span class="lc-n"${cur ? ` title="${L('Сейчас на автомате', 'On the machine now')}"` : ''}>${L('Игрок', 'Player')} ${i + 1}</span>${team ? `<button class="sl-x" data-drop="${i}" title="${L('Убрать игрока', 'Remove player')}" aria-label="${L('Убрать игрока', 'Remove player')} ${i + 1}">×</button>` : ''}</div>
         <div class="lc-rar">${g.rar === 5 ? 'Jackpot · ' : ''}${r.name}</div>
         <h3>${esc(g.hero.name)}</h3>
         <p class="lc-wr"><b>${pct(g.row.wr)}</b> · ${fmt(g.row.matches)} ${L('матчей', 'matches')}</p>
         <p class="lc-lean"><i class="dotc ${g.lean.cat}"></i>${esc(CAT_NAME[g.lean.cat])} ${pct(g.lean.share, 0)}</p>
         <div class="lc-btns">
           <button class="btn btn-mini btn-game" data-game="${i}">${L('В игру', 'To game')}</button>
-          <button class="btn btn-mini" data-open="${i}" aria-pressed="${state.open === i}">${L('Сборка', 'Build')}</button>
+          <button class="btn btn-mini" data-open="${i}" aria-pressed="${S().open === i}">${L('Сборка', 'Build')}</button>
         </div>
       </div>
     </div>
@@ -632,8 +691,8 @@ function partyCard(g, i, flipped) {
 }
 function paintParty(animate, from) {
   const cards = document.getElementById('cards'), lb = document.getElementById('lb');
-  if (!cards || !state.party) return;
-  const { list } = state.party;
+  if (!cards || !state.box.list.length) return;
+  const { list } = state.box;
   cards.style.setProperty('--n', list.length);
   cards.innerHTML = list.map((g, i) => partyCard(g, i, !animate)).join('');
   if (!animate) { lb.dataset.state = 'open'; lb.dataset.rar = RARITY[list.reduce((m, g) => Math.max(m, g.rar), 0)].k; return; }
@@ -665,6 +724,51 @@ function catPanel(cat) {
     <div class="g-items">${items.length ? items.map(itemTile).join('') : `<span class="muted">${L('пусто', 'empty')}</span>`}</div>
   </section>`;
 }
+// ---------- прокачка умений (как в лаборатории, компактно) ----------
+const BOLT = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.5 1 3.5 9h4l-1 6 6-8h-4z" fill="currentColor"/></svg>';
+const PT = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 14.5 8 8 14.5 1.5 8z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.6"/></svg>';
+// В API после 16 шагов бывает «хвост» с повторами (история правок): проигрываем шаги как игра —
+// умение открывается один раз, улучшается максимум трижды; чужие умения и старые ID отбрасываем (та же логика, что в lab.js).
+function cleanAbilityOrder(raw, allowed) {
+  const st = new Map(); const out = [];
+  for (const c of raw || []) {
+    const id = c.ability_id >>> 0;
+    if (allowed && allowed.size && !allowed.has(id)) continue;
+    const a = st.get(id) || { open: false, lvl: 0 };
+    if (c.currency_type === 2) { if (a.open) continue; a.open = true; }
+    else { if (!a.open || a.lvl >= 3 || c.delta >= 0) continue; a.lvl++; }
+    st.set(id, a); out.push(c);
+  }
+  return out;
+}
+function abilityPlan(b) {
+  const h = heroById[b.hero_id];
+  const abs = ((h && h.abilities) || []).filter((a) => a.id);
+  const own = new Set(abs.map((a) => a.id >>> 0));
+  const ch = cleanAbilityOrder(b.details && b.details.ability_order && b.details.ability_order.currency_changes, own);
+  if (!ch.length) return '';
+  // приоритет: в каком порядке умения доводят до максимума (кто раньше получил 3-е улучшение; недокачанные — по числу улучшений)
+  const st = new Map(abs.map((a) => [a.id >>> 0, { a, ups: 0, first: Infinity, max: Infinity }]));
+  ch.forEach((c, i) => {
+    const x = st.get(c.ability_id >>> 0); if (!x || c.currency_type === 2) return;
+    x.ups++; x.first = Math.min(x.first, i); if (x.ups === 3) x.max = i;
+  });
+  const prio = [...st.values()].filter((x) => x.ups).sort((p, q) => p.max - q.max || q.ups - p.ups || p.first - q.first);
+  const ic = (a) => (a.icon ? `<img src="${esc(a.icon)}" alt="">` : '');
+  const cols = `grid-template-columns: 30px repeat(${ch.length}, minmax(24px, 1fr))`;
+  return `<section class="g-abil sl-abil">
+    <h3>${L('Прокачка', 'Ability order')}</h3>
+    ${prio.length ? `<ol class="sl-prio" aria-label="${L('Приоритет улучшений', 'Upgrade priority')}">${prio.map((x) => `<li title="${esc(x.a.name)}: ${x.ups} ${L('улучш.', 'upgr.')}"><i class="g-ab-ic">${ic(x.a)}</i><span>${esc(x.a.name)}</span></li>`).join('')}</ol>` : ''}
+    <div class="g-abil-scroll"><div class="g-abil-grid">
+      ${abs.map((a) => `<div class="g-ab-row" style="${cols}">
+        <div class="g-ab-ic" title="${esc(a.name)}">${ic(a)}</div>
+        ${ch.map((c, i) => ((c.ability_id >>> 0) === (a.id >>> 0)
+          ? `<div class="g-ab-cell"><span class="g-pt${c.currency_type === 2 ? ' unlock' : ''}" title="${i + 1}. ${esc(a.name)}: ${c.currency_type === 2 ? L('открыть', 'unlock') : L('улучшение за ', 'upgrade for ') + -c.delta}">${c.currency_type === 2 ? BOLT : PT + '<b>' + -c.delta + '</b>'}</span></div>`
+          : '<div class="g-ab-cell"></div>')).join('')}
+      </div>`).join('')}
+    </div></div>
+  </section>`;
+}
 function buildPanel(g, idx) {
   const b = g.build, r = RARITY[g.rar], id = g.row.id;
   const cats = (b.details && b.details.mod_categories) || [];
@@ -682,21 +786,20 @@ function buildPanel(g, idx) {
       <button class="btn btn-game" data-game="${idx}">${ICON.game}<span>${L('Скопировать в игру', 'Copy to game')}</span></button>
       <a class="btn" href="lab/builds.html?ids=${id}">${ICON.flask}<span>${L('Статистика и прокачка', 'Stats and skill order')}</span></a>
     </div>
+    ${abilityPlan(b)}
     <div class="g-overview">
       ${b.description ? `<p class="g-desc">${esc(b.description)}</p>` : ''}
       <div class="g-cats">${cats.map(catPanel).join('') || `<p class="lab-empty">${L('В сборке нет предметов.', 'This build has no items.')}</p>`}</div>
     </div>
   </article>`;
 }
-const current = (i) => (isParty() ? state.party && state.party.list[i] : state.solo);
+const current = (i) => S().list[i];
 function renderOut() {
   const out = document.getElementById('out');
   if (!out) return;
-  if (isParty()) {
-    const g = state.open >= 0 ? current(state.open) : null;
-    out.innerHTML = g ? `<p class="sl-out-h">${L('Игрок', 'Player')} ${state.open + 1} · ${esc(g.hero.name)}</p>${buildPanel(g, state.open)}` : '';
-    for (const b of root.querySelectorAll('[data-open]')) b.setAttribute('aria-pressed', String(+b.dataset.open === state.open));
-  } else out.innerHTML = state.solo ? buildPanel(state.solo, 0) : '';
+  const s = S(), g = s.open >= 0 ? s.list[s.open] : null;
+  out.innerHTML = g ? `${s.list.length > 1 ? `<p class="sl-out-h">${L('Игрок', 'Player')} ${s.open + 1} · ${esc(g.hero.name)}</p>` : ''}${buildPanel(g, s.open)}` : '';
+  for (const b of root.querySelectorAll('[data-open]')) b.setAttribute('aria-pressed', String(+b.dataset.open === s.open));
 }
 
 function gameCode(g) {
@@ -738,15 +841,15 @@ function decodeParty(code) {
     .map(([id, matches, wins, players]) => ({ id, matches, wins, players, wr: matches ? wins / matches : 0 }));
 }
 function partyUrl() {
-  if (!state.party) return '';
-  try { const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('party', encodeParty(state.party.list)); return u.toString(); } catch { return ''; }
+  const list = S().list; if (!list.length) return '';
+  try { const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('party', encodeParty(list)); return u.toString(); } catch { return ''; }
 }
 function leaveShared() {
-  state.shared = false;
+  state.shared = false; opts.mode = 'box'; // экран сейчас — лутбокс; переключатель режима потом сам поставит нужный
   try { const u = new URL(location.href); u.searchParams.delete('party'); history.replaceState(null, '', u); } catch {}
 }
 async function loadShared(rows) {
-  state.shared = true; opts.party = Math.max(2, rows.length); // в настройки не сохраняем: это чужой лутбокс
+  state.shared = true; opts.party = rows.length; // в настройки не сохраняем: это чужой лутбокс
   shell();
   setBusy(true);
   const lb = document.getElementById('lb');
@@ -763,11 +866,11 @@ async function loadShared(rows) {
   if (!list.length) {
     if (lb) lb.dataset.state = 'idle';
     showMsg(L('Не удалось открыть сборки по этой ссылке. Возможно, их удалили — открой свой лутбокс.', 'Could not load the builds from this link. They may have been deleted — open your own box.'));
-    paintBoxGo();
+    paintGo();
     return;
   }
-  state.party = { list, short: false };
-  paintParty(false); paintBoxGo();
+  state.box = { list, short: false, open: list.length === 1 ? 0 : -1 };
+  paintParty(false); paintGo(); renderOut();
   showMsg(list.length < rows.length
     ? L(`Лутбокс тиммейта: открылось ${list.length} из ${rows.length}. Выбери свою карточку и жми «В игру».`, `Teammate’s loot box: ${list.length} of ${rows.length} loaded. Pick your card and hit “To game”.`)
     : L('Лутбокс тиммейта. Выбери свою карточку и жми «В игру».', 'Your teammate’s loot box. Pick your card and hit “To game”.'));
@@ -775,16 +878,20 @@ async function loadShared(rows) {
 }
 
 // ---------- события ----------
-const spin = () => (isParty() ? openBox() : spinSolo());
-root.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-spin],[data-party],[data-lean],[data-floor],[data-hero],[data-sound],[data-game],[data-open],[data-copy-id],[data-share],.lc.flipped');
+const spin = () => (isParty() ? openBox() : spinSolo('reroll'));
+// на документе: переключатель режима (#modes) стоит в навигации, вне #slots
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-spin],[data-next],[data-mode],[data-drop],[data-party],[data-lean],[data-floor],[data-hero],[data-sound],[data-game],[data-open],[data-copy-id],[data-share],.lc.flipped');
   if (!t) return;
   const d = t.dataset;
   if (d.spin) { spin(); return; }
+  if (d.next) { spinSolo('next'); return; }
   if (d.share) {
     const url = partyUrl(); if (!url) return;
-    copy(url, L('Ссылка скопирована — кидай в чат пати: каждый откроет свою карточку и заберёт сборку кнопкой «В игру»', 'Link copied — drop it in the party chat: everyone opens their card and grabs the build with “To game”'));
-    track('slots_share', { size: state.party.list.length });
+    copy(url, S().list.length > 1
+      ? L('Ссылка скопирована — кидай в чат пати: каждый откроет свою карточку и заберёт сборку кнопкой «В игру»', 'Link copied — drop it in the party chat: everyone opens their card and grabs the build with “To game”')
+      : L('Ссылка на сборку скопирована', 'Build link copied'));
+    track('slots_share', { size: S().list.length, mode: mode() });
     return;
   }
   if (d.copyId) { copy(d.copyId, L(`ID ${d.copyId} скопирован`, `ID ${d.copyId} copied`)); return; }
@@ -798,17 +905,27 @@ root.addEventListener('click', (e) => {
   }
   const openIdx = d.open !== undefined ? +d.open : t.classList.contains('lc') ? +d.card : -1;
   if (openIdx >= 0) {
-    state.open = state.open === openIdx ? -1 : openIdx; renderOut();
-    if (state.open >= 0) document.getElementById('out').scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' });
+    const s = S();
+    if (!isParty() && !state.busy && state.slot.cur !== openIdx) pickSlot(openIdx); // в автомате — ставим игрока на автомат и раскрываем
+    else { s.open = s.open === openIdx ? -1 : openIdx; renderOut(); }
+    if (s.open >= 0) document.getElementById('out').scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' });
     return;
   }
   if (d.sound) { opts.sound = !opts.sound; setSound(opts.sound); saveOpts(); t.setAttribute('aria-pressed', String(opts.sound)); if (opts.sound) SFX.flip(); return; }
   if (state.busy) return; // условия во время крутки не меняем
+  if (d.drop !== undefined) { dropSlot(+d.drop); return; }
+  if (d.mode) {
+    if (d.mode === mode()) return;
+    if (state.shared) leaveShared();
+    opts.mode = d.mode; saveOpts(); showMsg('');
+    renderModes(); renderOpts(); renderStage();
+    return;
+  }
   if (d.party) {
     const n = +d.party;
     if (n === opts.party) return;
     if (state.shared) leaveShared();
-    opts.party = n; saveOpts(); state.party = null; state.open = -1;
+    opts.party = n; saveOpts(); state.box = { list: [], short: false, open: -1 };
     renderOpts(); renderStage();
     return;
   }
@@ -831,7 +948,7 @@ addEventListener('resize', () => { for (const r of reels) { r.measure(); r.draw(
 // ---------- язык: статичная часть страницы и переключатель RU / EN ----------
 function localizeStatic() {
   document.documentElement.lang = LANG;
-  document.title = L('Крутить билд — RANDOMLOCK', 'Spin a build — RANDOMLOCK');
+  document.title = L('Казино билдов — RANDOMLOCK', 'Build Casino — RANDOMLOCK');
   for (const el of document.querySelectorAll('[data-en]')) el.innerHTML = EN ? el.dataset.en : el.innerHTML;
   for (const el of document.querySelectorAll('[data-en-label]')) el.setAttribute('aria-label', EN ? el.dataset.enLabel : el.dataset.ruLabel);
   const side = document.querySelector('.top-side');
@@ -861,6 +978,7 @@ function localizeStatic() {
   }
   heroById = Object.fromEntries(D.heroes.map((h) => [h.id, h]));
   itemById = Object.fromEntries(D.items.map((i) => [i.id >>> 0, i]));
+  for (const h of D.heroes) for (const a of h.abilities || []) if (a.id) abilityById[a.id >>> 0] = a;
   loadOpts(); setSound(opts.sound);
   let shared = [];
   try { shared = decodeParty(new URL(location.href).searchParams.get('party')); } catch {}

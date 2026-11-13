@@ -407,12 +407,17 @@ const WRS = [['any', L('Любой', 'Any')], ['low', L('до 45%', 'under 45%')
 const CAT_RU = { weapon: L('Оружие', 'Weapon'), spirit: L('Спиритизм', 'Spirit'), vitality: L('Живучесть', 'Vitality') };
 const inWr = (wr, k) => k === 'any' || (k === 'low' ? wr < 0.45 : k === 'mid' ? wr >= 0.45 && wr < 0.55 : k === 'anom' ? wr >= 0.55 && wr < 0.6 : wr >= 0.6);
 const shuffled = (a) => { const b = a.slice(); for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
-// склонность: куда вложено больше всего душ (по всем предметам сборки)
+// склонность: куда вложено больше всего душ. Разделы «Необязательно» (optional) не считаем — это запасные варианты,
+// а не то, что игрок реально собирает; если в сборке только такие разделы — считаем по всем.
 function leanOf(b) {
-  const sum = { weapon: 0, spirit: 0, vitality: 0 };
-  for (const cat of (b && b.details && b.details.mod_categories) || []) {
-    for (const m of cat.mods || []) { const it = itemById[m.ability_id >>> 0]; if (it && sum[it.cat] !== undefined) sum[it.cat] += it.cost || 0; }
-  }
+  const cats = (b && b.details && b.details.mod_categories) || [];
+  const tally = (list) => {
+    const sum = { weapon: 0, spirit: 0, vitality: 0 };
+    for (const cat of list) for (const m of cat.mods || []) { const it = itemById[m.ability_id >>> 0]; if (it && sum[it.cat] !== undefined) sum[it.cat] += it.cost || 0; }
+    return sum;
+  };
+  let sum = tally(cats.filter((c) => !c.optional));
+  if (!(sum.weapon + sum.spirit + sum.vitality)) sum = tally(cats);
   const total = sum.weapon + sum.spirit + sum.vitality;
   if (!total) return null;
   const cat = Object.keys(sum).sort((a, b2) => sum[b2] - sum[a])[0];

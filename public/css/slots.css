@@ -1,4 +1,4 @@
-/* Режим «Крутить билд»: слот-машина (соло) и лутбокс (пати). Поверх токенов styles.css и плиток lab.css */
+/* Раздел «Казино билдов»: автомат и лутбокс. Поверх токенов styles.css и плиток lab.css */
 .sl-page { gap: 26px; grid-template-columns: minmax(0, 1fr); overflow-x: clip; }
 .sl-page > * { min-width: 0; }
 .sl-head { display: grid; gap: 10px; justify-items: center; text-align: center; }
@@ -7,6 +7,13 @@
 .sl-go { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px 22px; padding-top: 8px; }
 .sl-roll { font-size: 30px; padding: 18px 40px 15px; }
 .sl-share { display: inline-flex; align-items: center; gap: 8px; box-shadow: 4px 4px 0 var(--ink); }
+.sl-go .sl-next { margin-top: 0; }
+/* команда автомата: текущий игрок (на автомате) подсвечен, крестик — убрать */
+.sl-team .lc.cur .lc-front { outline: 3px solid var(--yellow); outline-offset: 2px; }
+.sl-team .lc.cur .lc-n { background: var(--yellow); color: #070707; }
+.sl-team .lc.spinning { opacity: .45; }
+.sl-x { position: absolute; right: 5px; top: 5px; width: 24px; height: 24px; display: grid; place-items: center; padding: 0; border: 2px solid #f7e9d5; background: #070707; color: #f7e9d5; font: 900 16px/1 var(--f-tag); cursor: pointer; }
+.sl-x:hover { background: #f7e9d5; color: #070707; }
 .sl-share .ico { width: 18px; height: 18px; }
 .sl-roll[disabled], .sl-busy .sm-lever, .sl-busy .lb-box { cursor: progress; }
 .sl-roll[disabled] { opacity: .6; }
@@ -169,6 +176,22 @@
 .sl-build .g-actions .btn { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }
 .sl-build .g-actions .ico { width: 16px; height: 16px; }
 .sl-build .g-desc { font-size: 15px; max-height: 7.2em; overflow: auto; }
+/* прокачка: компактная сетка из лаборатории + строка приоритета (кого качают до максимума первым) */
+.sl-abil { padding: 10px 12px 12px; }
+.sl-abil h3 { margin: 0 0 8px; font-size: 16px; }
+.sl-abil .g-ab-row { min-height: 28px; }
+.sl-abil .g-ab-ic { width: 28px; height: 28px; }
+.sl-abil .g-ab-ic img { width: 24px; height: 24px; }
+.sl-abil .g-ab-cell { padding: 2px 1px; }
+.sl-abil .g-pt { height: 20px; padding: 0 4px; font-size: 11px; }
+.sl-abil .g-pt svg { width: 11px; height: 11px; }
+.sl-prio { display: flex; flex-wrap: wrap; gap: 6px 4px; margin: 0 0 10px; padding: 0; list-style: none; counter-reset: prio; }
+.sl-prio li { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px 2px 2px; background: #1f1d1c; border: 1px solid #2f2b29; font: 700 13px/1 var(--f-body); color: #f7e9d5; counter-increment: prio; }
+.sl-prio li::before { content: counter(prio); order: -1; display: grid; place-items: center; width: 18px; font: 900 12px/1 var(--f-tag); color: var(--yellow); }
+.sl-prio li:not(:last-child) { margin-right: 14px; position: relative; }
+.sl-prio li:not(:last-child) span::after { content: "›"; position: absolute; right: -12px; top: 50%; translate: 0 -50%; color: var(--muted); font-size: 16px; }
+.sl-prio .g-ab-ic { width: 24px; height: 24px; }
+.sl-prio .g-ab-ic img { width: 20px; height: 20px; }
 
 /* ---------- лутбокс ----------
    Сундук — две картинки в общей рамке 520×552 (низ и центр совпадают): img/slots/crate-closed.webp и crate-open.webp.

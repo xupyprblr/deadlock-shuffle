@@ -706,10 +706,10 @@ footer { padding-block: 26px 44px; color: var(--muted); font-size: 13px; border-
 .check input:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
 
 /* ==========================================================================
-   Вкладки «Соло / Собрать команду» и команда (до 6 игроков без повторов героев)
+   Разделы «Рандом / Казино билдов», переключатель режима раздела и команда (до 6 игроков без повторов героев)
    ========================================================================== */
 [hidden] { display: none !important; }
-.views { display: flex; justify-content: center; padding-top: 18px; }
+.views { display: flex; flex-direction: column; align-items: center; gap: 16px; padding-top: 18px; }
 .views-seg { display: grid; grid-template-columns: 1fr 1fr; border: 3px solid var(--fg); box-shadow: 5px 5px 0 var(--ink); background: var(--bg-2); }
 .views-seg button {
   display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 26px; margin: 0; cursor: pointer;
@@ -720,22 +720,31 @@ footer { padding-block: 26px 44px; color: var(--muted); font-size: 13px; border-
 .views-seg button:hover { background: color-mix(in srgb, var(--fg) 10%, transparent); }
 .views-seg button[aria-pressed="true"] { background: var(--yellow); color: var(--ink); }
 @media (max-width: 520px) { .views-seg { width: 100%; } .views-seg button { padding: 0 8px; min-height: 46px; font-size: 13px; gap: 7px; } }
-/* третий режим — «Крутить билд» (отдельная страница slots.html): вкладки-ссылки выглядят как кнопки */
-.views-seg.views-3 { grid-template-columns: repeat(3, auto); }
-.views-seg a {
+/* разделы — ссылки между страницами (index.html и slots.html); текущий раздел — плашка без ссылки */
+.views-seg.views-2 { grid-template-columns: repeat(2, auto); }
+.views-seg a, .views-seg > span {
   display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 26px; text-decoration: none;
   color: var(--fg); font: 900 16px/1 var(--f-tag); text-transform: uppercase; letter-spacing: .02em; white-space: nowrap;
 }
 .views-seg > * + * { border-left: 3px solid var(--fg); }
-.views-seg a .ico { width: 20px; height: 20px; flex: none; }
+.views-seg .ico { width: 20px; height: 20px; flex: none; }
 .views-seg a:hover { background: color-mix(in srgb, var(--fg) 10%, transparent); }
-.views-seg a[aria-current="page"] { background: var(--yellow); color: var(--ink); }
+.views-seg [aria-current="page"] { background: var(--yellow); color: var(--ink); }
 @media (max-width: 640px) {
   .views { padding-inline: 0; }
-  .views-seg.views-3 { width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .views-seg.views-3 > * { padding: 6px 4px; min-height: 50px; font-size: 11px; gap: 5px; white-space: normal; text-align: center; flex-direction: column; }
-  .views-seg.views-3 .ico { width: 18px; height: 18px; }
+  .views-seg.views-2 { width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .views-seg.views-2 > * { padding: 0 8px; min-height: 48px; font-size: 13px; gap: 7px; }
 }
+/* режим внутри раздела: Соло / Команда, Автомат / Лутбокс */
+.mode-seg { display: inline-flex; box-shadow: 4px 4px 0 var(--ink); }
+.mode-seg button { display: inline-flex; align-items: center; gap: 9px; padding: 10px 20px 9px; margin: 0; border: 2px solid var(--fg); background: var(--bg); color: var(--fg); cursor: pointer;
+  font: 900 14px/1 var(--f-tag); text-transform: uppercase; letter-spacing: .03em; white-space: nowrap; }
+.mode-seg button + button { border-left-width: 0; }
+.mode-seg button .ico { width: 18px; height: 18px; flex: none; }
+.mode-seg button[aria-pressed="true"] { background: var(--teal); color: var(--ink); }
+.mode-seg button:not([aria-pressed="true"]):hover { background: var(--fg); color: var(--on-fg); }
+.mode-seg button[disabled] { cursor: progress; opacity: .7; }
+@media (max-width: 420px) { .mode-seg button { padding: 9px 13px 8px; font-size: 13px; } }
 
 /* «+ Следующий игрок» под большой кнопкой */
 /* «Крутить» повёрнута на −2° и с тенью 7px: её левый нижний угол опускается ~12px — отодвигаем, чтобы не наезжала */

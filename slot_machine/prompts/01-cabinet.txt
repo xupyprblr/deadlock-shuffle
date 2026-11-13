@@ -1,0 +1,21 @@
+Front-facing orthographic illustration of an original 1930s occult-noir arcade slot machine, 
+inspired by the mood of the attached reference (old New York penny arcade, brass and worn wood), 
+but with a completely new design — do not copy the reference's signs, text or layout.
+
+Structure, top to bottom:
+- arched marquee sign with a row of round warm light bulbs along the top edge, 
+  cream sign face with bold black vintage slab-serif lettering "BUILD SLOTS"
+- two small oval side plaques, left "SPIN TO WIN", right "PRAY FOR GOLD"
+- tall cabinet body in burnt orange (#dd6638) lacquered metal with brass trim and rivets
+- large glass window with three equal vertical reel openings side by side, 
+  the openings are completely EMPTY and filled with flat solid black (#0b0a0a), 
+  thin cream frame around each opening
+- below the window: a blank dark rectangular display plate, empty, no text
+- pull lever with a red ball knob on the right side, in the UP position
+- heavy base with a small brass coin tray
+
+Style: stylized hand-painted game art, chunky shapes, thick dark outlines, 
+flat even lighting, no perspective distortion, no cast shadow on the ground, 
+soft teal (#60cde3) glow accents, slight wear and scratches.
+Perfectly symmetrical, centered, whole machine visible with margin. 
+Transparent background. Portrait 2:3.

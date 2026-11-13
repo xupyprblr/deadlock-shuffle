@@ -1,0 +1,7 @@
+Same art style as the slot machine. An original loot crate, front view, two versions on one sheet:
+1) CLOSED: burnt orange (#dd6638) lacquered wooden crate with brass corners, 
+   yellow (#ffe14d) straps, round black medallion on the front with an empty center (no symbol, no text)
+2) OPEN: the same crate with the lid flipped back, bright teal (#60cde3) light pouring out, 
+   inside is empty
+Plus the lid alone as a third separate element. 
+Thick dark outlines, flat even lighting, transparent background, no ground shadow.

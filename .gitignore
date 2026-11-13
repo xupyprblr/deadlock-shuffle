@@ -2,3 +2,8 @@ node_modules/
 .DS_Store
 sync.log
 dist/
+
+# арт для слот-машины: исходники генерации и референсы из игры не публикуем
+slot_machine/raw/
+slot_machine/refs/*
+!slot_machine/refs/README.md

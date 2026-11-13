@@ -1,0 +1,7 @@
+Same art style. A sheet of 9 square slot-reel symbols in a 3x3 grid, each on its own flat tile, 
+equal size, equal padding:
+Row 1 (build type): orange crosshair-bullet emblem, purple four-point spirit star, green heart with a cross.
+Row 2 (rarity): grey cracked tin can, cream plain coin, green clover.
+Row 3 (rarity): blue cut gemstone, purple glowing crystal skull, golden "777" crown.
+No text on the tiles. Thick dark outlines, flat colors, slight vintage print texture. 
+Transparent background between tiles.

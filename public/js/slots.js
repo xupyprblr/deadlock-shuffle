@@ -397,13 +397,11 @@ function shell() {
   renderOpts(); renderStage(); renderLegend();
 }
 
-// подпись гарантии под размером пати: «Rare+»
-const guaranteeTag = (n) => (GUARANTEE[n] > opts.floor ? (RARITY[GUARANTEE[n]].k === 'ultra' ? 'Ultra' : RARITY[GUARANTEE[n]].name) + '+' : '');
 function renderOpts() {
   const any = !opts.heroes.length;
   document.getElementById('opts').innerHTML = `
     <div class="rnd-row">
-      <div class="rnd-opt"><span class="rnd-lbl">${L('Сколько вас', 'Party size')}</span>${segHtml('party', Array.from({ length: PARTY_MAX }, (_, i) => [i + 1, String(i + 1), guaranteeTag(i + 1)]), opts.party, 'sl-party')}</div>
+      <div class="rnd-opt"><span class="rnd-lbl">${L('Сколько вас', 'Party size')}</span>${segHtml('party', Array.from({ length: PARTY_MAX }, (_, i) => [i + 1, String(i + 1)]), opts.party, 'sl-party')}</div>
       <div class="rnd-opt"><span class="rnd-lbl">${L('Инвест в билде', 'Build investment')}</span>${segHtml('lean', LEANS.map(([k, l]) => [k, esc(l)]), opts.lean, 'sl-lean')}</div>
     </div>
     <div class="rnd-opt"><span class="rnd-lbl">${L('Нижняя планка винрейта', 'Win-rate floor')}</span>

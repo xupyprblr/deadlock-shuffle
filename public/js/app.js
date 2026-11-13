@@ -23,7 +23,7 @@ const I18N = {
     how3T: 'Нажми «Создать сборку»', how3: 'Откроется пустая сборка этого героя.',
     how4T: 'Нажми «Вставить сборку»', how4: 'Маленькая квадратная кнопка рядом с «i». Предметы и прокачка встанут сами — останется сохранить.',
     howWarn: '<b>Нет кнопки «Вставить сборку»?</b> Значит, в игре выбран другой герой или код пропал из буфера обмена. Проверь героя и скопируй код ещё раз.',
-    view_solo: 'Соло', view_team: 'Собрать команду', teamT: '[Команда]',
+    view_solo: 'Соло', view_team: 'Собрать команду', view_slots: 'Крутить билд', teamT: '[Команда]',
     teamSub: 'Крути игроков по очереди: «+ Следующий игрок» добавляет нового, герои в команде не повторяются. Готово — кидай ссылку в чат пати, каждый откроет своего героя и заберёт затар кнопкой «Скопировать в игру».',
     teamLink: 'Ссылка на команду', teamLinkShort: 'Команда', roT: 'Команда от [капитана]', roSub: 'Капитан уже раскидал героев и затары. Найди своего героя и нажми «Скопировать в игру» — код сборки скопируется, дальше в Deadlock: Поиск сборок → Создать сборку → Вставить сборку.', roOwn: 'Крутить свой затар', roBadge: 'Только просмотр', teamLinkCopied: 'Ссылка на команду скопирована — по ней только забрать затары, без перекрута', playerN: 'Игрок',
     addPlayer: 'Следующий игрок', nextPlayer: 'Следующий игрок', onStage: 'на экране', openSlot: 'Показать сверху', removeSlot: 'Убрать игрока', rerollAll: 'Всё',
@@ -73,7 +73,7 @@ const I18N = {
     how3T: 'Press “Create new Build”', how3: 'An empty build for this hero opens.',
     how4T: 'Press “Paste Build”', how4: 'The small square button next to the “i”. Items and abilities fill in on their own — just save.',
     howWarn: '<b>No “Paste Build” button?</b> The game has a different hero selected, or the code is no longer in your clipboard. Check the hero and copy the code again.',
-    view_solo: 'Solo', view_team: 'Build a team', teamT: '[Team]',
+    view_solo: 'Solo', view_team: 'Build a team', view_slots: 'Spin a build', teamT: '[Team]',
     teamSub: 'Roll players one by one: “+ Next player” adds a new one, heroes never repeat within the team. Done — drop the link in party chat; everyone opens their hero and grabs the build with “Copy to game”.',
     teamLink: 'Team link', teamLinkShort: 'Team', roT: 'Team from the [captain]', roSub: 'The captain has already picked the heroes and builds. Find your hero and hit “Copy to game” — the build code is copied; then in Deadlock: Build Browser → Create new Build → Paste Build.', roOwn: 'Roll your own build', roBadge: 'View only', teamLinkCopied: 'Team link copied — teammates can only grab builds, no rerolls', playerN: 'Player',
     addPlayer: 'Next player', nextPlayer: 'Next player', onStage: 'on screen', openSlot: 'Show on top', removeSlot: 'Remove player', rerollAll: 'All',
@@ -977,9 +977,10 @@ function renderViews() {
     return;
   }
   document.getElementById('views').innerHTML = `
-    <div class="views-seg" role="tablist">
+    <div class="views-seg views-3" role="tablist">
       <button role="tab" data-act="view" data-v="solo" aria-selected="${v === 'solo'}" aria-pressed="${v === 'solo'}">${ICON.mask}<span>${t('view_solo')}</span></button>
       <button role="tab" data-act="view" data-v="team" aria-selected="${v === 'team'}" aria-pressed="${v === 'team'}">${ICON.team}<span>${t('view_team')}</span></button>
+      <a role="tab" href="slots.html" aria-selected="false" data-track="slots_open" data-track-v="tabs">${ICON.slot}<span>${t('view_slots')}</span></a>
     </div>`;
   document.getElementById('team').hidden = v !== 'team';
 }
@@ -1063,6 +1064,7 @@ const ICON = {
   live: svg('<circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M8 8a5.6 5.6 0 0 0 0 8M16 8a5.6 5.6 0 0 1 0 8M5.2 5.2a9.6 9.6 0 0 0 0 13.6M18.8 5.2a9.6 9.6 0 0 1 0 13.6"/>'),
   chat: svg('<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>'),
   heart: svg('<path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.3 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z" fill="currentColor"/>'),
+  slot: svg('<rect x="3" y="5" width="15" height="14" rx="2"/><path d="M8 5v14M13 5v14M21 6v7M18 13h3"/><circle cx="21" cy="5" r="1.4" fill="currentColor"/>'),
   flask: svg('<path d="M9 3h6"/><path d="M10 3v6L4.5 18.5A1.7 1.7 0 0 0 6 21h12a1.7 1.7 0 0 0 1.5-2.5L14 9V3"/><path d="M7 15h10"/>'),
   link: svg('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'),
   team: svg('<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.8-3.6 3.2-5.5 6-5.5s5.2 1.9 6 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M16 14.6c2.6.1 4.3 1.8 5 5.4"/>'),
@@ -1357,6 +1359,13 @@ async function boot() {
   else state.res = roll(state.data, state.opts, newSeed());
   state.res.orders = { [state.opts.order || 'chaos']: state.res.build };
   if (!state.res.skills || state.res.skills.length !== 16) state.res.skills = rollSkillOrder(rng(newSeed()), 4, ultIndexOf(state.res.hero));
+  // со страницы «Крутить билд» вкладка «Собрать команду» ведёт на ./#team
+  if (location.hash === '#team' && state.view !== 'team' && !state.readonly) {
+    const saved = store.get('ds:team', null);
+    state.team = (saved && decodeTeam(saved, state.data)) || { slots: [{ res: state.res, order: state.opts.order, mode: state.opts.mode }], active: 0 };
+    state.view = 'team';
+    try { history.replaceState(null, '', location.pathname + location.search); } catch {}
+  }
   if (state.view === 'team') {
     state.solo = { res: state.res, order: state.opts.order, mode: state.opts.mode };
     const s0 = state.team.slots[0];

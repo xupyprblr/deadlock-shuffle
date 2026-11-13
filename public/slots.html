@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.googletagmanager.com https://mc.yandex.ru https://yastatic.net; connect-src 'self' https://api.deadlock-api.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://mc.yandex.ru https://mc.yandex.com; img-src 'self' data: https://assets-bucket.deadlock-api.com https://*.google-analytics.com https://www.googletagmanager.com https://mc.yandex.ru https://mc.yandex.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; frame-src https://mc.yandex.ru https://mc.yandex.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Крутить билд — RANDOMLOCK</title>
+  <!-- Режим «Крутить билд»: слот-машина со сборками игроков, для пати — лутбокс. Пока только в dev -->
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#100e0e">
+  <script src="js/theme.js"></script>
+  <link rel="icon" href="favicon.ico" sizes="48x48">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon/icon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="favicon/icon-192.png">
+  <link rel="apple-touch-icon" href="favicon/apple-touch-icon.png">
+  <link rel="manifest" href="favicon/site.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:wght@800&family=Jost:wght@400;500;600&family=Rubik:wght@700;900&display=swap">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/lab.css">
+  <link rel="stylesheet" href="css/slots.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <a class="brand" href="./"><b>Random<em>lock</em></b><span class="tag lab-tag">builds</span></a>
+      <div class="top-side">
+        <nav class="social" aria-label="Каналы podvalni akrobat" data-ru-label="Каналы podvalni akrobat" data-en-label="podvalni akrobat channels">
+          <a data-track="social" data-track-v="yt" class="soc soc-yt" href="https://www.youtube.com/@podvalni_akrobat" target="_blank" rel="noopener"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="4"/><path d="m10 9.2 5 2.8-5 2.8z" fill="currentColor"/></svg><span>YouTube</span></a>
+          <a data-track="social" data-track-v="tw" class="soc soc-tw" href="https://www.twitch.tv/podvalni_akrobat" target="_blank" rel="noopener"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.2" fill="currentColor"/><path d="M8 8a5.6 5.6 0 0 0 0 8M16 8a5.6 5.6 0 0 1 0 8M5.2 5.2a9.6 9.6 0 0 0 0 13.6M18.8 5.2a9.6 9.6 0 0 1 0 13.6"/></svg><span>Twitch</span></a>
+          <a data-track="social" data-track-v="tg" class="soc soc-tg" href="https://t.me/podvalni_akrobat" target="_blank" rel="noopener"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/></svg><span>Telegram</span></a>
+          <a data-track="donate" data-track-v="slots" class="soc soc-donate" href="https://www.donationalerts.com/r/podvalni_akrobat" target="_blank" rel="noopener"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.3 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z" fill="currentColor"/></svg><span data-en="Support">Поддержать</span></a>
+        </nav>
+      </div>
+    </header>
+    <nav class="views" id="views"></nav>
+    <main id="slots" class="lab sl-page"><div class="loading" data-en="Loading heroes and items…">Загружаю героев и предметы…</div></main>
+    <footer><p data-en="Data: &lt;a href=&quot;https://deadlock-api.com&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;&gt;Deadlock API&lt;/a&gt;. Published player builds with 50+ matches from 10+ players over the last 30 days; the build selected at the start of the match is credited.">Данные: <a href="https://deadlock-api.com" target="_blank" rel="noopener">Deadlock API</a>. Опубликованные сборки игроков с 50+ матчами от 10+ игроков за 30 дней; засчитывается сборка, выбранная в начале матча.</p></footer>
+  </div>
+  <script type="module" src="js/slots.js"></script>
+</body>
+</html>

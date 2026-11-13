@@ -720,6 +720,22 @@ footer { padding-block: 26px 44px; color: var(--muted); font-size: 13px; border-
 .views-seg button:hover { background: color-mix(in srgb, var(--fg) 10%, transparent); }
 .views-seg button[aria-pressed="true"] { background: var(--yellow); color: var(--ink); }
 @media (max-width: 520px) { .views-seg { width: 100%; } .views-seg button { padding: 0 8px; min-height: 46px; font-size: 13px; gap: 7px; } }
+/* третий режим — «Крутить билд» (отдельная страница slots.html): вкладки-ссылки выглядят как кнопки */
+.views-seg.views-3 { grid-template-columns: repeat(3, auto); }
+.views-seg a {
+  display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 26px; text-decoration: none;
+  color: var(--fg); font: 900 16px/1 var(--f-tag); text-transform: uppercase; letter-spacing: .02em; white-space: nowrap;
+}
+.views-seg > * + * { border-left: 3px solid var(--fg); }
+.views-seg a .ico { width: 20px; height: 20px; flex: none; }
+.views-seg a:hover { background: color-mix(in srgb, var(--fg) 10%, transparent); }
+.views-seg a[aria-current="page"] { background: var(--yellow); color: var(--ink); }
+@media (max-width: 640px) {
+  .views { padding-inline: 0; }
+  .views-seg.views-3 { width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .views-seg.views-3 > * { padding: 6px 4px; min-height: 50px; font-size: 11px; gap: 5px; white-space: normal; text-align: center; flex-direction: column; }
+  .views-seg.views-3 .ico { width: 18px; height: 18px; }
+}
 
 /* «+ Следующий игрок» под большой кнопкой */
 .btn-next { gap: 8px; box-shadow: 3px 3px 0 var(--ink); }

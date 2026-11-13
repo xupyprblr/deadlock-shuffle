@@ -6,6 +6,7 @@ import { encodeBuildCode } from './buildcode.js';
 import { initAnalytics, track } from './analytics.js';
 import { NS, markDev } from './env.js';
 import { getLang, setLang } from './lang.js';
+import { play, loop as sndLoop, loopSpeed, setSound } from './slots-sound.js';
 
 const LANG = getLang();
 const EN = LANG === 'en';
@@ -16,6 +17,9 @@ const HOUR = 3600, DAY = 86400;
 // Сборки с 50+ матчами от 10+ игроков за 30 дней (меньше — винрейт почти чистый шум) — те же пороги, что в лаборатории.
 const RND = { days: 30, minMatches: 50, minPlayers: 10, maxChecks: 24, extraHeroes: 10 };
 const PARTY_MAX = 6;
+// Гарантия лутбокса: одна карточка не ниже этой редкости (индекс в RARITY) — по размеру пати.
+// 2–3 → Unique+, 4–5 → Rare+, 6 → Ultra Rare+. Остальные карточки крутятся как обычно.
+const GUARANTEE = { 2: 2, 3: 2, 4: 3, 5: 3, 6: 4 };
 
 // Редкости по винрейту сборки. min — нижняя граница (доля побед).
 const RARITY = [
@@ -142,9 +146,9 @@ function leanOf(b) {
 
 // ---------- подбор сборок ----------
 const seen = new Set();
-// Одна сборка для героя под текущие условия или null
-async function findFor(hero) {
-  const floor = RARITY[opts.floor].min;
+// Одна сборка для героя под текущие условия или null; minRar — поднять нижнюю планку редкости (гарантия лутбокса)
+async function findFor(hero, minRar = 0) {
+  const floor = RARITY[Math.max(opts.floor, minRar)].min;
   const rows = (await heroPoolRows(hero.id)).map(([id, matches, players, wins]) => ({ id, matches, players, wins, wr: wins / matches })).filter((r) => r.wr >= floor);
   if (!rows.length) return null;
   const order = [...shuffled(rows.filter((r) => !seen.has(r.id))), ...shuffled(rows.filter((r) => seen.has(r.id)))];
@@ -164,9 +168,38 @@ async function findFor(hero) {
   return null;
 }
 
+// Гарантированная карточка: герой, у которого есть сборка не ниже rar. Сначала по кэшу пулов отсеиваем героев без таких сборок
+// (пулы грузятся пачками по 6), потом открываем сборку. Не нашлось — гарантия на ступень ниже. Возвращает сборку или null.
+async function rollLucky(rar) {
+  const picked = shuffled(opts.heroes.length ? D.heroes.filter((h) => opts.heroes.includes(h.id)) : D.heroes);
+  for (let r = rar; r > opts.floor; r--) {
+    const min = RARITY[r].min;
+    for (let i = 0; i < picked.length && i < 24; i += 6) {
+      const part = picked.slice(i, i + 6);
+      const rows = await Promise.all(part.map((h) => heroPoolRows(h.id).catch(() => [])));
+      for (let k = 0; k < part.length; k++) {
+        if (!rows[k].some(([, m, , w]) => w / m >= min)) continue;
+        const g = await findFor(part[k], r);
+        if (g) return g;
+      }
+    }
+  }
+  return null;
+}
+
 // n сборок на разных героев. Возвращает { list, short } — short: в выбранном пуле не хватило героев.
 async function rollBuilds(n) {
-  const all = D.heroes;
+  // лутбокс: сначала гарантированная карточка, остальные — обычной круткой без её героя
+  const g0 = n > 1 && GUARANTEE[n] > opts.floor ? await rollLucky(GUARANTEE[n]) : null;
+  const [res, fresh] = await Promise.all([rollRest(g0 ? n - 1 : n, g0 ? g0.hero.id : 0, n === 1), g0 && freshBuild(g0.row.id, g0.build)]);
+  if (g0) {
+    if (fresh && fresh !== g0.build) { g0.build = fresh; if (opts.lean === 'any') g0.lean = leanOf(fresh) || g0.lean; }
+    res.list.splice(Math.floor(Math.random() * (res.list.length + 1)), 0, g0); seen.add(g0.row.id); // место случайное, вскроется всё равно последней
+  }
+  return res;
+}
+async function rollRest(n, skipHero, solo) {
+  const all = D.heroes.filter((h) => h.id !== skipHero);
   const picked = opts.heroes.length ? all.filter((h) => opts.heroes.includes(h.id)) : all;
   let queue = shuffled(picked);
   let limit = opts.heroes.length ? queue.length : Math.min(queue.length, n + RND.extraHeroes);
@@ -180,7 +213,7 @@ async function rollBuilds(n) {
       const got = await Promise.all(part.map((h) => findFor(h)));
       for (const g of got) if (g && list.length < n) list.push(g);
     }
-    if (list.length >= n || short || !opts.heroes.length || n === 1) break;
+    if (list.length >= n || short || !opts.heroes.length || solo) break;
     // пати больше, чем героев в пуле с подходящими сборками — добираем из остальных
     short = true;
     queue = shuffled(all.filter((h) => !opts.heroes.includes(h.id)));
@@ -195,54 +228,20 @@ async function rollBuilds(n) {
   return { list, short: short && list.length > 0 };
 }
 
-// ---------- звук (WebAudio, без файлов) ----------
-let ac = null;
-function audio() {
-  if (!opts.sound) return null;
-  try {
-    if (!ac) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; ac = new C(); }
-    if (ac.state === 'suspended') ac.resume();
-    return ac;
-  } catch { return null; }
-}
-function tone(freq, dur, { type = 'square', vol = 0.05, at = 0, slide = 0 } = {}) {
-  const a = audio(); if (!a) return;
-  const t = a.currentTime + at;
-  const o = a.createOscillator(), g = a.createGain();
-  o.type = type; o.frequency.setValueAtTime(freq, t);
-  if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur);
-  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + 0.02);
-}
-function noise(dur, { vol = 0.08, at = 0, freq = 900 } = {}) {
-  const a = audio(); if (!a) return;
-  const t = a.currentTime + at;
-  const buf = a.createBuffer(1, Math.ceil(a.sampleRate * dur), a.sampleRate);
-  const d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-  const s = a.createBufferSource(); s.buffer = buf;
-  const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = freq;
-  const g = a.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  s.connect(f).connect(g).connect(a.destination); s.start(t);
-}
+// ---------- звук: public/js/slots-sound.js (синтез, любой звук можно заменить файлом) ----------
+const RAR_SND = ['win-trash', 'win-common', 'win-unique', 'win-rare', 'win-ultra', 'win-jackpot'];
 const SFX = {
-  lever: () => { noise(0.12, { vol: 0.07, freq: 500 }); tone(180, 0.18, { type: 'sawtooth', vol: 0.04, slide: -90 }); },
-  tick: () => tone(1250, 0.025, { vol: 0.02 }),
-  stop: () => { tone(150, 0.14, { type: 'sine', vol: 0.16, slide: -70 }); noise(0.05, { vol: 0.05, freq: 1500 }); },
-  rumble: (dur) => noise(dur, { vol: 0.05, freq: 220 }),
-  pop: () => { noise(0.35, { vol: 0.16, freq: 2600 }); tone(90, 0.3, { type: 'sine', vol: 0.2, slide: -50 }); },
-  flip: () => tone(700, 0.05, { type: 'triangle', vol: 0.06, slide: 500 }),
-  win(i) {
-    const seq = [
-      [[196, 0.16], [147, 0.3]], // trash — грустно вниз
-      [[523, 0.1]],
-      [[523, 0.09], [659, 0.14]],
-      [[523, 0.09], [659, 0.09], [784, 0.2]],
-      [[523, 0.08], [659, 0.08], [784, 0.08], [1047, 0.28]],
-      [[523, 0.09], [659, 0.09], [784, 0.09], [1047, 0.09], [784, 0.09], [1047, 0.09], [1319, 0.09], [1568, 0.5]],
-    ][i];
-    let at = 0;
-    for (const [f, d] of seq) { tone(f, d + 0.05, { type: i ? 'square' : 'sawtooth', vol: 0.06, at }); if (i >= 4) tone(f * 2, d, { type: 'triangle', vol: 0.03, at }); at += d; }
-  },
+  lever: () => play('lever'),
+  // у каждого барабана своя петля стрекота чуть разной высоты: по звуку слышно, сколько их ещё крутится
+  reel: (i, on) => sndLoop('spin-loop', on, { id: i, rate: [1, 1.12, 1.26][i] || 1, vol: 0.75 }),
+  reelSpeed: (i, k) => loopSpeed('spin-loop', i, k),
+  spinOff: () => { for (let i = 0; i < 3; i++) sndLoop('spin-loop', false, { id: i }); },
+  tick: () => play('tick'),
+  stop: (i) => play('reel-stop', { i }),
+  win(i) { play(RAR_SND[i]); if (i === 5) setTimeout(() => play('coins'), 250); },
+  shake: (on) => sndLoop('crate-shake', on),
+  pop: () => play('crate-open'),
+  flip: () => play('card-flip'),
 };
 
 // ---------- частицы (монеты, искры) ----------
@@ -298,14 +297,12 @@ function coinRain(n = 110) {
 const centerOf = (el) => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
 
 // ---------- барабаны ----------
-const INV_ICON = {
-  weapon: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M12 2v6M12 16v6M2 12h6M16 12h6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>',
-  spirit: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1.2 5.2 3.8 7.8 9 9-5.2 1.2-7.8 3.8-9 9-1.2-5.2-3.8-7.8-9-9 5.2-1.2 7.8-3.8 9-9z" fill="currentColor"/></svg>',
-  vitality: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-8-5-8-11.2A4.6 4.6 0 0 1 12 7a4.6 4.6 0 0 1 8 2.8C20 16 12 21 12 21z" fill="currentColor"/></svg>',
-};
+// арт автомата: public/img/slots/, нарезка и замеры — slot_machine/cut.py → slot_machine/layout.json
+const IMG = (n) => `img/slots/${n}.webp`;
+const BULBS = [[13.45, 7.9], [24.03, 4.43], [36.43, 2.64], [50.42, 1.94], [64.37, 2.64], [77.03, 4.48], [87.49, 7.96]]; // центры ламп вывески, % корпуса
 const heroCell = (h) => `<div class="rc rc-hero">${h.small ? `<img src="${esc(h.small)}" alt="" draggable="false">` : ''}<span>${esc(h.name)}</span></div>`;
-const invCell = (c) => `<div class="rc rc-inv ${c}">${INV_ICON[c]}<span>${esc(CAT_NAME[c])}</span></div>`;
-const rarCell = (i) => `<div class="rc rc-rar rar-${RARITY[i].k}"><b>${RARITY[i].name}</b><span>${rarRange(i)}</span></div>`;
+const invCell = (c) => `<div class="rc rc-inv ${c}"><img src="${IMG('sym-' + c)}" alt="" draggable="false"><span>${esc(CAT_NAME[c])}</span></div>`;
+const rarCell = (i) => `<div class="rc rc-rar rar-${RARITY[i].k}"><img src="${IMG('rar-' + RARITY[i].k)}" alt="" draggable="false"><b>${RARITY[i].name}</b></div>`;
 const RAR_STRIP = [0, 1, 2, 3, 1, 0, 4, 2, 1, 5, 0, 3, 1, 2];
 const SPEED = 24; // клеток в секунду на свободном ходу
 
@@ -324,7 +321,7 @@ class Reel {
     put(i + 1); if (i === this.L - 1) put(0); if (i === 0) put(this.L + 1); if (i === 1) put(this.L + 2);
   }
   draw() { this.strip.style.transform = `translate3d(0, ${(-(mod(this.p, this.L) + 0.5) * this.cell).toFixed(2)}px, 0)`; }
-  free() { this.mode = 'free'; this.el.classList.add('rolling'); this.el.classList.remove('landed'); }
+  free() { this.mode = 'free'; this.el.classList.add('rolling'); this.el.classList.remove('landed'); SFX.reel(this.idx, true); }
   // остановиться на символе sym через dist клеток (плавное торможение)
   stopOn(sym, dist) {
     return new Promise((done) => {
@@ -344,9 +341,11 @@ class Reel {
     else if (this.mode === 'stop') {
       const s = this.stop, x = Math.min(1, (t - s.t0) / s.dur), e = 1 - Math.pow(1 - x, 3);
       this.p = s.from + (s.to - s.from) * e; this.draw();
+      const k = (1 - x) * (1 - x); // скорость относительно полного хода (производная ease-out cubic)
+      if (Math.abs(k - (s.k ?? 1)) > 0.04) { s.k = k; SFX.reelSpeed(this.idx, k); }
       const cur = Math.floor(this.p);
       if (cur !== s.last) { s.last = cur; if (x > 0.45 && this.ticks) SFX.tick(); }
-      if (x >= 1) { this.p = s.to; this.mode = 'idle'; this.draw(); this.el.classList.remove('rolling'); this.el.classList.add('landed'); SFX.stop(); s.done(); }
+      if (x >= 1) { this.p = s.to; this.mode = 'idle'; this.draw(); this.el.classList.remove('rolling'); this.el.classList.add('landed'); SFX.reel(this.idx, false); SFX.stop(this.idx); s.done(); }
     }
   }
 }
@@ -362,7 +361,7 @@ function loop(t) {
 function runLoop() { if (!raf) raf = requestAnimationFrame(loop); }
 
 // ---------- состояние ----------
-const state = { busy: false, solo: null, party: null, open: -1 };
+const state = { busy: false, solo: null, party: null, open: -1, shared: false }; // shared — открыта ссылка тиммейта (?party=)
 
 // ---------- разметка ----------
 const SPEAKER = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" fill="currentColor"/><path class="snd-on" d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.6 7.6 0 0 1 0 11"/><path class="snd-off" d="m16 9.5 5 5M21 9.5l-5 5"/></svg>';
@@ -372,6 +371,7 @@ const ICON = {
   team: svg('<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.8-3.6 3.2-5.5 6-5.5s5.2 1.9 6 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M16 14.6c2.6.1 4.3 1.8 5 5.4"/>'),
   slot: svg('<rect x="3" y="5" width="15" height="14" rx="2"/><path d="M8 5v14M13 5v14M21 6v7M18 13h3"/><circle cx="21" cy="5" r="1.4" fill="currentColor"/>'),
   game: svg('<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v3h16v-3"/>'),
+  link: svg('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'),
   flask: svg('<path d="M9 3h6"/><path d="M10 3v6L4.5 18.5A1.7 1.7 0 0 0 6 21h12a1.7 1.7 0 0 0 1.5-2.5L14 9V3"/><path d="M7 15h10"/>'),
 };
 
@@ -397,11 +397,13 @@ function shell() {
   renderOpts(); renderStage(); renderLegend();
 }
 
+// подпись гарантии под размером пати: «Rare+»
+const guaranteeTag = (n) => (GUARANTEE[n] > opts.floor ? (RARITY[GUARANTEE[n]].k === 'ultra' ? 'Ultra' : RARITY[GUARANTEE[n]].name) + '+' : '');
 function renderOpts() {
   const any = !opts.heroes.length;
   document.getElementById('opts').innerHTML = `
     <div class="rnd-row">
-      <div class="rnd-opt"><span class="rnd-lbl">${L('Сколько вас', 'Party size')}</span>${segHtml('party', Array.from({ length: PARTY_MAX }, (_, i) => [i + 1, String(i + 1)]), opts.party, 'sl-party')}</div>
+      <div class="rnd-opt"><span class="rnd-lbl">${L('Сколько вас', 'Party size')}</span>${segHtml('party', Array.from({ length: PARTY_MAX }, (_, i) => [i + 1, String(i + 1), guaranteeTag(i + 1)]), opts.party, 'sl-party')}</div>
       <div class="rnd-opt"><span class="rnd-lbl">${L('Инвест в билде', 'Build investment')}</span>${segHtml('lean', LEANS.map(([k, l]) => [k, esc(l)]), opts.lean, 'sl-lean')}</div>
     </div>
     <div class="rnd-opt"><span class="rnd-lbl">${L('Нижняя планка винрейта', 'Win-rate floor')}</span>
@@ -423,6 +425,9 @@ function renderLegend() {
 }
 
 const isParty = () => opts.party > 1;
+const boxLabel = () => (state.shared ? L('Открыть свой лутбокс', 'Open your own box') : state.party ? L('Открыть ещё', 'Open another') : L('Открыть лутбокс', 'Open the loot box'));
+const boxGo = () => `<button class="btn btn-main sl-roll" data-spin="1">${boxLabel()}</button>${state.party ? `<button class="btn btn-game sl-share" data-share="1">${ICON.link}<span>${L('Ссылка на команду', 'Team link')}</span></button>` : ''}`;
+function paintBoxGo() { const go = document.getElementById('lbgo'); if (go) go.innerHTML = boxGo(); }
 function renderStage() {
   const st = document.getElementById('stage');
   reels = [];
@@ -432,29 +437,32 @@ function renderStage() {
         <div class="lb-scene">
           <i class="lb-rays"></i>
           <button class="lb-box" data-spin="1" aria-label="${L('Открыть лутбокс', 'Open the loot box')}">
-            <i class="lb-lid"></i><i class="lb-body"><b>${opts.party}</b></i><i class="lb-shadow"></i>
+            <i class="lb-shadow"></i>
+            <img class="lb-closed" src="${IMG('crate-closed')}" width="520" height="552" alt="" draggable="false">
+            <img class="lb-open" src="${IMG('crate-open')}" width="520" height="552" alt="" draggable="false">
+            <b class="lb-n">${opts.party}</b>
           </button>
         </div>
-        <div class="sl-go">
-          <button class="btn btn-main sl-roll" data-spin="1">${L('Открыть лутбокс', 'Open the loot box')}</button>
-          <span class="lab-legend">${L(`${opts.party} героев без повторов, каждому — своя сборка.`, `${opts.party} different heroes, a build for each.`)}</span>
-        </div>
+        <div class="sl-go" id="lbgo">${boxGo()}</div>
         <p class="sl-msg" id="msg" role="status"></p>
         <div class="lb-cards" id="cards"></div>
       </div>`;
     if (state.party) paintParty(false);
   } else {
     st.innerHTML = `
-      <div class="sm" id="sm" data-state="idle">
-        <div class="sm-top"><i class="sm-bulbs" aria-hidden="true">${'<i></i>'.repeat(11)}</i><b>Build Slots</b><i class="sm-bulbs" aria-hidden="true">${'<i></i>'.repeat(11)}</i></div>
-        <div class="sm-mid">
+      <div class="sm-wrap">
+        <div class="sm" id="sm" data-state="idle">
+          <img class="sm-cab" src="${IMG('cabinet')}" width="878" height="1511" alt="" draggable="false">
+          <i class="sm-bulbs" aria-hidden="true">${BULBS.map(([x, y]) => `<i style="--x:${x}%;--y:${y}%"></i>`).join('')}</i>
           <div class="sm-reels">
-            ${[L('Герой', 'Hero'), L('Инвест', 'Investment'), L('Редкость', 'Rarity')].map((lbl, i) => `<div class="sm-col"><div class="reel" data-reel="${i}"><div class="reel-strip"></div></div><span class="sm-lbl">${lbl}</span></div>`).join('')}
+            ${[L('Герой', 'Hero'), L('Инвест', 'Investment'), L('Редкость', 'Rarity')].map((lbl, i) => `<div class="reel" data-reel="${i}" role="group" aria-label="${lbl}"><div class="reel-strip"></div></div>`).join('')}
             <i class="sm-line" aria-hidden="true"></i>
           </div>
-          <button class="sm-lever" data-spin="1" aria-label="${L('Дёрнуть рычаг', 'Pull the lever')}" title="${L('Дёрнуть рычаг', 'Pull the lever')}"><i class="lv-base"></i><i class="lv-arm"><i class="lv-ball"></i></i></button>
+          <button class="sm-lever" data-spin="1" aria-label="${L('Дёрнуть рычаг', 'Pull the lever')}" title="${L('Дёрнуть рычаг', 'Pull the lever')}">
+            <img class="lv-up" src="${IMG('lever-up')}" alt="" draggable="false"><img class="lv-down" src="${IMG('lever-down')}" alt="" draggable="false">
+          </button>
+          <div class="sm-plate" id="plate" role="status"><span class="sm-idle">${L('Дёрни рычаг', 'Pull the lever')}</span></div>
         </div>
-        <div class="sm-plate" id="plate" role="status"><span class="sm-idle">${L('Дёрни рычаг или жми «Крутить билд»', 'Pull the lever or hit “Spin a build”')}</span></div>
       </div>
       <div class="sl-go">
         <button class="btn btn-main sl-roll" data-spin="1">${L('Крутить билд', 'Spin a build')}</button>
@@ -466,6 +474,7 @@ function renderStage() {
       new Reel(els[1], () => shuffled([...CATS, ...CATS, ...CATS, ...CATS]), invCell),
       new Reel(els[2], () => { const k = Math.floor(Math.random() * RAR_STRIP.length); return RAR_STRIP.map((_, i) => RAR_STRIP[(i + k) % RAR_STRIP.length]); }, rarCell),
     ];
+    reels.forEach((r, i) => { r.idx = i; });
     reels[2].ticks = true;
     if (state.solo) { const g = state.solo; reels[0].show(g.hero); reels[1].show(g.lean.cat); reels[2].show(g.rar); paintSoloWin(false); }
   }
@@ -497,11 +506,12 @@ async function spinSolo() {
   const t0 = performance.now();
   let res = null, err = '';
   try { res = (await rollBuilds(1)).list[0] || null; } catch (e) { err = e.message; }
-  if (!still) await sleep(Math.max(0, 900 - (performance.now() - t0)));
+  if (!still) await sleep(Math.max(0, 700 - (performance.now() - t0)));
   track('slots_spin', { mode: 'solo', hero: opts.heroes.length === 1 ? heroById[opts.heroes[0]].name : opts.heroes.length ? 'pool' : 'any', invest: opts.lean, floor: RARITY[opts.floor].k, found: res ? 1 : 0, rarity: res ? RARITY[res.rar].k : '', build: res ? res.row.id : '' });
   if (!res) {
     // нечего показать — барабаны просто останавливаются где были
     if (!still) await Promise.all(reels.map((r, i) => r.stopOn(r.syms[mod(Math.floor(r.p) - 6 - i * 2, r.L)], 6 + i * 2)));
+    SFX.spinOff();
     sm.dataset.state = 'idle';
     plate.innerHTML = `<span class="sm-idle">${L('Пусто', 'Nothing')}</span>`;
     showMsg(err ? L('Не удалось получить статистику: ', 'Could not load the stats: ') + esc(err) : emptyMsg());
@@ -511,12 +521,13 @@ async function spinSolo() {
   if (still) { reels[0].show(res.hero); reels[1].show(res.lean.cat); reels[2].show(res.rar); }
   else {
     // герой → инвест → редкость; последний барабан тянем дольше всех
-    const a = reels[0].stopOn(res.hero, 10);
-    await sleep(450);
-    const b = reels[1].stopOn(res.lean.cat, 18);
-    await sleep(550);
-    const c = reels[2].stopOn(res.rar, res.rar >= 4 ? 24 : 20);
+    const a = reels[0].stopOn(res.hero, 9);
+    await sleep(350);
+    const b = reels[1].stopOn(res.lean.cat, 15);
+    await sleep(400);
+    const c = reels[2].stopOn(res.rar, res.rar >= 4 ? 20 : 17);
     await Promise.all([a, b, c]);
+    SFX.spinOff();
     await sleep(180);
   }
   state.solo = res;
@@ -531,11 +542,8 @@ function paintSoloWin(animate) {
   const r = RARITY[g.rar];
   sm.dataset.state = 'win'; sm.dataset.rar = r.k;
   sm.classList.toggle('fresh', animate);
-  plate.innerHTML = `<div class="sm-win rar-${r.k}${animate ? ' in' : ''}">
-      ${g.rar === 5 ? '<em class="sm-jack">Jackpot!</em>' : ''}
-      <b>${r.name}</b>
-      <span>${esc(g.hero.name)} · ${L('винрейт', 'win rate')} ${pct(g.row.wr)} · ${fmt(g.row.matches)} ${L('матчей', 'matches')}</span>
-    </div>`;
+  const line = `${g.hero.name} ${pct(g.row.wr)}`;
+  plate.innerHTML = `<div class="sm-win rar-${r.k}${animate ? ' in' : ''}" title="${r.name} · ${esc(g.hero.name)} · ${L('винрейт', 'win rate')} ${pct(g.row.wr)} · ${fmt(g.row.matches)} ${L('матчей', 'matches')}">${g.rar === 5 ? '<em class="sm-jack">Jackpot!</em>' : ''}<b style="--len:${line.length}">${esc(line)}</b></div>`;
   if (!animate) return;
   SFX.win(g.rar);
   const [x, y] = centerOf(sm.querySelector('.sm-reels'));
@@ -552,19 +560,21 @@ function flash(k) {
 // ---------- пати: лутбокс ----------
 async function openBox() {
   if (state.busy) return;
+  if (state.shared) leaveShared();
   setBusy(true); showMsg('');
   const lb = document.getElementById('lb'), cards = document.getElementById('cards');
   state.party = null; state.open = -1; cards.innerHTML = ''; renderOut();
   lb.dataset.state = 'shake';
   const still = reduced();
   const t0 = performance.now();
-  SFX.rumble(1.5);
+  SFX.shake(true);
   let got = null, err = '';
   try { got = await rollBuilds(opts.party); } catch (e) { err = e.message; }
   if (!still) await sleep(Math.max(0, 1500 - (performance.now() - t0)));
   const list = got ? got.list : [];
   const best = list.reduce((m, g) => Math.max(m, g.rar), 0);
   track('slots_spin', { mode: 'party', size: opts.party, hero: opts.heroes.length ? 'pool' : 'any', invest: opts.lean, floor: RARITY[opts.floor].k, found: list.length, rarity: list.length ? RARITY[best].k : '' });
+  SFX.shake(false);
   if (!list.length) {
     lb.dataset.state = 'idle';
     showMsg(err ? L('Не удалось получить статистику: ', 'Could not load the stats: ') + esc(err) : emptyMsg());
@@ -574,7 +584,7 @@ async function openBox() {
   state.party = { list, short: got.short };
   lb.dataset.state = 'burst'; lb.dataset.rar = RARITY[best].k;
   SFX.pop();
-  const box = lb.querySelector('.lb-body');
+  const box = lb.querySelector('.lb-box');
   const [bx, by] = centerOf(box);
   burst(bx, by - 20, RAR_COLOR[RARITY[best].k], 60, 640);
   paintParty(!still, [bx, by]);
@@ -590,7 +600,7 @@ async function openBox() {
       const el = cards.children[i]; if (!el) continue;
       el.classList.add('flipped'); SFX.flip();
       await sleep(260);
-      SFX.win(rar);
+      if (rar) SFX.win(rar); else SFX.stop(2); // Trash в пати — глухой «клац», без долгой грустной мелодии на каждую карту
       const [x, y] = centerOf(el);
       if (rar === 5) { coinRain(); burst(x, y, RAR_COLOR.legendary, 60, 560); flash('legendary'); await sleep(900); }
       else if (rar === 4) { burst(x, y, RAR_COLOR.ultra, 40, 460); await sleep(450); }
@@ -599,6 +609,7 @@ async function openBox() {
     }
   }
   lb.dataset.state = 'open';
+  paintBoxGo();
   setBusy(false);
 }
 
@@ -606,7 +617,7 @@ function partyCard(g, i, flipped) {
   const r = RARITY[g.rar];
   return `<article class="lc rar-${r.k}${flipped ? ' flipped' : ''}" style="--i:${i}" data-card="${i}">
     <div class="lc-in">
-      <div class="lc-back"><b>?</b></div>
+      <div class="lc-back"></div>
       <div class="lc-front">
         <div class="lc-art">${g.hero.card ? `<img src="${esc(g.hero.card)}" alt="" loading="lazy">` : ''}<span class="lc-n">${L('Игрок', 'Player')} ${i + 1}</span></div>
         <div class="lc-rar">${g.rar === 5 ? 'Jackpot · ' : ''}${r.name}</div>
@@ -666,7 +677,7 @@ function buildPanel(g, idx) {
         <div class="sl-tags"><span class="sl-tag rar-${r.k}">${r.name}</span><span class="sl-tag inv ${g.lean.cat}">${esc(CAT_NAME[g.lean.cat])} ${pct(g.lean.share, 0)}</span></div>
         <h2>${esc(b.name || L('Без названия', 'Untitled'))}</h2>
         <div class="g-sub"><span>${esc(g.hero.name)}</span><span>${L('Винрейт', 'Win rate')}: <b>${pct(g.row.wr)}</b></span><span>${fmt(g.row.matches)} ${L('матчей', 'matches')} · ${fmt(g.row.players)} ${L('игроков', 'players')}</span></div>
-        <div class="g-upd">${L(`за ${RND.days} дней`, `over ${RND.days} days`)} · <button class="id-copy" data-copy-id="${id}" title="${L('Скопировать ID', 'Copy ID')}">ID ${id}</button> · ${L('подходящих сборок у героя', 'matching builds for this hero')}: ${fmt(g.pool)}</div>
+        <div class="g-upd">${L(`за ${RND.days} дней`, `over ${RND.days} days`)} · <button class="id-copy" data-copy-id="${id}" title="${L('Скопировать ID', 'Copy ID')}">ID ${id}</button> ${g.pool ? ` · ${L('подходящих сборок у героя', 'matching builds for this hero')}: ${fmt(g.pool)}` : ''}</div>
       </div>
     </header>
     <div class="g-actions">
@@ -719,13 +730,65 @@ async function copy(text, msg) {
   }
 }
 
+// ---------- ссылка на пати ----------
+// ?party=id.матчи.победы.игроки_… в base36: тиммейты видят те же карточки и редкости и забирают свою сборку.
+const b36 = (n) => num(n).toString(36);
+function encodeParty(list) { return list.map((g) => [g.row.id, g.row.matches, g.row.wins, g.row.players].map(b36).join('.')).join('_'); }
+function decodeParty(code) {
+  return String(code || '').split('_').slice(0, PARTY_MAX).map((p) => p.split('.').map((x) => parseInt(x, 36)))
+    .filter((a) => a.length === 4 && a.every((x) => Number.isFinite(x) && x >= 0) && a[0] > 0 && a[1] >= a[2])
+    .map(([id, matches, wins, players]) => ({ id, matches, wins, players, wr: matches ? wins / matches : 0 }));
+}
+function partyUrl() {
+  if (!state.party) return '';
+  try { const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('party', encodeParty(state.party.list)); return u.toString(); } catch { return ''; }
+}
+function leaveShared() {
+  state.shared = false;
+  try { const u = new URL(location.href); u.searchParams.delete('party'); history.replaceState(null, '', u); } catch {}
+}
+async function loadShared(rows) {
+  state.shared = true; opts.party = Math.max(2, rows.length); // в настройки не сохраняем: это чужой лутбокс
+  shell();
+  setBusy(true);
+  const lb = document.getElementById('lb');
+  if (lb) lb.dataset.state = 'shake';
+  showMsg(L('Открываю лутбокс тиммейта…', 'Opening your teammate’s loot box…'));
+  const got = await Promise.all(rows.map(async (row) => {
+    const b = await getBuild(row.id).catch(() => null);
+    const hero = b && heroById[b.hero_id];
+    const lean = b && leanOf(b);
+    return hero && lean ? { hero, row, build: b, lean, pool: 0, rar: rarityOf(row.wr) } : null;
+  }));
+  const list = got.filter(Boolean);
+  setBusy(false);
+  if (!list.length) {
+    if (lb) lb.dataset.state = 'idle';
+    showMsg(L('Не удалось открыть сборки по этой ссылке. Возможно, их удалили — открой свой лутбокс.', 'Could not load the builds from this link. They may have been deleted — open your own box.'));
+    paintBoxGo();
+    return;
+  }
+  state.party = { list, short: false };
+  paintParty(false); paintBoxGo();
+  showMsg(list.length < rows.length
+    ? L(`Лутбокс тиммейта: открылось ${list.length} из ${rows.length}. Выбери свою карточку и жми «В игру».`, `Teammate’s loot box: ${list.length} of ${rows.length} loaded. Pick your card and hit “To game”.`)
+    : L('Лутбокс тиммейта. Выбери свою карточку и жми «В игру».', 'Your teammate’s loot box. Pick your card and hit “To game”.'));
+  track('slots_shared_open', { size: list.length });
+}
+
 // ---------- события ----------
 const spin = () => (isParty() ? openBox() : spinSolo());
 root.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-spin],[data-party],[data-lean],[data-floor],[data-hero],[data-sound],[data-game],[data-open],[data-copy-id]');
+  const t = e.target.closest('[data-spin],[data-party],[data-lean],[data-floor],[data-hero],[data-sound],[data-game],[data-open],[data-copy-id],[data-share],.lc.flipped');
   if (!t) return;
   const d = t.dataset;
   if (d.spin) { spin(); return; }
+  if (d.share) {
+    const url = partyUrl(); if (!url) return;
+    copy(url, L('Ссылка скопирована — кидай в чат пати: каждый откроет свою карточку и заберёт сборку кнопкой «В игру»', 'Link copied — drop it in the party chat: everyone opens their card and grabs the build with “To game”'));
+    track('slots_share', { size: state.party.list.length });
+    return;
+  }
   if (d.copyId) { copy(d.copyId, L(`ID ${d.copyId} скопирован`, `ID ${d.copyId} copied`)); return; }
   if (d.game !== undefined) {
     const g = current(+d.game); if (!g) return;
@@ -735,16 +798,18 @@ root.addEventListener('click', (e) => {
     } catch { toast(L('Не удалось собрать код сборки', 'Could not build the code')); }
     return;
   }
-  if (d.open !== undefined) {
-    state.open = state.open === +d.open ? -1 : +d.open; renderOut();
+  const openIdx = d.open !== undefined ? +d.open : t.classList.contains('lc') ? +d.card : -1;
+  if (openIdx >= 0) {
+    state.open = state.open === openIdx ? -1 : openIdx; renderOut();
     if (state.open >= 0) document.getElementById('out').scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' });
     return;
   }
-  if (d.sound) { opts.sound = !opts.sound; saveOpts(); t.setAttribute('aria-pressed', String(opts.sound)); if (opts.sound) SFX.flip(); return; }
+  if (d.sound) { opts.sound = !opts.sound; setSound(opts.sound); saveOpts(); t.setAttribute('aria-pressed', String(opts.sound)); if (opts.sound) SFX.flip(); return; }
   if (state.busy) return; // условия во время крутки не меняем
   if (d.party) {
     const n = +d.party;
     if (n === opts.party) return;
+    if (state.shared) leaveShared();
     opts.party = n; saveOpts(); state.party = null; state.open = -1;
     renderOpts(); renderStage();
     return;
@@ -798,6 +863,8 @@ function localizeStatic() {
   }
   heroById = Object.fromEntries(D.heroes.map((h) => [h.id, h]));
   itemById = Object.fromEntries(D.items.map((i) => [i.id >>> 0, i]));
-  loadOpts();
-  shell();
+  loadOpts(); setSound(opts.sound);
+  let shared = [];
+  try { shared = decodeParty(new URL(location.href).searchParams.get('party')); } catch {}
+  if (shared.length) loadShared(shared); else shell();
 })();

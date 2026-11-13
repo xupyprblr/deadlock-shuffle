@@ -738,7 +738,8 @@ footer { padding-block: 26px 44px; color: var(--muted); font-size: 13px; border-
 }
 
 /* «+ Следующий игрок» под большой кнопкой */
-.btn-next { gap: 8px; box-shadow: 3px 3px 0 var(--ink); }
+/* «Крутить» повёрнута на −2° и с тенью 7px: её левый нижний угол опускается ~12px — отодвигаем, чтобы не наезжала */
+.btn-next { gap: 8px; box-shadow: 3px 3px 0 var(--ink); margin-top: 10px; }
 .btn-next small { font: 900 11px/1 var(--f-tag); opacity: .65; }
 
 .team { display: grid; gap: 18px; }

@@ -2,9 +2,10 @@ import { encodeBuildCode, CATEGORY_KEYS } from './buildcode.js';
 import { initAnalytics, track } from './analytics.js';
 import { NS, IS_DEV, markDev } from './env.js';
 import { addEntry, entryFrom } from './journal.js';
-import { loadTips, tipCard } from './tips.js';
+import { browserLang } from './lang.js';
+import { loadTips, tipCard, abilityCard } from './tips.js';
 import { buildSnapshot, fetchRawLite, fetchHeroAbilities, normalizeAbility, latestPatch, applyEnglishNames, isNewHero, attachTune, SCHEMA, API, PATCHES } from './normalize.js';
-import { roll, rng, newSeed, DEFAULTS, heroPool, rollItem, orderBuild, PHASES, phaseOf, phaseTiers, curveTiers, curveUpgrade, buildCost, encodeResult, decodeResult, CATS, rollSkillOrder, ultIndexOf, rollHeroFor, scoreBuild, meterPos, MAX_ACTIVE } from './random.js';
+import { roll, rng, newSeed, DEFAULTS, heroPool, rollItem, orderBuild, PHASES, phaseOf, phaseTiers, curveTiers, curveUpgrade, buildCost, encodeResult, decodeResult, packSlots, unpackSlots, CATS, rollSkillOrder, skillsFor, ultIndexOf, rollHeroFor, scoreBuild, meterPos, MAX_ACTIVE } from './random.js';
 
 const CFG = Object.assign({ live: true, dataUrl: 'data/', cacheHours: 6 }, window.DS_CONFIG || {});
 const app = document.getElementById('app');
@@ -14,8 +15,8 @@ const I18N = {
   ru: {
     tagline: 'рандомайзер', loading: 'Загружаю героев и предметы…', patch: 'Патч', fresh: 'данные актуальны', stale: 'снимок данных',
     updated: 'Данные обновлены до свежей версии игры', yourHero: 'Твой герой', build: 'Затар [на матч]',
-    toGame: 'В игру', toGameDone: 'Код скопирован. В игре: Поиск сборок → Создать сборку → Вставить сборку', toGameFail: 'Не удалось собрать код сборки', gameCat: 'Порядок покупки',
-    gameT: 'Перенос в игру', game: ['Нажми <strong>«В игру»</strong> — сайт скопирует код сборки. Дальше в Deadlock: выбери этого же героя → <strong>Поиск сборок</strong> → <strong>Создать сборку</strong> → <strong>Вставить сборку</strong>. Предметы и порядок прокачки встанут сами, без модов и аддонов.'],
+    toGame: 'Скопировать в игру', toGameDone: 'Код скопирован. В игре: Поиск сборок → Создать сборку → Вставить сборку', toGameFail: 'Не удалось собрать код сборки', gameCat: 'Порядок покупки',
+    gameT: 'Перенос в игру', game: ['Нажми <strong>«Скопировать в игру»</strong> — сайт скопирует код сборки. Дальше в Deadlock: выбери этого же героя → <strong>Поиск сборок</strong> → <strong>Создать сборку</strong> → <strong>Вставить сборку</strong>. Предметы и порядок прокачки встанут сами, без модов и аддонов.'],
     howBtn: 'Как вставить в игру?', howT: 'Как вставить сборку в игру', howCopied: 'Код сборки скопирован', howCopy: 'Скопировать код сборки', howOk: 'Понятно',
     how1T: 'Выбери в игре героя', how1: 'Сборка вставляется только на того героя, для которого её собрали.',
     how2T: 'Открой сборки и нажми «Поиск сборок»', how2: 'Кнопка справа вверху в окне сборок.',
@@ -23,8 +24,8 @@ const I18N = {
     how4T: 'Нажми «Вставить сборку»', how4: 'Маленькая квадратная кнопка рядом с «i». Предметы и прокачка встанут сами — останется сохранить.',
     howWarn: '<b>Нет кнопки «Вставить сборку»?</b> Значит, в игре выбран другой герой или код пропал из буфера обмена. Проверь героя и скопируй код ещё раз.',
     view_solo: 'Соло', view_team: 'Собрать команду', teamT: '[Команда]',
-    teamSub: 'Крути игроков по очереди: «+ Следующий игрок» добавляет нового, герои в команде не повторяются. Готово — кидай ссылку в чат пати, каждый откроет своего героя и заберёт затар кнопкой «В игру».',
-    teamLink: 'Ссылка на команду', teamLinkShort: 'Команда', roT: 'Команда от [капитана]', roSub: 'Капитан уже раскидал героев и затары. Найди своего героя и нажми «В игру» — код сборки скопируется, дальше в Deadlock: Поиск сборок → Создать сборку → Вставить сборку.', roOwn: 'Крутить свой затар', roBadge: 'Только просмотр', teamLinkCopied: 'Ссылка на команду скопирована — по ней только забрать затары, без перекрута', playerN: 'Игрок',
+    teamSub: 'Крути игроков по очереди: «+ Следующий игрок» добавляет нового, герои в команде не повторяются. Готово — кидай ссылку в чат пати, каждый откроет своего героя и заберёт затар кнопкой «Скопировать в игру».',
+    teamLink: 'Ссылка на команду', teamLinkShort: 'Команда', roT: 'Команда от [капитана]', roSub: 'Капитан уже раскидал героев и затары. Найди своего героя и нажми «Скопировать в игру» — код сборки скопируется, дальше в Deadlock: Поиск сборок → Создать сборку → Вставить сборку.', roOwn: 'Крутить свой затар', roBadge: 'Только просмотр', teamLinkCopied: 'Ссылка на команду скопирована — по ней только забрать затары, без перекрута', playerN: 'Игрок',
     addPlayer: 'Следующий игрок', nextPlayer: 'Следующий игрок', onStage: 'на экране', openSlot: 'Показать сверху', removeSlot: 'Убрать игрока', rerollAll: 'Всё',
     teamAvg: 'Средняя оценка команды', poolSmall: 'В пуле не осталось свободных героев — взял из всех',
     teamTaken: 'Код для {h} скопирован. В игре: Поиск сборок → Создать сборку → Вставить сборку',
@@ -64,20 +65,20 @@ const I18N = {
   en: {
     tagline: 'randomizer', loading: 'Loading heroes and items…', patch: 'Patch', fresh: 'data is live', stale: 'data snapshot',
     updated: 'Data updated to the latest game version', yourHero: 'Your hero', build: 'Your [build]',
-    toGame: 'To game', toGameDone: 'Code copied. In game: Browse builds → Create build → Paste build', toGameFail: 'Could not build the code', gameCat: 'Purchase order',
-    gameT: 'Send to the game', game: ['Hit <strong>To game</strong> to copy the build code. Then in Deadlock: pick the same hero → <strong>Browse builds</strong> → <strong>Create build</strong> → <strong>Paste build</strong>. Items and the ability order fill in on their own, no mods or add-ons.'],
+    toGame: 'Copy to game', toGameDone: 'Code copied. In game: Build Browser → Create new Build → Paste Build', toGameFail: 'Could not build the code', gameCat: 'Purchase order',
+    gameT: 'Send to the game', game: ['Hit <strong>Copy to game</strong> to copy the build code. Then in Deadlock: pick the same hero → <strong>Build Browser</strong> → <strong>Create new Build</strong> → <strong>Paste Build</strong>. Items and the ability order fill in on their own, no mods or add-ons.'],
     howBtn: 'How to paste it in game?', howT: 'How to paste the build in game', howCopied: 'Build code copied', howCopy: 'Copy build code', howOk: 'Got it',
     how1T: 'Pick the hero in game', how1: 'A build can only be pasted for the hero it was made for.',
-    how2T: 'Open builds and press “Browse builds”', how2: 'The button in the top right of the builds window. (Screenshots are from the Russian client.)',
-    how3T: 'Press “Create build”', how3: 'An empty build for this hero opens.',
-    how4T: 'Press “Paste build”', how4: 'The small square button next to the “i”. Items and abilities fill in on their own — just save.',
-    howWarn: '<b>No “Paste build” button?</b> The game has a different hero selected, or the code is no longer in your clipboard. Check the hero and copy the code again.',
+    how2T: 'Open builds and press “Build Browser”', how2: 'The button in the top right of the builds window.',
+    how3T: 'Press “Create new Build”', how3: 'An empty build for this hero opens.',
+    how4T: 'Press “Paste Build”', how4: 'The small square button next to the “i”. Items and abilities fill in on their own — just save.',
+    howWarn: '<b>No “Paste Build” button?</b> The game has a different hero selected, or the code is no longer in your clipboard. Check the hero and copy the code again.',
     view_solo: 'Solo', view_team: 'Build a team', teamT: '[Team]',
-    teamSub: 'Roll players one by one: “+ Next player” adds a new one, heroes never repeat within the team. Done — drop the link in party chat; everyone opens their hero and grabs the build with “To game”.',
-    teamLink: 'Team link', teamLinkShort: 'Team', roT: 'Team from the [captain]', roSub: 'The captain has already picked the heroes and builds. Find your hero and hit “To game” — the build code is copied; then in Deadlock: Browse builds → Create build → Paste build.', roOwn: 'Roll your own build', roBadge: 'View only', teamLinkCopied: 'Team link copied — teammates can only grab builds, no rerolls', playerN: 'Player',
+    teamSub: 'Roll players one by one: “+ Next player” adds a new one, heroes never repeat within the team. Done — drop the link in party chat; everyone opens their hero and grabs the build with “Copy to game”.',
+    teamLink: 'Team link', teamLinkShort: 'Team', roT: 'Team from the [captain]', roSub: 'The captain has already picked the heroes and builds. Find your hero and hit “Copy to game” — the build code is copied; then in Deadlock: Build Browser → Create new Build → Paste Build.', roOwn: 'Roll your own build', roBadge: 'View only', teamLinkCopied: 'Team link copied — teammates can only grab builds, no rerolls', playerN: 'Player',
     addPlayer: 'Next player', nextPlayer: 'Next player', onStage: 'on screen', openSlot: 'Show on top', removeSlot: 'Remove player', rerollAll: 'All',
     teamAvg: 'Team average rating', poolSmall: 'No free heroes left in the pool — picked from all heroes',
-    teamTaken: 'Code for {h} copied. In game: Browse builds → Create build → Paste build',
+    teamTaken: 'Code for {h} copied. In game: Build Browser → Create new Build → Paste Build',
     orderT: 'Roll mode', o_chaos: 'Full Random', o_pseudo: 'Smart Random', o_curve: 'Balanced Random', o_phases: 'By phase',
     ph_early: 'Early game', ph_mid: 'Mid game', ph_late: 'Late game', slotHint: 'Slots in purchase order: top to bottom, then the next column, as in the game.', copyOrder: 'Purchase order',
     souls: 'souls', roll: 'Shuffle', newHero: 'New hero', newItems: 'New items',
@@ -121,26 +122,14 @@ const store = {
   set(k, v) { try { localStorage.setItem(NS + k, JSON.stringify(v)); } catch {} },
 };
 
-// Язык браузера: русский для RU и соседних языков (часто знают русский), иначе английский
-function browserLang() {
-  let list = [];
-  try { list = (navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || '']); } catch {}
-  for (const l of list) {
-    const code = String(l || '').toLowerCase().split('-')[0];
-    if (['ru', 'uk', 'be', 'kk', 'ky', 'uz', 'tg', 'hy', 'az', 'ka', 'tk', 'mo'].includes(code)) return 'ru';
-    if (code === 'en') return 'en';
-  }
-  return 'en';
-}
-
 const state = {
   lang: store.get('ds:lang', browserLang()), // выбор зрителя; если не выбирал — по языку браузера
   // старые сохранённые настройки (слоты, классы, лимит активок) больше не используются
   opts: (({ slots, types, maxActive, ...rest }) => {
     const o = Object.assign({}, DEFAULTS, rest);
-    // «По фазам» убран из интерфейса; с версии 2 по умолчанию псевдо-рандом (переводим всех один раз)
-    if (o.order === 'phases' || !rest.ov) o.order = 'pseudo';
-    o.ov = 2;
+    // «По фазам» убран из интерфейса; с версии 3 по умолчанию баланс рандом (переводим всех один раз)
+    if (o.order === 'phases' || !rest.ov || rest.ov < 3) o.order = 'curve';
+    o.ov = 3;
     return o;
   })(store.get('ds:opts', {})),
   stats: null,
@@ -216,6 +205,9 @@ async function liveCheck() {
     const raw = await fetchRawLite(fetchJson, lang);
     const fresh = buildSnapshot(raw);
     // старые способности и патч переносим заранее, чтобы английские имена легли и на них
+    // постоянные номера предметов для коротких ссылок (k) — из серверного снимка
+    const oldK = new Map(state.data.items.map((i) => [i.id >>> 0, i.k]));
+    for (const i of fresh.items) if (oldK.get(i.id >>> 0) !== undefined) i.k = oldK.get(i.id >>> 0);
     const oldAb0 = Object.fromEntries(state.data.heroes.map((h) => [h.slug, h.abilities]));
     for (const h of fresh.heroes) h.abilities = oldAb0[h.slug] && oldAb0[h.slug].length ? oldAb0[h.slug] : [];
     // запреты считаются на сервере по статистике — переносим их из снимка
@@ -275,7 +267,7 @@ function doRoll(kind = 'all', src = 'button') {
     const hero = team
       ? ((teamHero(rng(seed), state.opts, new Set([...used, prev.hero.id]), prev.build) || {}).hero)
       : rollHeroFor(rng(seed), d, state.opts, prev.build, prev.hero.id);
-    if (hero) res = { ...prev, hero, skills: rollSkillOrder(rng(seed + ':s'), 4, ultIndexOf(hero)), seed };
+    if (hero) res = { ...prev, hero, skills: skillsFor(rng(seed + ':s'), hero, prev.build, state.opts), seed };
   }
   if (kind !== 'hero' || !prev) res.orders = { [state.opts.order]: res.build };
   const prevLane = team ? (activeSlot().res ? activeSlot().res.lane : null) : undefined;
@@ -319,11 +311,35 @@ function rerollSlot(idx) {
   renderStage(false);
 }
 
+// Короткий код ссылки (packSlots); если предмет без постоянного номера (свежий патч) — старый длинный формат
+function linkCode(res, order = state.opts.order, mode = state.opts.mode) {
+  return packSlots([{ res, order, mode }], state.data) || encodeResult(res);
+}
+// прокачка из ссылки: 16 шагов, каждое умение по 4 раза, ульта после трёх базовых — иначе крутим заново
+function okSkills(sk, hero) {
+  if (!Array.isArray(sk) || sk.length !== 16) return false;
+  const u = ultIndexOf(hero), cnt = [0, 0, 0, 0];
+  for (let i = 0; i < 16; i++) {
+    const a = sk[i];
+    if (a === u && cnt[a] === 0 && [0, 1, 2, 3].some((b) => b !== u && cnt[b] === 0)) return false;
+    if (++cnt[a] > 4) return false;
+  }
+  return true;
+}
+function readLink(code, data) {
+  if (String(code).includes('~')) return decodeResult(code, data);
+  const sl = unpackSlots(code, data);
+  const r = sl && sl[0] && sl[0].res;
+  if (!r || !r.build.length) return null;
+  if (!okSkills(r.skills, r.hero)) r.skills = rollSkillOrder(rng(newSeed()), 4, ultIndexOf(r.hero));
+  return r;
+}
+
 function syncUrl() {
   try {
     const u = new URL(location.href);
     if (state.view === 'team' && state.team) { u.searchParams.set(state.readonly ? 'squad' : 'team', encodeTeam(state.team)); u.searchParams.delete(state.readonly ? 'team' : 'squad'); u.searchParams.delete('b'); }
-    else { u.searchParams.set('b', encodeResult(state.res)); u.searchParams.delete('team'); u.searchParams.delete('squad'); }
+    else { u.searchParams.set('b', linkCode(state.res)); u.searchParams.delete('team'); u.searchParams.delete('squad'); }
     history.replaceState(null, '', u);
   } catch {}
 }
@@ -331,17 +347,17 @@ function syncUrl() {
 function shareUrl() {
   try {
     const u = new URL(location.href);
-    u.searchParams.set('b', encodeResult(state.res));
+    u.searchParams.set('b', linkCode(state.res));
     u.searchParams.delete('team'); u.searchParams.delete('squad');
     return u.toString();
-  } catch { return encodeResult(state.res); }
+  } catch { return linkCode(state.res); }
 }
 
 // Ссылка на одну сборку (для описания сборки в игре — короче ссылки на всю команду)
 function soloUrl(res) {
   try {
     const u = new URL(location.href);
-    u.searchParams.set('b', encodeResult(res));
+    u.searchParams.set('b', linkCode(res));
     u.searchParams.delete('team'); u.searchParams.delete('squad');
     return u.toString();
   } catch { return ''; }
@@ -407,9 +423,9 @@ function openHow(copied) {
     <h2 id="how-t">${t('howT')}</h2>
     <ol class="how-steps">
       ${step(1, t('how1T'), t('how1'), h ? `<div class="how-hero">${h.small ? `<img src="${esc(src(h.small))}" alt="" width="56" height="56">` : ''}<b>${esc(h.name)}</b></div>` : '')}
-      ${step(2, t('how2T'), t('how2'), '<img class="how-shot" src="img/howto/search.webp" alt="" loading="lazy">')}
-      ${step(3, t('how3T'), t('how3'), '<img class="how-shot" src="img/howto/create.webp" alt="" loading="lazy">')}
-      ${step(4, t('how4T'), t('how4'), '<img class="how-shot" src="img/howto/paste.webp" alt="" loading="lazy">')}
+      ${step(2, t('how2T'), t('how2'), `<img class="how-shot" src="img/howto/${state.lang === 'en' ? 'en/' : ''}search.webp" alt="" loading="lazy">`)}
+      ${step(3, t('how3T'), t('how3'), `<img class="how-shot" src="img/howto/${state.lang === 'en' ? 'en/' : ''}create.webp" alt="" loading="lazy">`)}
+      ${step(4, t('how4T'), t('how4'), `<img class="how-shot" src="img/howto/${state.lang === 'en' ? 'en/' : ''}paste.webp" alt="" loading="lazy">`)}
     </ol>
     <p class="how-warn">${t('howWarn')}</p>
     <div class="how-foot">
@@ -456,8 +472,8 @@ function shell() {
     <nav class="views" id="views"></nav>
     <main>
       <div class="stage" id="stage"></div>
-      <section class="block team" id="team" hidden></section>
       <section class="block" id="skills"></section>
+      <section class="block team" id="team" hidden></section>
       <section class="block" id="opts"></section>
       <section class="block" id="about"></section>
     </main>
@@ -610,8 +626,14 @@ function lanePill(lane) {
 const isTouch = () => { try { return !matchMedia('(hover: hover) and (pointer: fine)').matches; } catch { return false; } };
 let tipEl = null, tipFor = -1;
 function tipData() { return loadTips(CFG.dataUrl, state.lang); }
-function cardFor(idx, data) {
-  const it = state.res && state.res.build[idx];
+// ключ карточки: 'i3' — предмет в слоте 3, 'a1' — умение героя №1
+const TIP_SEL = '.slot, .ab[data-ab]';
+const tipKey = (el) => (el.dataset.ab !== undefined ? 'a' + el.dataset.ab : 'i' + el.dataset.i);
+function cardFor(key, data) {
+  if (!state.res) return '';
+  const k = String(key), n = +k.slice(1);
+  if (k[0] === 'a') { const ab = state.res.hero.abilities && state.res.hero.abilities[n]; return ab ? abilityCard(ab, data, state.lang, src) : ''; }
+  const it = state.res.build[n];
   return it ? tipCard(it, data, state.lang, src, fmt, state.data.items) : '';
 }
 function placeTip(slot) {
@@ -624,7 +646,7 @@ function placeTip(slot) {
   tipEl.style.transform = `translate(${Math.round(x)}px, ${Math.round(Math.max(8, y))}px)`;
 }
 async function showTip(slot) {
-  const idx = +slot.dataset.i;
+  const idx = tipKey(slot);
   if (spinning || slot.classList.contains('spinning')) return;
   if (!tipEl) { tipEl = document.createElement('div'); tipEl.className = 'tip-float'; tipEl.setAttribute('role', 'tooltip'); document.body.appendChild(tipEl); }
   tipFor = idx;
@@ -637,26 +659,33 @@ async function showTip(slot) {
 function hideTip() { tipFor = -1; if (tipEl) tipEl.classList.remove('show'); }
 app.addEventListener('mouseover', (e) => {
   if (isTouch()) return;
-  const slot = e.target.closest && e.target.closest('.slot');
-  if (slot && +slot.dataset.i !== tipFor) showTip(slot);
+  const slot = e.target.closest && e.target.closest(TIP_SEL);
+  if (slot && tipKey(slot) !== tipFor) showTip(slot);
 });
 app.addEventListener('mouseout', (e) => {
-  const slot = e.target.closest && e.target.closest('.slot');
+  const slot = e.target.closest && e.target.closest(TIP_SEL);
   if (slot && !(e.relatedTarget && slot.contains(e.relatedTarget))) hideTip();
 });
-app.addEventListener('focusin', (e) => { const slot = e.target.closest && e.target.closest('.slot'); if (slot && !isTouch()) showTip(slot); });
-app.addEventListener('focusout', (e) => { if (e.target.closest && e.target.closest('.slot')) hideTip(); });
+app.addEventListener('focusin', (e) => { const slot = e.target.closest && e.target.closest(TIP_SEL); if (slot && !isTouch()) showTip(slot); });
+app.addEventListener('focusout', (e) => { if (e.target.closest && e.target.closest(TIP_SEL)) hideTip(); });
+// телефон: тап по умению в «Порядке прокачки» — карточка умения
+app.addEventListener('click', (e) => {
+  const ab = e.target.closest && e.target.closest('.ab[data-ab]');
+  if (ab && isTouch()) { openTipSheet('a' + ab.dataset.ab); track('ability_info', { hero: state.res && state.res.hero.name }); }
+});
 addEventListener('scroll', hideTip, { passive: true });
 
 // телефон: нижняя панель с карточкой и кнопкой перекрута
 async function openTipSheet(idx) {
   closeTipSheet();
+  const isItem = String(idx)[0] !== 'a';
+  const slotN = isItem ? +String(idx).replace(/^i/, '') : -1;
   const el = document.createElement('div');
   el.className = 'tip-sheet'; el.id = 'tip-sheet'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
   const paint = (data) => {
     el.innerHTML = `<div class="tip-sheet-in">${cardFor(idx, data)}<div class="tip-sheet-btns">
       <button class="btn" data-sheet="close">${t('closeBtn')}</button>
-      ${state.readonly ? '' : `<button class="btn btn-game" data-sheet="reroll">${ICON.cards}<span>${t('rerollBtn')}</span></button>`}</div></div>`;
+      ${state.readonly || !isItem ? '' : `<button class="btn btn-game" data-sheet="reroll">${ICON.cards}<span>${t('rerollBtn')}</span></button>`}</div></div>`;
   };
   paint(null);
   el.addEventListener('click', (e) => {
@@ -664,11 +693,11 @@ async function openTipSheet(idx) {
     const b = e.target.closest('[data-sheet]');
     if (!b) return;
     if (b.dataset.sheet === 'close') closeTipSheet();
-    else { closeTipSheet(); rerollSlot(idx); track('reroll_slot', { slot: idx + 1, hero: state.res && state.res.hero.name, from: 'sheet' }); }
+    else { closeTipSheet(); rerollSlot(slotN); track('reroll_slot', { slot: slotN + 1, hero: state.res && state.res.hero.name, from: 'sheet' }); }
   });
   document.body.appendChild(el);
   document.body.classList.add('noscroll');
-  track('item_info', { slot: idx + 1 });
+  if (isItem) track('item_info', { slot: slotN + 1 });
   const data = await tipData();
   if (el.isConnected) paint(data);
 }
@@ -766,11 +795,24 @@ const inTeam = () => state.view === 'team' && !!state.team;
 const activeSlot = () => (inTeam() ? state.team.slots[state.team.active] : null);
 
 function encodeTeam(team) {
+  const short = packSlots(team.slots.filter((s) => s.res), state.data);
+  if (short) return short;
   return team.slots.filter((s) => s.res).map((s) => `${encodeResult(s.res)}~${ORD_K[s.order] || 'p'}${MODE_K[s.mode] || 'x'}`).join('_');
 }
 function decodeTeam(code, data) {
   const slots = [];
   const seen = new Set();
+  if (code && !String(code).includes('~')) {
+    for (const { res, order, mode } of unpackSlots(code, data) || []) {
+      if (!res.build.length || seen.has(res.hero.id) || slots.length >= TEAM_N) continue;
+      seen.add(res.hero.id);
+      res.seed = newSeed();
+      res.orders = { [order]: res.build };
+      if (!okSkills(res.skills, res.hero)) res.skills = rollSkillOrder(rng(newSeed()), 4, ultIndexOf(res.hero));
+      slots.push({ res, order, mode });
+    }
+    return slots.length ? { slots, active: 0 } : null;
+  }
   for (const part of String(code || '').split('_').slice(0, TEAM_N)) {
     const p = part.split('~');
     const res = decodeResult(p.slice(0, 4).join('~'), data);
@@ -1108,7 +1150,7 @@ function renderSkills() {
     <div class="skills-scroll"><div class="skills" role="table">
       <span></span>${Array.from({ length: 16 }, (_, i) => `<span class="num">${i + 1}</span>`).join('')}
       ${ab.map((a, r) => `
-        <span class="ab" title="${esc(a.quip || '')}">${a.icon ? `<img src="${esc(src(a.icon))}" alt="" width="28" height="28" loading="lazy">` : '<img alt="">'}<span>${esc(a.name)}</span></span>
+        <span class="ab" data-ab="${r}" tabindex="0">${a.icon ? `<img src="${esc(src(a.icon))}" alt="" width="28" height="28" loading="lazy">` : '<img alt="">'}<span>${esc(a.name)}</span></span>
         ${cellsByRow[r].map((v, c) => {
           const edge = c === 0 ? ' first' : c === 15 ? ' last' : '';
           if (!v) return `<span class="cell${edge}"></span>`;
@@ -1195,7 +1237,7 @@ app.addEventListener('click', (e) => {
     case 'items': doRoll('items'); break;
     case 'slot':
       // на телефоне тап открывает карточку предмета, перекрут — кнопкой в ней
-      if (isTouch()) { openTipSheet(+b.dataset.i); break; }
+      if (isTouch()) { openTipSheet('i' + b.dataset.i); break; }
       if (state.readonly) break;
       hideTip(); rerollSlot(+b.dataset.i); track('reroll_slot', { slot: +b.dataset.i + 1, hero: state.res && state.res.hero.name }); break;
     case 'game': toGame(); break;
@@ -1310,7 +1352,7 @@ async function boot() {
   try { squad = new URL(location.href).searchParams.get('squad'); } catch {}
   if (squad) { state.team = decodeTeam(squad, state.data); if (state.team) { state.view = 'team'; state.readonly = true; } }
   else if (teamFromUrl) { state.team = decodeTeam(teamFromUrl, state.data); if (state.team) state.view = 'team'; }
-  const shared = fromUrl && decodeResult(fromUrl, state.data);
+  const shared = fromUrl && readLink(fromUrl, state.data);
   if (shared) { shared.seed = newSeed(); state.res = shared; }
   else state.res = roll(state.data, state.opts, newSeed());
   state.res.orders = { [state.opts.order || 'chaos']: state.res.build };

@@ -52,7 +52,7 @@ export const DEFAULTS = {
   slots: 12, // универсальные слоты (без привязки к категориям), фиксировано
   tiers: [1, 2, 3, 4], // какие тиры участвуют
   mode: 'chaos', // chaos | balanced | mono
-  order: 'pseudo', // порядок покупки: chaos — полный рандом, pseudo — псевдо-рандом, phases — по фазам игры
+  order: 'curve', // режим крутки: curve — баланс рандом (по умолчанию), pseudo — псевдо-рандом, chaos — полный рандом, phases — по фазам (скрыт)
   actives: 'random', // сколько активных предметов: 'random' (0–4 каждую крутку) или число 0–4
   types: [], // фильтр по классам героев (в интерфейсе убран); пусто = все
   exclude: [], // id героев, которых не выдавать
@@ -392,10 +392,17 @@ export function scoreBuild(build, heroStats) {
 // Порядок прокачки как в игре: у каждой способности 4 шага — открытие и 3 улучшения
 // (за 1, 2 и 5 очков). Ульту можно открыть только после того, как открыты
 // три базовые способности. Возвращает индексы способностей длиной 16, например [2,0,2,1,...]
-export function rollSkillOrder(r, abilityCount = 4, ultIndex = abilityCount - 1, steps = 4) {
+// plan (псевдо и баланс рандом): pos — типичный шаг каждого события умения (hero.tune.s, 4×4),
+// force — умение, которое открываем первым и качаем раньше (заряды под Extra Charge), need — до какого улучшения.
+export function rollSkillOrder(r, abilityCount = 4, ultIndex = abilityCount - 1, steps = 4, plan = null) {
   const left = Array(abilityCount).fill(steps);
   const out = [];
   const basesOpen = () => left.every((v, i) => i === ultIndex || v < steps);
+  const target = (i, e) => {
+    if (plan.force === i && e <= plan.need) return e * 2; // открыть сразу, нужные улучшения — через шаг
+    const p = plan.pos ? plan.pos[i * steps + e] : e * 4 + 1.5;
+    return plan.force === i ? p - SKILL.charge : p;
+  };
   while (out.length < abilityCount * steps) {
     const avail = [];
     for (let i = 0; i < abilityCount; i++) {
@@ -403,11 +410,40 @@ export function rollSkillOrder(r, abilityCount = 4, ultIndex = abilityCount - 1,
       if (i === ultIndex && left[i] === steps && !basesOpen()) continue;
       avail.push(i);
     }
-    const i = pick(r, avail);
+    const n = out.length;
+    const i = !plan ? pick(r, avail)
+      : n === 0 && plan.force >= 0 && avail.includes(plan.force) ? plan.force
+      : weightedPick(r, avail, (a) => Math.exp(-Math.max(-6, target(a, steps - left[a]) - n) / SKILL.tau));
     left[i]--;
     out.push(i);
   }
   return out;
+}
+
+// Прокачка с учётом героя и затара. Полный рандом — как раньше, равновероятно.
+// Псевдо и баланс рандом: порядок близок к тому, как героя качают игроки (hero.tune.s, скрыто),
+// а если Extra Charge / Rapid Recharge в первых 4 слотах — первым открываем и раньше качаем умение с зарядами.
+export const SKILL = { tau: 1.4, charge: 3, early: 4 };
+const CHARGE_ITEMS = new Set(['upgrade_extra_charge', 'upgrade_rapid_recharge']);
+export function skillsFor(r, hero, build, opts) {
+  const ult = ultIndexOf(hero);
+  if (!opts || (opts.order !== 'pseudo' && opts.order !== 'curve')) return rollSkillOrder(r, 4, ult);
+  const ab = (hero && hero.abilities) || [];
+  const pos = hero && hero.tune && hero.tune.s ? hero.tune.s : null;
+  let force = -1, need = 0;
+  if ((build || []).slice(0, SKILL.early).some((i) => CHARGE_ITEMS.has(i.slug))) {
+    const c = ab.map((a, i) => ({ a, i })).filter((x) => !x.a.ult && x.i !== ult && x.a.charge !== undefined && x.a.charge !== null);
+    if (c.length) {
+      const best = Math.min(...c.map((x) => x.a.charge));
+      const top = c.filter((x) => x.a.charge === best);
+      // из равных — то, что игроки обычно открывают раньше
+      top.sort((x, y) => (pos ? pos[x.i * 4] - pos[y.i * 4] : 0));
+      force = top[0].i;
+      need = best;
+    }
+  }
+  if (!pos && force < 0) return rollSkillOrder(r, 4, ult);
+  return rollSkillOrder(r, 4, ult, 4, { pos, force, need });
 }
 
 export function ultIndexOf(hero) {
@@ -428,7 +464,7 @@ export function roll(data, opts, seed, lockedHero) {
   const k = activeTarget(r, opts);
   const built = rollBuild(r, data.items, opts, hero, k);
   const build = opts.order === 'curve' ? built : orderBuild(r, built, opts.order, hero);
-  const skills = rollSkillOrder(r, 4, ultIndexOf(hero));
+  const skills = skillsFor(r, hero, build, opts);
   // линию разыгрываем последней, чтобы флажок не менял героя и сборку при том же сиде
   const lane = opts.lane && data.lanes && data.lanes.length ? pick(r, data.lanes) : null;
   return { seed, hero, lane, build, skills, actives: k };
@@ -474,4 +510,60 @@ export function decodeResult(code, data) {
   } catch {
     return null;
   }
+}
+
+// ---------- Короткие ссылки ----------
+// Сборка или вся команда упаковываются в биты и base64url: 6 игроков ≈ 180 символов вместо 500+.
+// Предмет — постоянный номер item.k (data/ids.json, не меняется между патчами), герой — id.
+// На игрока: герой 9 бит, линия 2, режим крутки 2, баланс инвеста 2, число предметов 4, предметы по 10, прокачка 16×2.
+const PK_ORDER = ['curve', 'pseudo', 'chaos', 'phases'];
+const PK_MODE = ['chaos', 'balanced', 'mono'];
+const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+export function packSlots(slots, data) {
+  const bits = [];
+  const put = (v, n) => { for (let b = n - 1; b >= 0; b--) bits.push((v >> b) & 1); };
+  if (!slots.length || slots.length > 7) return null;
+  put(1, 3); // версия формата
+  put(slots.length, 3);
+  for (const { res, order, mode } of slots) {
+    const b = res.build || [];
+    if (res.hero.id > 511 || b.length > 15 || b.some((i) => typeof i.k !== 'number' || i.k > 1023)) return null;
+    put(res.hero.id, 9);
+    put(res.lane ? (data.lanes || []).findIndex((l) => l.css === res.lane.css) + 1 : 0, 2);
+    put(Math.max(0, PK_ORDER.indexOf(order)), 2);
+    put(Math.max(0, PK_MODE.indexOf(mode)), 2);
+    put(b.length, 4);
+    for (const i of b) put(i.k, 10);
+    const sk = res.skills && res.skills.length === 16 ? res.skills : Array(16).fill(0);
+    for (const v of sk) put(v & 3, 2);
+  }
+  let out = '';
+  for (let i = 0; i < bits.length; i += 6) { let v = 0; for (let j = 0; j < 6; j++) v = (v << 1) | (bits[i + j] || 0); out += B64[v]; }
+  return out;
+}
+export function unpackSlots(code, data) {
+  try {
+    const s = String(code || '');
+    if (!/^[A-Za-z0-9_-]+$/.test(s)) return null;
+    const bits = [];
+    for (const ch of s) { const v = B64.indexOf(ch); for (let b = 5; b >= 0; b--) bits.push((v >> b) & 1); }
+    let p = 0;
+    const get = (n) => { let v = 0; for (let i = 0; i < n; i++) v = (v << 1) | (bits[p++] || 0); if (p > bits.length) throw 0; return v; };
+    if (get(3) !== 1) return null;
+    const n = get(3);
+    const byK = new Map(data.items.filter((i) => typeof i.k === 'number').map((i) => [i.k, i]));
+    const out = [];
+    for (let k = 0; k < n; k++) {
+      const hid = get(9), lane = get(2), order = PK_ORDER[get(2)] || 'curve', mode = PK_MODE[get(2)] || 'chaos';
+      const cnt = get(4);
+      const build = [];
+      for (let i = 0; i < cnt; i++) { const it = byK.get(get(10)); if (it) build.push(it); }
+      const skills = [];
+      for (let i = 0; i < 16; i++) skills.push(get(2));
+      const hero = data.heroes.find((h) => h.id === hid);
+      if (!hero) continue;
+      out.push({ res: { seed: null, hero, lane: lane ? (data.lanes || [])[lane - 1] || null : null, build, skills }, order, mode });
+    }
+    return out;
+  } catch { return null; }
 }

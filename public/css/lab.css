@@ -191,3 +191,6 @@ a.lab-note:hover { color: var(--fg); }
 :root[data-theme="light"] .lab-modal { background: rgba(28, 22, 20, .55); }
 :root[data-theme="light"] .chip-item img { background: var(--tile-bg); }
 :root[data-theme="light"] .lab-pick .hp[aria-pressed="false"] img { filter: none; opacity: 1; }
+
+/* переключатель языка в шапке лаборатории (как на главной) */
+.lab-meta { justify-content: flex-end; }

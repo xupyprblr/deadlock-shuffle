@@ -3,15 +3,22 @@
 import { encodeBuildCode } from './buildcode.js';
 import { initAnalytics, track } from './analytics.js';
 import { NS, markDev } from './env.js';
+import { getLang, setLang } from './lang.js';
+
+// Язык — общий с рандомайзером (выбор зрителя или язык браузера). L('по-русски', 'in English')
+const LANG = getLang();
+const EN = LANG === 'en';
+const L = (ru, en) => (EN ? en : ru);
+const LOC = EN ? 'en-US' : 'ru-RU';
 
 const API = 'https://api.deadlock-api.com/v1';
 const DAY = 86400;
 const PERIODS = [7, 14, 30, 90];
 // Ранги: значок = тир × 10 + подуровень (см. /v1/assets/ranks)
 const RANKS = [
-  [0, 'Все ранги'], [61, 'Ritualist+'], [71, 'Emissary+'], [81, 'Oracle+'], [91, 'Phantom+'], [101, 'Ascendant+'],
+  [0, L('Все ранги', 'All ranks')], [61, 'Ritualist+'], [71, 'Emissary+'], [81, 'Oracle+'], [91, 'Phantom+'], [101, 'Ascendant+'],
 ];
-const SORTS = [['wr', 'Винрейт'], ['matches', 'Матчи'], ['delta', 'Отклонение от героя'], ['low', 'Нижняя граница WR']];
+const SORTS = [['wr', L('Винрейт', 'Win rate')], ['matches', L('Матчи', 'Matches')], ['delta', L('Отклонение от героя', 'Vs. hero')], ['low', L('Нижняя граница WR', 'WR lower bound')]];
 const TOP_N = 40; // для скольких сборок подгружать названия и содержимое
 
 // ---------- аномалии и самородки ----------
@@ -24,7 +31,7 @@ const TOP_N = 40; // для скольких сборок подгружать �
 // «Реалистичная оценка» — эмпирический байес: WR поджимается к винрейту героя с весом K матчей.
 // Настоящий разброс между сборками ≈ 3 п.п. (наблюдаемый разброс минус шум выборки), K = p(1−p)/τ² ≈ 0,25/0,03² ≈ 275.
 const ANOM = { minMatches: 50, minPlayers: 10, popularPct: 0.9, wr: 0.55, gemWr: 0.6, z: 1.645, k: 275, fetchMin: 20 };
-const SHOWS = [['all', 'Все сборки'], ['anom', 'Аномалии и самородки'], ['gem', 'Только самородки']];
+const SHOWS = [['all', L('Все сборки', 'All builds')], ['anom', L('Аномалии и самородки', 'Anomalies and gems')], ['gem', L('Только самородки', 'Gems only')]];
 
 function wilsonLow(w, n, z) {
   const p = w / n, d = 1 + (z * z) / n;
@@ -48,11 +55,12 @@ function classify(rows, base) {
 
 const root = document.getElementById('lab');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const fmt = (n) => Number(n || 0).toLocaleString('ru-RU');
+const fmt = (n) => Number(n || 0).toLocaleString(LOC);
 const num = (v) => (Number.isFinite(+v) ? Math.trunc(+v) : 0); // числовые поля из API — только числа
-const pct = (v, d = 1) => (v * 100).toFixed(d).replace('.', ',') + '%';
-const pp = (v) => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v * 100).toFixed(1).replace('.', ',');
-const day = (t) => (t ? new Date(t * 1000).toLocaleDateString('ru-RU') : '—');
+const dec = (s) => (EN ? s : s.replace('.', ','));
+const pct = (v, d = 1) => dec((v * 100).toFixed(d)) + '%';
+const pp = (v) => (v > 0 ? '+' : v < 0 ? '−' : '±') + dec(Math.abs(v * 100).toFixed(1));
+const day = (t) => (t ? new Date(t * 1000).toLocaleDateString(LOC) : '—');
 // Начало периода округляем до начала часа: у всех зрителей в течение часа получаются одинаковые
 // адреса запросов, и их отдают кэш Cloudflare и часовой кэш самого API, не тратя лимит.
 const HOUR = 3600;
@@ -111,13 +119,13 @@ async function fetchWithRetry(url) {
     if ((r.status === 429 || r.status === 503) && attempt < MAX_TRIES) {
       const ra = parseFloat(r.headers.get('retry-after'));
       const wait = Math.min(60, Number.isFinite(ra) && ra > 0 ? ra : 5 * attempt);
-      toast(r.status === 429 ? `Лимит API — повторю через ${Math.ceil(wait)} с` : `API перегружен — повторю через ${Math.ceil(wait)} с`);
+      toast(r.status === 429 ? L(`Лимит API — повторю через ${Math.ceil(wait)} с`, `API rate limit — retrying in ${Math.ceil(wait)}s`) : L(`API перегружен — повторю через ${Math.ceil(wait)} с`, `API is busy — retrying in ${Math.ceil(wait)}s`));
       await sleep(wait * 1000);
       continue;
     }
-    if (r.status === 429) throw new Error('Слишком много запросов к API — подожди минуту и повтори.');
-    if (r.status === 503) throw new Error('API перегружен — попробуй через пару минут.');
-    throw new Error(`API ответил ${r.status}`);
+    if (r.status === 429) throw new Error(L('Слишком много запросов к API — подожди минуту и повтори.', 'Too many API requests — wait a minute and try again.'));
+    if (r.status === 503) throw new Error(L('API перегружен — попробуй через пару минут.', 'The API is overloaded — try again in a couple of minutes.'));
+    throw new Error(L(`API ответил ${r.status}`, `API returned ${r.status}`));
   }
 }
 
@@ -181,11 +189,11 @@ const state = {
 // ---------- рендер ----------
 function shell() {
   root.innerHTML = `
-    <h1 class="lab-title">Лаборатория <mark>сборок</mark></h1>
+    <h1 class="lab-title">${L('Лаборатория <mark>сборок</mark>', 'Build <mark>lab</mark>')}</h1>
     <div class="seg-order lab-tabs" role="tablist">
-      <button data-tab="hero" aria-pressed="${state.tab === 'hero'}">По герою</button>
-      <button data-tab="ids" aria-pressed="${state.tab === 'ids'}">По ID</button>
-      <button data-tab="rnd" aria-pressed="${state.tab === 'rnd'}">Рандом билд</button>
+      <button data-tab="hero" aria-pressed="${state.tab === 'hero'}">${L('По герою', 'By hero')}</button>
+      <button data-tab="ids" aria-pressed="${state.tab === 'ids'}">${L('По ID', 'By ID')}</button>
+      <button data-tab="rnd" aria-pressed="${state.tab === 'rnd'}">${L('Рандом билд', 'Random build')}</button>
       <button data-tab="cmp" aria-pressed="${state.tab === 'cmp'}">${cmpLabel()}</button>
     </div>
     <section id="panel"></section>`;
@@ -212,18 +220,18 @@ function heroPanel() {
       ${D.heroes.map((h) => `<button class="hp" data-hero="${h.id}" aria-pressed="${state.heroId === h.id}" title="${esc(h.name)}">${h.small ? `<img src="${esc(icon(h.small))}" alt="" width="52" height="52" loading="lazy">` : esc(h.name)}</button>`).join('')}
     </div>
     <div class="lab-filters">
-      <label>Период ${selectHtml('f-days', PERIODS.map((d) => [d, d + ' дней']), state.days)}</label>
-      <label>Ранг ${selectHtml('f-badge', RANKS, state.badge)}</label>
-      <label>Показать ${selectHtml('f-show', SHOWS, state.show)}</label>
-      ${state.show === 'all' ? `<label>Мин. матчей ${selectHtml('f-min', [[100, '100'], [500, '500'], [1000, '1 000'], [2000, '2 000'], [5000, '5 000']], state.minMatches)}</label>` : ''}
-      <label>Сортировка ${selectHtml('f-sort', SORTS, state.sort)}</label>
+      <label>${L('Период', 'Period')} ${selectHtml('f-days', PERIODS.map((d) => [d, d + L(' дней', ' days')]), state.days)}</label>
+      <label>${L('Ранг', 'Rank')} ${selectHtml('f-badge', RANKS, state.badge)}</label>
+      <label>${L('Показать', 'Show')} ${selectHtml('f-show', SHOWS, state.show)}</label>
+      ${state.show === 'all' ? `<label>${L('Мин. матчей', 'Min. matches')} ${selectHtml('f-min', [[100, '100'], [500, '500'], [1000, '1 000'], [2000, '2 000'], [5000, '5 000']], state.minMatches)}</label>` : ''}
+      <label>${L('Сортировка', 'Sort by')} ${selectHtml('f-sort', SORTS, state.sort)}</label>
     </div>
     <div id="hero-out">${heroOut()}</div>`;
 }
 
 function heroOut() {
-  if (!state.heroId) return '<p class="lab-empty">Выбери героя.</p>';
-  if (state.loading) return '<p class="lab-empty">Считаю статистику…</p>';
+  if (!state.heroId) return `<p class="lab-empty">${L('Выбери героя.', 'Pick a hero.')}</p>`;
+  if (state.loading) return `<p class="lab-empty">${L('Считаю статистику…', 'Crunching the stats…')}</p>`;
   if (state.error) return `<p class="lab-error">${esc(state.error)}</p>`;
   if (!state.rows) return '';
   const { base, total, cut } = state.rows;
@@ -231,8 +239,8 @@ function heroOut() {
   const rows = anomMode ? state.rows.rows.filter((r) => (state.show === 'gem' ? r.kind === 'gem' : r.kind)) : state.rows.rows;
   if (!rows.length) {
     return anomMode
-      ? `<p class="lab-empty">За этот период и ранг ${state.show === 'gem' ? 'самородков' : 'аномалий'} нет: ни одна непопулярная сборка не выше героя с достаточной уверенностью. Попробуй период 90 дней или «Все ранги».</p>`
-      : `<p class="lab-empty">Нет сборок с ${fmt(state.minMatches)}+ матчей за этот период и ранг. Уменьши порог.</p>`;
+      ? `<p class="lab-empty">${L(`За этот период и ранг ${state.show === 'gem' ? 'самородков' : 'аномалий'} нет: ни одна непопулярная сборка не выше героя с достаточной уверенностью. Попробуй период 90 дней или «Все ранги».`, `No ${state.show === 'gem' ? 'gems' : 'anomalies'} for this period and rank: no unpopular build beats the hero with enough confidence. Try 90 days or “All ranks”.`)}</p>`
+      : `<p class="lab-empty">${L(`Нет сборок с ${fmt(state.minMatches)}+ матчей за этот период и ранг. Уменьши порог.`, `No builds with ${fmt(state.minMatches)}+ matches for this period and rank. Lower the threshold.`)}</p>`;
   }
   const sorted = rows.slice().sort((a, b) => {
     if (anomMode && state.sort === 'wr') return b.est - a.est; // в поиске аномалий сначала самые правдоподобные
@@ -243,30 +251,30 @@ function heroOut() {
   });
   const h = heroById[state.heroId];
   return `
-    <p class="lab-summary"><b>${esc(h.name)}</b>: ${base ? `винрейт героя ${pct(base.wr)} на ${fmt(base.matches)} матчах` : 'нет данных по герою'} · ${anomMode
-      ? `самородков: <b>${state.rows.rows.filter((r) => r.kind === 'gem').length}</b>, аномалий: <b>${state.rows.rows.filter((r) => r.kind === 'anom').length}</b> из ${fmt(state.rows.rows.length)} сборок (непопулярные — до ${fmt(cut)} матчей)`
-      : `сборок с ${fmt(state.minMatches)}+ матчей: <b>${rows.length}</b> (${fmt(total)} матчей)`}</p>
+    <p class="lab-summary"><b>${esc(h.name)}</b>: ${base ? L(`винрейт героя ${pct(base.wr)} на ${fmt(base.matches)} матчах`, `hero win rate ${pct(base.wr)} over ${fmt(base.matches)} matches`) : L('нет данных по герою', 'no hero data')} · ${anomMode
+      ? L(`самородков: <b>${state.rows.rows.filter((r) => r.kind === 'gem').length}</b>, аномалий: <b>${state.rows.rows.filter((r) => r.kind === 'anom').length}</b> из ${fmt(state.rows.rows.length)} сборок (непопулярные — до ${fmt(cut)} матчей)`, `gems: <b>${state.rows.rows.filter((r) => r.kind === 'gem').length}</b>, anomalies: <b>${state.rows.rows.filter((r) => r.kind === 'anom').length}</b> of ${fmt(state.rows.rows.length)} builds (unpopular — under ${fmt(cut)} matches)`)
+      : L(`сборок с ${fmt(state.minMatches)}+ матчей: <b>${rows.length}</b> (${fmt(total)} матчей)`, `builds with ${fmt(state.minMatches)}+ matches: <b>${rows.length}</b> (${fmt(total)} matches)`)}</p>
     <div class="lab-table-wrap"><table class="lab-table">
-      <thead><tr><th>#</th><th>Сборка</th><th class="n">Матчи</th><th class="n">Игроки</th><th class="n">WR</th><th class="n">95% интервал</th><th class="n">к герою</th>${anomMode ? '<th class="n">Оценка</th>' : ''}<th></th></tr></thead>
+      <thead><tr><th>#</th><th>${L('Сборка', 'Build')}</th><th class="n">${L('Матчи', 'Matches')}</th><th class="n">${L('Игроки', 'Players')}</th><th class="n">WR</th><th class="n">${L('95% интервал', '95% interval')}</th><th class="n">${L('к герою', 'vs. hero')}</th>${anomMode ? `<th class="n">${L('Оценка', 'Estimate')}</th>` : ''}<th></th></tr></thead>
       <tbody>${sorted.map((r, i) => {
         const d = base ? r.wr - base.wr : 0;
         const sig = base ? (r.ci[0] > base.wr ? 'up' : r.ci[1] < base.wr ? 'down' : 'flat') : 'flat';
         const b = r.build;
         return `<tr>
           <td class="n muted">${i + 1}</td>
-          <td><div class="b-name">${r.kind === 'gem' ? '<span class="kind gem">Самородок</span>' : r.kind === 'anom' ? '<span class="kind anom">Аномалия</span>' : ''}${b ? esc(b.name || 'Без названия') : `<span class="muted">загрузка…</span>`}</div>
-              <div class="b-meta">${idBtn(r.id)}${b ? ` · v${esc(b.version)} · обновлена ${day(b.last_updated_timestamp)}` : ''}</div></td>
+          <td><div class="b-name">${r.kind === 'gem' ? `<span class="kind gem">${L('Самородок', 'Gem')}</span>` : r.kind === 'anom' ? `<span class="kind anom">${L('Аномалия', 'Anomaly')}</span>` : ''}${b ? esc(b.name || L('Без названия', 'Untitled')) : `<span class="muted">${L('загрузка…', 'loading…')}</span>`}</div>
+              <div class="b-meta">${idBtn(r.id)}${b ? ` · v${esc(b.version)} · ${L('обновлена', 'updated')} ${day(b.last_updated_timestamp)}` : ''}</div></td>
           <td class="n">${fmt(r.matches)}</td>
           <td class="n">${fmt(r.players)}</td>
           <td class="n wr">${pct(r.wr)}</td>
           <td class="n muted">${pct(r.ci[0])}–${pct(r.ci[1])}</td>
           <td class="n"><span class="sig ${sig}">${base ? pp(d) : '—'}</span></td>
-          ${anomMode ? `<td class="n" title="Реалистичная оценка с учётом размера выборки">${pct(r.est)}</td>` : ''}
-          <td class="n"><div class="row-acts"><button class="btn btn-mini" data-open="${r.id}">Открыть</button>${cmpBtn(r.id, true)}</div></td>
+          ${anomMode ? `<td class="n" title="${L('Реалистичная оценка с учётом размера выборки', 'Realistic estimate adjusted for sample size')}">${pct(r.est)}</td>` : ''}
+          <td class="n"><div class="row-acts"><button class="btn btn-mini" data-open="${r.id}">${L('Открыть', 'Open')}</button>${cmpBtn(r.id, true)}</div></td>
         </tr>`;
       }).join('')}</tbody>
     </table></div>
-    <p class="lab-legend"><span class="sig up">зелёный</span> — выше героя с учётом погрешности, <span class="sig down">красный</span> — ниже, <span class="sig flat">серый</span> — в пределах погрешности.${anomMode ? ` <span class="kind anom">Аномалия</span> — непопулярная сборка с WR 55%+, надёжно выше героя; <span class="kind gem">Самородок</span> — то же с WR 60%+. «Оценка» — ожидаемый винрейт с поправкой на малую выборку.` : ''}</p>`;
+    <p class="lab-legend">${L('<span class="sig up">зелёный</span> — выше героя с учётом погрешности, <span class="sig down">красный</span> — ниже, <span class="sig flat">серый</span> — в пределах погрешности.', '<span class="sig up">green</span> — above the hero beyond the margin of error, <span class="sig down">red</span> — below, <span class="sig flat">grey</span> — within the margin.')}${anomMode ? L(' <span class="kind anom">Аномалия</span> — непопулярная сборка с WR 55%+, надёжно выше героя; <span class="kind gem">Самородок</span> — то же с WR 60%+. «Оценка» — ожидаемый винрейт с поправкой на малую выборку.', ' <span class="kind anom">Anomaly</span> — an unpopular build with 55%+ WR, reliably above the hero; <span class="kind gem">Gem</span> — the same with 60%+ WR. “Estimate” — expected win rate adjusted for small samples.') : ''}</p>`;
 }
 
 async function loadHero() {
@@ -305,20 +313,20 @@ function loadCompare() {
 }
 function saveCompare() { try { localStorage.setItem(CMP_KEY, JSON.stringify(state.compare)); } catch {} }
 const inCmp = (id) => state.compare.includes(+id);
-const cmpLabel = () => `Сравнение${state.compare.length ? ` · ${state.compare.length}` : ''}`;
+const cmpLabel = () => `${L('Сравнение', 'Compare')}${state.compare.length ? ` · ${state.compare.length}` : ''}`;
 
 function cmpBtn(id, mini) {
   return inCmp(id)
-    ? `<button class="btn ${mini ? 'btn-mini' : ''} btn-cmp on" data-cmp-del="${id}" title="Убрать из сравнения">${mini ? '✓ В сравнении' : 'Убрать из сравнения'}</button>`
-    : `<button class="btn ${mini ? 'btn-mini' : ''} btn-cmp" data-cmp-add="${id}">${mini ? '+ Сравнить' : 'Добавить в сравнение'}</button>`;
+    ? `<button class="btn ${mini ? 'btn-mini' : ''} btn-cmp on" data-cmp-del="${id}" title="${L('Убрать из сравнения', 'Remove from compare')}">${mini ? L('✓ В сравнении', '✓ Comparing') : L('Убрать из сравнения', 'Remove from compare')}</button>`
+    : `<button class="btn ${mini ? 'btn-mini' : ''} btn-cmp" data-cmp-add="${id}">${mini ? L('+ Сравнить', '+ Compare') : L('Добавить в сравнение', 'Add to compare')}</button>`;
 }
-const idBtn = (id) => `<button class="id-copy" data-copy-id="${id}" title="Скопировать ID">ID ${id}</button>`;
+const idBtn = (id) => `<button class="id-copy" data-copy-id="${id}" title="${L('Скопировать ID', 'Copy ID')}">ID ${id}</button>`;
 
 function cmpAdd(id) {
   id = +id;
   if (inCmp(id)) return;
-  if (state.compare.length >= CMP_MAX) { toast(`В сравнении максимум ${CMP_MAX} сборок — сначала убери одну`); return; }
-  state.compare.push(id); saveCompare(); track('lab_compare_add', { build: id }); toast(`Сборка ${id} добавлена в сравнение`); refresh();
+  if (state.compare.length >= CMP_MAX) { toast(L(`В сравнении максимум ${CMP_MAX} сборок — сначала убери одну`, `Compare holds up to ${CMP_MAX} builds — remove one first`)); return; }
+  state.compare.push(id); saveCompare(); track('lab_compare_add', { build: id }); toast(L(`Сборка ${id} добавлена в сравнение`, `Build ${id} added to compare`)); refresh();
 }
 function cmpDel(id) {
   state.compare = state.compare.filter((x) => x !== +id); saveCompare(); refresh();
@@ -349,7 +357,7 @@ function cardFor(id) {
 async function fillCard(c) {
   try {
     const b = await getFreshBuild(c.id);
-    if (!b) { c.error = 'Сборка не найдена'; return; }
+    if (!b) { c.error = L('Сборка не найдена', 'Build not found'); return; }
     c.build = b;
     const hid = b.hero_id;
     // для карточки — только 14 дней и всё время; сравнение с героем за тот же период
@@ -372,20 +380,20 @@ function parseIds(s) {
 function idsPanel() {
   return `
     <form id="ids-form" class="lab-ids">
-      <label for="ids-input">ID сборки — можно несколько через запятую</label>
+      <label for="ids-input">${L('ID сборки — можно несколько через запятую', 'Build ID — several, separated by commas')}</label>
       <div class="lab-ids-row">
         <input id="ids-input" type="text" inputmode="numeric" placeholder="410706, 697756" value="${esc(state.ids)}">
-        <button class="btn btn-game" type="submit">Найти</button>
+        <button class="btn btn-game" type="submit">${L('Найти', 'Find')}</button>
       </div>
-      <label>Ранг для статистики ${selectHtml('i-badge', RANKS, state.badge)}</label>
+      <label>${L('Ранг для статистики', 'Rank for stats')} ${selectHtml('i-badge', RANKS, state.badge)}</label>
     </form>
     <div id="ids-cards" class="g-list"></div>`;
 }
 function cmpPanel() {
   return `
     <div class="lab-filters">
-      <label>Ранг для статистики ${selectHtml('c-badge', RANKS, state.badge)}</label>
-      ${state.compare.length ? '<button class="btn btn-mini" data-cmp-clear="1">Очистить сравнение</button>' : ''}
+      <label>${L('Ранг для статистики', 'Rank for stats')} ${selectHtml('c-badge', RANKS, state.badge)}</label>
+      ${state.compare.length ? `<button class="btn btn-mini" data-cmp-clear="1">${L('Очистить сравнение', 'Clear compare')}</button>` : ''}
     </div>
     <div id="cmp-cards" class="g-compare"></div>`;
 }
@@ -394,9 +402,9 @@ function cmpPanel() {
 // Берём опубликованные сборки с 50+ матчами от 10+ игроков за 30 дней (меньше — винрейт почти чистый шум),
 // фильтруем по диапазону винрейта, затем случайно перебираем и проверяем склонность инвеста по содержимому.
 const RND = { days: 30, minMatches: 50, minPlayers: 10, maxChecks: 24, maxHeroes: 10 };
-const LEANS = [['any', 'Любая'], ['weapon', 'Оружие'], ['spirit', 'Спиритизм'], ['vitality', 'Живучесть']];
-const WRS = [['any', 'Любой'], ['low', 'до 45%'], ['mid', '45–54%'], ['anom', 'Аномалия 55–60%'], ['gem', 'Самородок 60%+']];
-const CAT_RU = { weapon: 'Оружие', spirit: 'Спиритизм', vitality: 'Живучесть' };
+const LEANS = [['any', L('Любая', 'Any')], ['weapon', L('Оружие', 'Weapon')], ['spirit', L('Спиритизм', 'Spirit')], ['vitality', L('Живучесть', 'Vitality')]];
+const WRS = [['any', L('Любой', 'Any')], ['low', L('до 45%', 'under 45%')], ['mid', '45–54%'], ['anom', L('Аномалия 55–60%', 'Anomaly 55–60%')], ['gem', L('Самородок 60%+', 'Gem 60%+')]];
+const CAT_RU = { weapon: L('Оружие', 'Weapon'), spirit: L('Спиритизм', 'Spirit'), vitality: L('Живучесть', 'Vitality') };
 const inWr = (wr, k) => k === 'any' || (k === 'low' ? wr < 0.45 : k === 'mid' ? wr >= 0.45 && wr < 0.55 : k === 'anom' ? wr >= 0.55 && wr < 0.6 : wr >= 0.6);
 const shuffled = (a) => { const b = a.slice(); for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
 // склонность: куда вложено больше всего душ (по всем предметам сборки)
@@ -418,19 +426,19 @@ function segHtml(attr, items, val) {
 function rndPanel() {
   return `
     <div class="rnd-box">
-      <div class="rnd-opt"><span class="rnd-lbl">Герой</span>
+      <div class="rnd-opt"><span class="rnd-lbl">${L('Герой', 'Hero')}</span>
         <div class="lab-pick rnd-pick">
-          <button class="hp hp-any" data-rhero="0" aria-pressed="${!rnd.hero}">Любой</button>
+          <button class="hp hp-any" data-rhero="0" aria-pressed="${!rnd.hero}">${L('Любой', 'Any')}</button>
           ${D.heroes.map((h) => `<button class="hp" data-rhero="${h.id}" aria-pressed="${rnd.hero === h.id}" title="${esc(h.name)}">${h.small ? `<img src="${esc(icon(h.small))}" alt="" width="52" height="52" loading="lazy">` : esc(h.name)}</button>`).join('')}
         </div>
       </div>
       <div class="rnd-row">
-        <div class="rnd-opt"><span class="rnd-lbl">Инвест в билде</span>${segHtml('rlean', LEANS, rnd.lean)}</div>
-        <div class="rnd-opt"><span class="rnd-lbl">Винрейт</span>${segHtml('rwr', WRS, rnd.wr)}</div>
+        <div class="rnd-opt"><span class="rnd-lbl">${L('Инвест в билде', 'Build investment')}</span>${segHtml('rlean', LEANS, rnd.lean)}</div>
+        <div class="rnd-opt"><span class="rnd-lbl">${L('Винрейт', 'Win rate')}</span>${segHtml('rwr', WRS, rnd.wr)}</div>
       </div>
       <div class="rnd-go">
-        <button class="btn btn-main rnd-roll" data-rroll="1" ${rnd.busy ? 'disabled' : ''}>${rnd.busy ? 'Ищу…' : 'Крутить билд'}</button>
-        <span class="lab-legend">Сборки игроков с ${RND.minMatches}+ матчами от ${RND.minPlayers}+ игроков за ${RND.days} дней.</span>
+        <button class="btn btn-main rnd-roll" data-rroll="1" ${rnd.busy ? 'disabled' : ''}>${rnd.busy ? L('Ищу…', 'Searching…') : L('Крутить билд', 'Roll a build')}</button>
+        <span class="lab-legend">${L(`Сборки игроков с ${RND.minMatches}+ матчами от ${RND.minPlayers}+ игроков за ${RND.days} дней.`, `Player builds with ${RND.minMatches}+ matches from ${RND.minPlayers}+ players over ${RND.days} days.`)}</span>
       </div>
     </div>
     <div id="rnd-out" class="g-list"></div>`;
@@ -465,28 +473,28 @@ async function rollRandomBuild() {
     track('lab_random', { hero: rnd.hero ? heroById[rnd.hero].name : 'any', invest: rnd.lean, wr: rnd.wr, found: found ? 1 : 0, build: found ? found.r.id : '' });
     if (!found) {
       rnd.msg = rnd.hero
-        ? `У ${esc(heroById[rnd.hero].name)} нет сборок под эти условия. Попробуй другой винрейт или склонность.`
-        : 'Не нашёл сборок под эти условия. Ослабь фильтры и крутани ещё раз.';
+        ? L(`У ${esc(heroById[rnd.hero].name)} нет сборок под эти условия. Попробуй другой винрейт или склонность.`, `No ${esc(heroById[rnd.hero].name)} builds match these filters. Try another win rate or investment.`)
+        : L('Не нашёл сборок под эти условия. Ослабь фильтры и крутани ещё раз.', 'No builds match these filters. Loosen them and roll again.');
     } else {
       rnd.seen.add(found.r.id);
       rnd.id = found.r.id;
       rnd.info = found;
     }
   } catch (e) {
-    rnd.msg = 'Не удалось получить статистику: ' + esc(e.message);
+    rnd.msg = L('Не удалось получить статистику: ', 'Could not load stats: ') + esc(e.message);
   }
   rnd.busy = false;
   renderPanel();
 }
 
 function rndOut() {
-  if (rnd.busy) return '<p class="lab-empty">Перебираю сборки игроков…</p>';
+  if (rnd.busy) return `<p class="lab-empty">${L('Перебираю сборки игроков…', 'Digging through player builds…')}</p>`;
   if (rnd.msg) return `<p class="lab-empty">${rnd.msg}</p>`;
-  if (!rnd.id) return '<p class="lab-empty">Выбери условия и нажми «Крутить билд».</p>';
+  if (!rnd.id) return `<p class="lab-empty">${L('Выбери условия и нажми «Крутить билд».', 'Set the filters and hit “Roll a build”.')}</p>`;
   const f = rnd.info;
   const c = cardFor(rnd.id);
   const lean = f.lean || (c.build ? leanOf(c.build) : null);
-  return `<p class="lab-summary">Выпала сборка на <b>${esc(f.h.name)}</b> · ${pct(f.r.wr)} на ${fmt(f.r.matches)} матчах за ${RND.days} дней${lean ? ` · склонность: <b>${CAT_RU[lean.cat]}</b> (${pct(lean.share, 0)} душ)` : ''} · сборок под эти условия: ${fmt(f.pool)}</p>
+  return `<p class="lab-summary">${L('Выпала сборка на', 'Rolled a build for')} <b>${esc(f.h.name)}</b> · ${L(`${pct(f.r.wr)} на ${fmt(f.r.matches)} матчах за ${RND.days} дней`, `${pct(f.r.wr)} over ${fmt(f.r.matches)} matches in ${RND.days} days`)}${lean ? ` · ${L('склонность', 'lean')}: <b>${CAT_RU[lean.cat]}</b> (${pct(lean.share, 0)} ${L('душ', 'of souls')})` : ''} · ${L('сборок под эти условия', 'matching builds')}: ${fmt(f.pool)}</p>
     ${buildCard(c, 'view')}`;
 }
 
@@ -496,13 +504,13 @@ function renderLists() {
   const idsBox = document.getElementById('ids-cards');
   if (idsBox) {
     const ids = parseIds(state.ids);
-    idsBox.innerHTML = ids.length ? ids.map((id) => buildCard(cardFor(id), 'view')).join('') : '<p class="lab-empty">Введи ID сборки — он есть в игре в заголовке сборки.</p>';
+    idsBox.innerHTML = ids.length ? ids.map((id) => buildCard(cardFor(id), 'view')).join('') : `<p class="lab-empty">${L('Введи ID сборки — он есть в игре в заголовке сборки.', 'Enter a build ID — you can find it in the build header in game.')}</p>`;
   }
   const cmpBox = document.getElementById('cmp-cards');
   if (cmpBox) {
     cmpBox.innerHTML = state.compare.length
       ? state.compare.map((id) => buildCard(cardFor(id), 'compare')).join('')
-      : '<p class="lab-empty">Сравнение пустое. Добавляй сборки кнопкой «Добавить в сравнение» на вкладках «По герою» и «По ID» — до 6 штук.</p>';
+      : `<p class="lab-empty">${L('Сравнение пустое. Добавляй сборки кнопкой «Добавить в сравнение» на вкладках «По герою» и «По ID» — до 6 штук.', 'Nothing to compare yet. Add builds with “Add to compare” on the “By hero” and “By ID” tabs — up to 6.')}</p>`;
   }
   renderModal();
 }
@@ -526,35 +534,35 @@ function renderModal() {
     document.body.appendChild(el); document.body.classList.add('lab-noscroll');
   }
   const top = el.scrollTop;
-  el.innerHTML = `<div class="lab-modal-in"><button class="lab-close" data-close="1" aria-label="Закрыть">✕</button>${buildCard(cardFor(state.modal), 'modal')}</div>`;
+  el.innerHTML = `<div class="lab-modal-in"><button class="lab-close" data-close="1" aria-label="${L('Закрыть', 'Close')}">✕</button>${buildCard(cardFor(state.modal), 'modal')}</div>`;
   el.scrollTop = top;
 }
 
 // ---------- карточка сборки в стиле игры ----------
 const CARD_PERIODS = [14, null]; // null — за всё время
-const periodName = (d) => (d ? `За ${d} дней` : 'За всё время');
+const periodName = (d) => (d ? L(`За ${d} дней`, `Last ${d} days`) : L('За всё время', 'All time'));
 
 // одна строка: на сколько WR сборки выше/ниже среднего по герою
 function verdict(c) {
   const p = c.periods.find((x) => x.matches) || null;
-  if (!p) return ['flat', 'Нет матчей с этой сборкой'];
-  if (!p.base) return ['flat', `Винрейт ${pct(p.wr)} — нет данных по герою для сравнения`];
+  if (!p) return ['flat', L('Нет матчей с этой сборкой', 'No matches with this build')];
+  if (!p.base) return ['flat', L(`Винрейт ${pct(p.wr)} — нет данных по герою для сравнения`, `Win rate ${pct(p.wr)} — no hero data to compare`)];
   const d = p.wr - p.base.wr;
-  const n = Math.abs(d * 100).toFixed(1).replace('.', ',');
-  const when = p.days ? `за ${p.days} дней` : 'за всё время';
+  const n = dec(Math.abs(d * 100).toFixed(1));
+  const when = p.days ? L(`за ${p.days} дней`, `over ${p.days} days`) : L('за всё время', 'all time');
   const cls = p.ci[0] > p.base.wr ? 'up' : p.ci[1] < p.base.wr ? 'down' : 'flat';
-  const word = d >= 0.0005 ? `на ${n}% выше` : d <= -0.0005 ? `на ${n}% ниже` : 'на уровне';
-  const tail = cls === 'flat' && Math.abs(d) >= 0.0005 ? ' · матчей пока мало, может быть случайность' : '';
-  return [cls, `Винрейт ${word} среднего по герою (${pct(p.wr)} против ${pct(p.base.wr)} ${when})${tail}`];
+  const word = d >= 0.0005 ? L(`на ${n}% выше`, `${n}% above`) : d <= -0.0005 ? L(`на ${n}% ниже`, `${n}% below`) : L('на уровне', 'on par with');
+  const tail = cls === 'flat' && Math.abs(d) >= 0.0005 ? L(' · матчей пока мало, может быть случайность', ' · few matches yet, could be luck') : '';
+  return [cls, L(`Винрейт ${word} среднего по герою (${pct(p.wr)} против ${pct(p.base.wr)} ${when})${tail}`, `Win rate ${word} the hero average (${pct(p.wr)} vs ${pct(p.base.wr)} ${when})${tail}`)];
 }
 
-const CAT_NAMES = { '#Citadel_HeroBuilds_EarlyGame': 'Ранний этап', '#Citadel_HeroBuilds_MidGame': 'Середина матча', '#Citadel_HeroBuilds_LateGame': 'Поздний этап', '#Citadel_HeroBuilds_Early': 'Ранний этап', '#Citadel_HeroBuilds_Mid': 'Середина', '#Citadel_HeroBuilds_Late': 'Поздний этап', '#Citadel_HeroBuilds_Lane': 'Линия' };
+const CAT_NAMES = { '#Citadel_HeroBuilds_EarlyGame': L('Ранний этап', 'Early game'), '#Citadel_HeroBuilds_MidGame': L('Середина матча', 'Mid game'), '#Citadel_HeroBuilds_LateGame': L('Поздний этап', 'Late game'), '#Citadel_HeroBuilds_Early': L('Ранний этап', 'Early game'), '#Citadel_HeroBuilds_Mid': L('Середина', 'Mid game'), '#Citadel_HeroBuilds_Late': L('Поздний этап', 'Late game'), '#Citadel_HeroBuilds_Lane': L('Линия', 'Laning') };
 
 function itemTile(m) {
   const it = itemById[m.ability_id >>> 0];
   const name = it ? it.name : `#${num(m.ability_id)}`;
   const cls = it ? `${it.cat} t${it.tier}${it.active ? ' act' : ''}` : 'unk';
-  const tip = `${name}${it ? ` · ${it.tier} тир${it.active ? ' · активный' : ''}` : ''}${m.annotation ? ' — ' + m.annotation : ''}`;
+  const tip = `${name}${it ? ` · ${L(`${it.tier} тир`, `tier ${it.tier}`)}${it.active ? L(' · активный', ' · active') : ''}` : ''}${m.annotation ? ' — ' + m.annotation : ''}`;
   return `<div class="g-item ${cls}" title="${esc(tip)}">
     <div class="g-ic">${it && it.icon ? `<img src="${esc(icon(it.icon))}" alt="" loading="lazy">` : ''}</div>
     <div class="g-nm"><span>${esc(name)}</span></div>${m.annotation ? '<i class="g-note">✎</i>' : ''}
@@ -565,8 +573,8 @@ function catPanel(cat) {
   const sys = CAT_NAMES[cat.name];
   const items = cat.mods || [];
   return `<section class="g-cat${cat.optional ? ' opt' : ''}">
-    <h3><b>${esc(sys || cat.name || 'Без названия')}</b>${cat.description ? `<span>${esc(cat.description)}</span>` : ''}${cat.optional ? '<em>Необязательно</em>' : ''}</h3>
-    <div class="g-items">${items.length ? items.map(itemTile).join('') : '<span class="muted">пусто</span>'}</div>
+    <h3><b>${esc(sys || cat.name || L('Без названия', 'Untitled'))}</b>${cat.description ? `<span>${esc(cat.description)}</span>` : ''}${cat.optional ? `<em>${L('Необязательно', 'Optional')}</em>` : ''}</h3>
+    <div class="g-items">${items.length ? items.map(itemTile).join('') : `<span class="muted">${L('пусто', 'empty')}</span>`}</div>
   </section>`;
 }
 
@@ -600,12 +608,12 @@ function abilityGrid(b) {
   const n = ch.length;
   const cols = `grid-template-columns: 38px repeat(${n}, minmax(30px, 1fr))`;
   return `<section class="g-abil">
-    <h3>Порядок улучшения умений</h3>
+    <h3>${L('Порядок улучшения умений', 'Ability upgrade order')}</h3>
     <div class="g-abil-scroll"><div class="g-abil-grid">
       ${abs.map((a) => `<div class="g-ab-row" style="${cols}">
         <div class="g-ab-ic" title="${esc(a.name)}">${a.icon ? `<img src="${esc(icon(a.icon))}" alt="${esc(a.name)}">` : ''}</div>
         ${ch.map((c, i) => ((c.ability_id >>> 0) === (a.id >>> 0)
-          ? `<div class="g-ab-cell"><span class="g-pt${c.currency_type === 2 ? ' unlock' : ''}" title="${i + 1}. ${esc(a.name)}: ${c.currency_type === 2 ? 'открыть' : 'улучшение за ' + -c.delta}">${c.currency_type === 2 ? BOLT : PT + '<b>' + -c.delta + '</b>'}</span></div>`
+          ? `<div class="g-ab-cell"><span class="g-pt${c.currency_type === 2 ? ' unlock' : ''}" title="${i + 1}. ${esc(a.name)}: ${c.currency_type === 2 ? L('открыть', 'unlock') : L('улучшение за ', 'upgrade for ') + -c.delta}">${c.currency_type === 2 ? BOLT : PT + '<b>' + -c.delta + '</b>'}</span></div>`
           : '<div class="g-ab-cell"></div>')).join('')}
       </div>`).join('')}
     </div></div>
@@ -614,7 +622,7 @@ function abilityGrid(b) {
 
 const fullDate = (t) => {
   if (!t) return '—';
-  const s = new Date(t * 1000).toLocaleString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(' г.', '').replace(' в ', ' ');
+  const s = new Date(t * 1000).toLocaleString(LOC, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(' г.', '').replace(' в ', ' ');
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
 
@@ -622,13 +630,13 @@ function statsBlock(c) {
   const [vcls, vtxt] = verdict(c);
   return `<section class="g-stats">
     <div class="b-verdict sig ${vcls}">${vtxt}</div>
-    <div class="lab-table-wrap"><table class="lab-table b-periods"><thead><tr><th>Период</th><th class="n">Матчи</th><th class="n">Игроки</th><th class="n">Винрейт</th></tr></thead>
+    <div class="lab-table-wrap"><table class="lab-table b-periods"><thead><tr><th>${L('Период', 'Period')}</th><th class="n">${L('Матчи', 'Matches')}</th><th class="n">${L('Игроки', 'Players')}</th><th class="n">${L('Винрейт', 'Win rate')}</th></tr></thead>
       <tbody>${c.periods.map((p) => `<tr><td>${periodName(p.days)}</td><td class="n">${fmt(p.matches)}</td><td class="n">${p.matches ? fmt(p.players) : '—'}</td><td class="n wr">${p.matches ? pct(p.wr) : '—'}</td></tr>`).join('')}</tbody></table></div>
   </section>`;
 }
 
 function buildCard(c, mode) {
-  if (c.loading) return `<article class="g-build"><p class="lab-empty">ID ${c.id}: загрузка…</p>${mode === 'compare' ? `<div class="g-actions">${cmpBtn(c.id)}</div>` : ''}</article>`;
+  if (c.loading) return `<article class="g-build"><p class="lab-empty">ID ${c.id}: ${L('загрузка…', 'loading…')}</p>${mode === 'compare' ? `<div class="g-actions">${cmpBtn(c.id)}</div>` : ''}</article>`;
   if (c.error) return `<article class="g-build"><p class="lab-error">ID ${c.id}: ${esc(c.error)}</p>${mode === 'compare' ? `<div class="g-actions">${cmpBtn(c.id)}</div>` : ''}</article>`;
   const b = c.build, h = heroById[b.hero_id];
   const cats = (b.details && b.details.mod_categories) || [];
@@ -636,23 +644,23 @@ function buildCard(c, mode) {
     <header class="g-head">
       ${h && h.small ? `<img class="g-hero" src="${esc(icon(h.small))}" alt="${esc(h.name)}" title="${esc(h.name)}">` : ''}
       <div class="g-title">
-        <h2>${esc(b.name || 'Без названия')}</h2>
+        <h2>${esc(b.name || L('Без названия', 'Untitled'))}</h2>
         <div class="g-sub">
-          <span>Версия: ${esc(b.version)}</span>
-          <button class="g-id" data-copy-id="${c.id}" title="Нажми, чтобы скопировать">ID сборки: <u>${c.id}</u></button>
+          <span>${L('Версия', 'Version')}: ${esc(b.version)}</span>
+          <button class="g-id" data-copy-id="${c.id}" title="${L('Нажми, чтобы скопировать', 'Click to copy')}">${L('ID сборки', 'Build ID')}: <u>${c.id}</u></button>
         </div>
-        <div class="g-upd">Последнее обновление: ${esc(fullDate(b.last_updated_timestamp))}${num(b.origin_build_id) ? ` · копия ${idBtn(num(b.origin_build_id))}` : ''}</div>
+        <div class="g-upd">${L('Последнее обновление', 'Last updated')}: ${esc(fullDate(b.last_updated_timestamp))}${num(b.origin_build_id) ? ` · ${L('копия', 'copy of')} ${idBtn(num(b.origin_build_id))}` : ''}</div>
       </div>
     </header>
     <div class="g-actions">
-      <button class="btn btn-game" data-game="${c.id}">В игру</button>
+      <button class="btn btn-game" data-game="${c.id}">${L('Скопировать в игру', 'Copy to game')}</button>
       ${cmpBtn(c.id)}
     </div>
     ${statsBlock(c)}
     <div class="g-overview">
-      <div class="g-tabbar"><span>Обзор</span></div>
+      <div class="g-tabbar"><span>${L('Обзор', 'Overview')}</span></div>
       ${b.description ? `<p class="g-desc">${esc(b.description)}</p>` : ''}
-      <div class="g-cats">${cats.map(catPanel).join('') || '<p class="lab-empty">В сборке нет предметов.</p>'}</div>
+      <div class="g-cats">${cats.map(catPanel).join('') || `<p class="lab-empty">${L('В сборке нет предметов.', 'This build has no items.')}</p>`}</div>
     </div>
     ${abilityGrid(b)}
   </article>`;
@@ -667,7 +675,7 @@ function gameCode(c) {
   return encodeBuildCode({
     heroId: b.hero_id,
     name: b.name || `Build ${c.id}`,
-    desc: `${b.description || ''}\n— копия сборки #${c.id} (RANDOMLOCK Lab)`.trim(),
+    desc: `${b.description || ''}\n— ${L('копия сборки', 'copy of build')} #${c.id} (RANDOMLOCK Lab)`.trim(),
     categories: cats,
     abilityChanges: (b.details && b.details.ability_order && b.details.ability_order.currency_changes) || [],
   });
@@ -696,7 +704,7 @@ document.addEventListener('click', (e) => {
   if (!t) return;
   const d = t.dataset;
   if (d.close) { state.modal = null; renderModal(); return; }
-  if (d.copyId) { copy(d.copyId, `ID ${d.copyId} скопирован`); return; }
+  if (d.copyId) { copy(d.copyId, L(`ID ${d.copyId} скопирован`, `ID ${d.copyId} copied`)); return; }
   if (d.cmpAdd) { cmpAdd(d.cmpAdd); return; }
   if (d.cmpDel) { cmpDel(d.cmpDel); return; }
   if (d.cmpClear) { state.compare = []; saveCompare(); refresh(); return; }
@@ -709,7 +717,7 @@ document.addEventListener('click', (e) => {
   if (d.open) { state.modal = +d.open; renderModal(); track('lab_open_build', { build: d.open }); return; }
   if (d.game) {
     const c = cardFor(+d.game);
-    try { copy(gameCode(c), 'Код скопирован. В игре: Поиск сборок → Создать сборку → Вставить сборку'); track('to_game', { from: 'lab', build: d.game }); } catch { toast('Не удалось собрать код сборки'); }
+    try { copy(gameCode(c), L('Код скопирован. В игре: Поиск сборок → Создать сборку → Вставить сборку', 'Code copied. In game: Build Browser → Create new Build → Paste Build')); track('to_game', { from: 'lab', build: d.game }); } catch { toast(L('Не удалось собрать код сборки', 'Could not build the code')); }
   }
 });
 document.addEventListener('keydown', (e) => {
@@ -735,14 +743,39 @@ root.addEventListener('submit', (e) => {
   renderLists();
 });
 
+// ---------- язык: статичная часть страницы и переключатель RU / EN ----------
+function localizeStatic() {
+  document.documentElement.lang = LANG;
+  document.title = L('Лаборатория — RANDOMLOCK', 'Lab — RANDOMLOCK');
+  for (const el of document.querySelectorAll('[data-en]')) {
+    if (!el.dataset.ru) el.dataset.ru = el.innerHTML;
+    el.innerHTML = EN ? el.dataset.en : el.dataset.ru;
+  }
+  for (const el of document.querySelectorAll('[data-en-label]')) el.setAttribute('aria-label', EN ? el.dataset.enLabel : el.dataset.ruLabel);
+  const side = document.querySelector('.top-side');
+  if (side && !side.querySelector('.lab-lang')) {
+    side.insertAdjacentHTML('beforeend', `<div class="top-meta lab-meta"><span class="seg lab-lang" role="group" aria-label="Language">${['ru', 'en'].map((l) => `<button type="button" data-lang="${l}" aria-pressed="${LANG === l}">${l.toUpperCase()}</button>`).join('')}</span></div>`);
+    // кнопка темы (js/theme.js добавляет её в конец шапки) — в один ряд с языком, как на главной
+    document.addEventListener('DOMContentLoaded', () => { const ts = side.querySelector('.theme-slot'); const m = side.querySelector('.lab-meta'); if (ts && m) m.appendChild(ts); });
+    side.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-lang]');
+      if (!b || b.dataset.lang === LANG) return;
+      setLang(b.dataset.lang);
+      track('setting', { name: 'lang', value: b.dataset.lang, page: 'lab' });
+      location.reload();
+    });
+  }
+}
+
 // ---------- старт ----------
 (async function boot() {
   markDev();
   initAnalytics('lab');
+  localizeStatic();
   try {
-    D = await fetch('../data/ru.json').then((r) => r.json());
+    D = await fetch(`../data/${LANG}.json`).then((r) => r.json());
   } catch {
-    root.innerHTML = '<p class="lab-error">Не удалось загрузить справочник героев и предметов.</p>';
+    root.innerHTML = `<p class="lab-error">${L('Не удалось загрузить справочник героев и предметов.', 'Could not load heroes and items.')}</p>`;
     return;
   }
   heroById = Object.fromEntries(D.heroes.map((h) => [h.id, h]));

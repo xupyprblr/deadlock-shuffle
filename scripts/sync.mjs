@@ -11,7 +11,7 @@ import { mkdir, writeFile, readFile, access } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fetchRaw, buildSnapshot, applyEnglishNames, bannedFromStats, itemScores, tuneHero, buildTips, heroMix, STATS } from '../public/js/normalize.js';
+import { fetchRaw, buildSnapshot, applyEnglishNames, bannedFromStats, itemScores, tuneHero, skillTune, buildTips, buildAbilityTips, heroMix, STATS } from '../public/js/normalize.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -95,8 +95,16 @@ async function writeTips(raw, snap, lang) {
     t.innate = pack(t.innate);
     for (const sec of t.sections) { sec.small = pack(sec.small); sec.big = pack(sec.big); if (sec.cd) sec.cd = [ref(sec.cd[0]), sec.cd[1]]; }
   }
+  // умения героев — в тот же файл (карточка при наведении на умение в «Порядке прокачки»)
+  const abilities = buildAbilityTips(raw.abilities, snap.heroes, lang);
+  if (Object.keys(abilities).length < snap.heroes.length * 3) console.warn(`tips.${lang}: мало карточек умений (${Object.keys(abilities).length})`);
+  for (const t of Object.values(abilities)) {
+    t.head = pack(t.head); t.small = pack(t.small);
+    for (const b of t.blocks) b.big = pack(b.big);
+    if (t.cd) t.cd = [ref(t.cd[0]), t.cd[1]];
+  }
   for (let i = 0; i < icons.length; i++) icons[i] = ICONS ? await mirror(icons[i]) : icons[i];
-  const body = JSON.stringify({ v: 1, lang, icons, items: tips });
+  const body = JSON.stringify({ v: 1, lang, icons, items: tips, abilities });
   const file = path.join(OUT, `tips.${lang}.json`);
   let prev = '';
   try { prev = await readFile(file, 'utf8'); } catch {}
@@ -123,6 +131,21 @@ const meta = { updatedAt: new Date().toISOString(), langs: {} };
 // Английский снимок нужен всегда: из него берутся имена героев, предметов и способностей
 const enRaw = await fetchRaw(fetchJson, 'en');
 const enSnap = buildSnapshot(enRaw);
+
+// Постоянные короткие номера предметов для коротких ссылок (data/ids.json, только дописывается):
+// номер предмета не меняется между патчами, поэтому старые ссылки продолжают открываться.
+const IDS_FILE = path.join(OUT, 'ids.json');
+let ids = { v: 1, items: [] };
+try { ids = JSON.parse(await readFile(IDS_FILE, 'utf8')); } catch {}
+{
+  const at = new Map(ids.items.map((id, k) => [id >>> 0, k]));
+  let added = 0;
+  for (const it of enSnap.items) if (!at.has(it.id >>> 0)) { at.set(it.id >>> 0, ids.items.length); ids.items.push(it.id >>> 0); added++; }
+  if (added) { await writeFile(IDS_FILE, JSON.stringify(ids)); console.log(`ids.json: +${added} предметов (всего ${ids.items.length})`); }
+}
+const itemKey = new Map(ids.items.map((id, k) => [id >>> 0, k]));
+const withKeys = (snap) => { for (const it of snap.items) it.k = itemKey.get(it.id >>> 0); return snap; };
+withKeys(enSnap);
 
 // Журнал героев: когда каждый появился в пуле. Новые герои логируются и получают дату —
 // по ней сайт показывает бейдж «Новинка».
@@ -175,7 +198,7 @@ function prevTuneRow(heroId, items) {
     w += k === undefined ? '-' : row.w[k] || '-';
     t += k === undefined ? '-' : row.t[k] || '-';
   }
-  return { w, t };
+  return row.s ? { w, t, s: row.s } : { w, t };
 }
 // если свежей статистики по герою нет — переносим его прошлые оценки и подкрутку, чтобы файлы оставались полными
 function carryOver(h, why) {
@@ -222,6 +245,10 @@ for (let i = 0; i < enSnap.heroes.length; i += PAR) {
             items: enSnap.items, heroItems: stats, globalItems: globalStats, heroBuilds, globalBuilds,
             heroMatches: hs ? hs.matches : 0, globalMatches, wr: scoreOut.heroes[h.id].items,
           });
+          // типичный порядок прокачки (скрыто, для псевдо и баланс рандома)
+          const orders = await fetchJson(`https://api.deadlock-api.com/v1/analytics/ability-order-stats?hero_id=${h.id}&min_matches=50&min_unix_timestamp=${since}`).catch(() => null);
+          const s = skillTune(orders, h.abilities) || (prevTuneRow(h.id, enSnap.items) || {}).s;
+          if (s) tuneOut.heroes[h.id].s = s;
         } catch (e) {
           const pt = prevTuneRow(h.id, enSnap.items);
           if (pt) tuneOut.heroes[h.id] = pt;
@@ -260,7 +287,7 @@ if (statsFresh) {
 
 for (const lang of LANGS_TO_SYNC) {
   const raw = lang === 'en' ? enRaw : await fetchRaw(fetchJson, lang);
-  const snap = lang === 'en' ? enSnap : applyEnglishNames(buildSnapshot(raw), enSnap);
+  const snap = lang === 'en' ? enSnap : withKeys(applyEnglishNames(buildSnapshot(raw), enSnap));
   if (snap.heroes.length < 10 || snap.items.length < 50) {
     throw new Error(`Подозрительно мало данных (${lang}): героев ${snap.heroes.length}, предметов ${snap.items.length}`);
   }

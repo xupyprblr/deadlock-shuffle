@@ -400,8 +400,8 @@ function shell() {
     <div id="modes"></div>`;
   root.innerHTML = `
     <div class="sl-head">
-      <h1 class="lab-title">${L('Казино <mark>билдов</mark>', 'Build <mark>casino</mark>')}</h1>
-      <p class="lab-summary">${L('Случайная сборка настоящего игрока. Чем выше её винрейт — тем реже дроп: от <b>Trash</b> до <b>Legendary</b>. Крути автомат по одному игроку или открой лутбокс сразу на всю пати.', 'A random build from a real player. The higher its win rate, the rarer the drop: from <b>Trash</b> to <b>Legendary</b>. Spin the machine one player at a time or crack a loot box for the whole party.')}</p>
+      <h1 class="sr-only">${L('Казино билдов', 'Build Casino')}</h1>
+      <p class="lab-summary">${L('Случайная сборка настоящего игрока.', 'A random build from a real player.')}</p>
     </div>
     <div id="stage" class="sl-stage"></div>
     <div id="out" class="sl-out"></div>

@@ -4,7 +4,7 @@
 // Все данные — напрямую из Deadlock API в браузере, как в лаборатории.
 import { encodeBuildCode } from './buildcode.js';
 import { initAnalytics, track } from './analytics.js';
-import { NS, markDev } from './env.js';
+import { NS, IS_DEV, markDev } from './env.js';
 import { getLang, setLang } from './lang.js';
 import { play, loop as sndLoop, loopSpeed, setSound } from './slots-sound.js';
 
@@ -20,6 +20,9 @@ const PARTY_MAX = 6;
 // Гарантия лутбокса: одна карточка не ниже этой редкости (индекс в RARITY) — по размеру пати.
 // 2–3 → Unique+, 4–5 → Rare+, 6 → Ultra Rare+; на 1 карточку гарантии нет. Остальные карточки крутятся как обычно.
 const GUARANTEE = { 2: 2, 3: 2, 4: 3, 5: 3, 6: 4 };
+// Пасхалка автомата: с шансом 1% вместо Trash выпадает лого канала («ОЙ ОЙ ОЙ» / «PATCH SOON»).
+// Выдаётся настоящая Trash-сборка; при планке винрейта выше Trash пасхалки нет. В dev и на localhost с ?egg — всегда.
+const EGG_CHANCE = (IS_DEV || location.hostname === 'localhost') && /[?&]egg(&|=|$)/.test(location.search) ? 1 : 0.01;
 
 // Редкости по винрейту сборки. min — нижняя граница (доля побед).
 const RARITY = [
@@ -152,10 +155,11 @@ function leanOf(b) {
 
 // ---------- подбор сборок ----------
 const seen = new Set();
+let rarCap = -1; // ≥ 0 — брать сборки не выше этой редкости (пасхалка автомата: только Trash)
 // Одна сборка для героя под текущие условия или null; minRar — поднять нижнюю планку редкости (гарантия лутбокса)
 async function findFor(hero, minRar = 0) {
   const floor = RARITY[Math.max(opts.floor, minRar)].min;
-  const rows = (await heroPoolRows(hero.id)).map(([id, matches, players, wins]) => ({ id, matches, players, wins, wr: wins / matches })).filter((r) => r.wr >= floor);
+  const rows = (await heroPoolRows(hero.id)).map(([id, matches, players, wins]) => ({ id, matches, players, wins, wr: wins / matches })).filter((r) => r.wr >= floor && (rarCap < 0 || rarityOf(r.wr) <= rarCap));
   if (!rows.length) return null;
   const order = [...shuffled(rows.filter((r) => !seen.has(r.id))), ...shuffled(rows.filter((r) => seen.has(r.id)))];
   const hit = (r, b) => { const lean = leanOf(b); return b && lean && (opts.lean === 'any' || lean.cat === opts.lean) ? { hero, row: r, build: b, lean, pool: rows.length, rar: rarityOf(r.wr) } : null; };
@@ -247,6 +251,7 @@ const SFX = {
   tick: () => play('tick'),
   stop: (i) => play('reel-stop', { i }),
   win(i) { play(RAR_SND[i]); if (i === 5) setTimeout(() => play('coins'), 250); },
+  egg() { play('egg'); setTimeout(() => play('coins'), 900); },
   shake: (on) => sndLoop('crate-shake', on),
   pop: () => play('crate-open'),
   flip: () => play('card-flip'),
@@ -272,7 +277,10 @@ function fxLoop(t) {
     p.life -= dt; p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
     if (p.life <= 0 || p.y > innerHeight + 40) { parts.splice(i, 1); continue; }
     ctx.save(); ctx.translate(p.x, p.y); ctx.globalAlpha = Math.min(1, p.life * 2);
-    if (p.coin) {
+    if (p.img) { // лого пасхалки: крутится и «переворачивается», как монета
+      if (!EGG_IMG.complete || !EGG_IMG.naturalWidth) { ctx.restore(); continue; }
+      ctx.rotate(p.rot * 0.25); ctx.scale(Math.abs(Math.cos(p.rot)) * 0.85 + 0.15, 1); ctx.drawImage(EGG_IMG, -p.s, -p.s, p.s * 2, p.s * 2);
+    } else if (p.coin) {
       const sx = Math.abs(Math.cos(p.rot)) * 0.9 + 0.1; // монета «вращается» вокруг вертикальной оси
       ctx.scale(sx, 1); ctx.fillStyle = '#b8860b'; ctx.beginPath(); ctx.arc(0, 0, p.s, 0, 7); ctx.fill();
       ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(0, 0, p.s * 0.78, 0, 7); ctx.fill();
@@ -302,6 +310,17 @@ function coinRain(n = 110) {
   }
   fxRun();
 }
+// дождь из лого канала (пасхалка)
+const EGG_IMG = typeof Image !== 'undefined' ? new Image() : {};
+function logoRain(n = 70) {
+  if (reduced()) return;
+  if (!EGG_IMG.src) EGG_IMG.src = IMG('egg');
+  fxCanvas();
+  for (let i = 0; i < n; i++) {
+    fx.parts.push({ img: true, x: Math.random() * innerWidth, y: -40 - Math.random() * innerHeight * 0.9, vx: (Math.random() - 0.5) * 90, vy: 160 + Math.random() * 300, g: 480, s: 14 + Math.random() * 16, rot: Math.random() * 6, vr: 3 + Math.random() * 6, life: 4.5 });
+  }
+  fxRun();
+}
 const centerOf = (el) => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
 
 // ---------- барабаны ----------
@@ -310,7 +329,10 @@ const IMG = (n) => `img/slots/${n}.webp`;
 const BULBS = [[13.45, 7.9], [24.03, 4.43], [36.43, 2.64], [50.42, 1.94], [64.37, 2.64], [77.03, 4.48], [87.49, 7.96]]; // центры ламп вывески, % корпуса
 const heroCell = (h) => `<div class="rc rc-hero">${h.small ? `<img src="${esc(h.small)}" alt="" draggable="false">` : ''}<span>${esc(h.name)}</span></div>`;
 const invCell = (c) => `<div class="rc rc-inv ${c}"><img src="${IMG('sym-' + c)}" alt="" draggable="false"><span>${esc(CAT_NAME[c])}</span></div>`;
-const rarCell = (i) => `<div class="rc rc-rar rar-${RARITY[i].k}"><img src="${IMG('rar-' + RARITY[i].k)}" alt="" draggable="false"><b>${RARITY[i].name}</b></div>`;
+const rarCell = (i) => (i === 'egg'
+  ? `<div class="rc rc-rar rar-egg"><img src="${IMG('egg')}" alt="" draggable="false"><b>${L('ОЙ!', 'OOPS!')}</b></div>`
+  : `<div class="rc rc-rar rar-${RARITY[i].k}"><img src="${IMG('rar-' + RARITY[i].k)}" alt="" draggable="false"><b>${RARITY[i].name}</b></div>`);
+const rarSym = (g) => (g.egg ? 'egg' : g.rar); // что показывает барабан редкости
 const RAR_STRIP = [0, 1, 2, 3, 1, 0, 4, 2, 1, 5, 0, 3, 1, 2];
 const SPEED = 24; // клеток в секунду на свободном ходу
 
@@ -500,7 +522,7 @@ function renderStage() {
     reels.forEach((r, i) => { r.idx = i; });
     reels[2].ticks = true;
     const g = state.slot.list[state.slot.cur];
-    if (g) { reels[0].show(g.hero); reels[1].show(g.lean.cat); reels[2].show(g.rar); paintSoloWin(false); }
+    if (g) { reels[0].show(g.hero); reels[1].show(g.lean.cat); reels[2].show(rarSym(g)); paintSoloWin(false); }
     paintTeam();
   }
   renderOut();
@@ -538,9 +560,15 @@ async function spinSolo(kind = 'reroll') {
   // герои остальных игроков команды не повторяются
   const skip = new Set(T.list.filter((_, i) => i !== slot).map((g) => g.hero.id));
   let short = false;
-  try { const got = await rollBuilds(1, skip); res = got.list[0] || null; short = got.short; } catch (e) { err = e.message; }
+  // пасхалка: сперва пробуем Trash-сборку; не нашлось — обычная крутка
+  if (opts.floor === 0 && Math.random() < EGG_CHANCE) {
+    rarCap = 0;
+    try { const got = await rollBuilds(1, skip); res = got.list[0] || null; short = got.short; } catch { res = null; } finally { rarCap = -1; }
+    if (res) { res.egg = true; if (!EGG_IMG.src) EGG_IMG.src = IMG('egg'); }
+  }
+  if (!res) try { const got = await rollBuilds(1, skip); res = got.list[0] || null; short = got.short; } catch (e) { err = e.message; }
   if (!still) await sleep(Math.max(0, 700 - (performance.now() - t0)));
-  track('slots_spin', { mode: 'slot', kind, team: T.list.length + (kind === 'next' ? 1 : 0), hero: opts.heroes.length === 1 ? heroById[opts.heroes[0]].name : opts.heroes.length ? 'pool' : 'any', invest: opts.lean, floor: RARITY[opts.floor].k, found: res ? 1 : 0, rarity: res ? RARITY[res.rar].k : '', build: res ? res.row.id : '' });
+  track('slots_spin', { mode: 'slot', kind, team: T.list.length + (kind === 'next' ? 1 : 0), hero: opts.heroes.length === 1 ? heroById[opts.heroes[0]].name : opts.heroes.length ? 'pool' : 'any', invest: opts.lean, floor: RARITY[opts.floor].k, found: res ? 1 : 0, rarity: res ? (res.egg ? 'egg' : RARITY[res.rar].k) : '', build: res ? res.row.id : '' });
   if (!res) {
     // нечего показать — барабаны просто останавливаются где были
     if (!still) await Promise.all(reels.map((r, i) => r.stopOn(r.syms[mod(Math.floor(r.p) - 6 - i * 2, r.L)], 6 + i * 2)));
@@ -552,14 +580,14 @@ async function spinSolo(kind = 'reroll') {
     setBusy(false);
     return;
   }
-  if (still) { reels[0].show(res.hero); reels[1].show(res.lean.cat); reels[2].show(res.rar); }
+  if (still) { reels[0].show(res.hero); reels[1].show(res.lean.cat); reels[2].show(rarSym(res)); }
   else {
     // герой → инвест → редкость; последний барабан тянем дольше всех
     const a = reels[0].stopOn(res.hero, 9);
     await sleep(350);
     const b = reels[1].stopOn(res.lean.cat, 15);
     await sleep(400);
-    const c = reels[2].stopOn(res.rar, res.rar >= 4 ? 20 : 17);
+    const c = reels[2].stopOn(rarSym(res), res.rar >= 4 || res.egg ? 20 : 17);
     await Promise.all([a, b, c]);
     SFX.spinOff();
     await sleep(180);
@@ -582,7 +610,7 @@ function pickSlot(i) {
   const T = state.slot; if (!T.list[i]) return;
   T.cur = i; T.open = i;
   const g = T.list[i];
-  reels[0].show(g.hero); reels[1].show(g.lean.cat); reels[2].show(g.rar);
+  reels[0].show(g.hero); reels[1].show(g.lean.cat); reels[2].show(rarSym(g));
   paintSoloWin(false); paintTeam(); renderOut();
 }
 function dropSlot(i) {
@@ -596,14 +624,15 @@ function dropSlot(i) {
 function paintSoloWin(animate) {
   const g = state.slot.list[state.slot.cur], sm = document.getElementById('sm'), plate = document.getElementById('plate');
   if (!g || !sm) return;
-  const r = RARITY[g.rar];
+  const r = g.egg ? { k: 'egg', name: 'Trash' } : RARITY[g.rar];
   sm.dataset.state = 'win'; sm.dataset.rar = r.k;
   sm.classList.toggle('fresh', animate);
-  const line = `${g.hero.name} ${pct(g.row.wr)}`;
+  const line = g.egg ? L('ОЙ ОЙ ОЙ', 'PATCH SOON') : `${g.hero.name} ${pct(g.row.wr)}`;
   plate.innerHTML = `<div class="sm-win rar-${r.k}${animate ? ' in' : ''}" title="${r.name} · ${esc(g.hero.name)} · ${L('винрейт', 'win rate')} ${pct(g.row.wr)} · ${fmt(g.row.matches)} ${L('матчей', 'matches')}">${g.rar === 5 ? '<em class="sm-jack">Jackpot!</em>' : ''}<b style="--len:${line.length}">${esc(line)}</b></div>`;
   if (!animate) return;
-  SFX.win(g.rar);
   const [x, y] = centerOf(sm.querySelector('.sm-reels'));
+  if (g.egg) { SFX.egg(); logoRain(); burst(x, y, '#2be38a', 40, 600); burst(x, y, '#c8323c', 40, 560); flash('egg'); return; }
+  SFX.win(g.rar);
   if (g.rar === 5) { coinRain(); burst(x, y, RAR_COLOR.legendary, 70, 620); flash('legendary'); }
   else if (g.rar === 4) { burst(x, y, RAR_COLOR.ultra, 55, 520); flash('ultra'); }
   else if (g.rar === 3) burst(x, y, RAR_COLOR.rare, 26, 380);

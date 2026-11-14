@@ -1,7 +1,7 @@
 // Звук режима «Крутить билд». Всё синтезируется в браузере (Web Audio), файлов не нужно.
 // Любой звук можно заменить файлом: положить его в public/snd/slots/ и вписать в FILES ниже —
 // тогда вместо синтеза играет файл (mp3 или ogg). Ключи: lever, spin-loop, reel-stop, tick, win-trash, win-common,
-// win-unique, win-rare, win-ultra, win-jackpot, coins, crate-shake, crate-open, card-flip. Петли: spin-loop, crate-shake.
+// win-unique, win-rare, win-ultra, win-jackpot, egg, coins, crate-shake, crate-open, card-flip. Петли: spin-loop, crate-shake.
 const FILES = {
   // lever: 'snd/slots/lever.mp3',
   // 'spin-loop': 'snd/slots/spin-loop.mp3',
@@ -119,6 +119,15 @@ const SYN = {
     [72, 76, 79, 84, 79, 84, 88].forEach((m, i) => tone(hz(m), i === 6 ? 1.2 : 0.14, { type: 'square', vol: 0.045, cut: 3200, at: 1.05 + i * 0.12 }));
     for (const m of [60, 64, 67]) tone(hz(m), 1.4, { type: 'sawtooth', vol: 0.04, cut: 1800, at: 1.77, attack: 0.03 });
     tone(hz(36), 1.4, { type: 'sine', vol: 0.18, at: 1.77 });
+  },
+  egg: () => { // пасхалка: «ой-ой-ой» тремя писклявыми съездами, потом карнавальная дудка
+    [0, 0.26, 0.52].forEach((at, i) => {
+      tone(hz(81 - i * 2), 0.22, { type: 'triangle', vol: 0.09, f1: hz(74 - i * 3), at, attack: 0.01, vib: [18, 25] });
+      tone(hz(69 - i * 2), 0.22, { type: 'square', vol: 0.03, f1: hz(62 - i * 3), cut: 1800, at, attack: 0.01 });
+    });
+    [72, 79, 76, 84, 83, 79, 88].forEach((m, i) => tone(hz(m), i === 6 ? 0.9 : 0.12, { type: 'square', vol: 0.045, cut: 3600, at: 0.95 + i * 0.11, vib: i === 6 ? [7, 9] : null }));
+    for (let i = 0; i < 8; i++) bell(hz(i % 2 ? 96 : 91), { vol: 0.035, at: 0.95 + i * 0.09, dur: 0.4 });
+    tone(hz(36), 1.1, { type: 'sine', vol: 0.16, at: 1.61 });
   },
   coins: () => { // монеты сыплются: часто в начале, реже к концу
     for (let i = 0; i < 46; i++) { const at = Math.pow(Math.random(), 1.6) * 2.6; clink(at, 0.025 + Math.random() * 0.03); }

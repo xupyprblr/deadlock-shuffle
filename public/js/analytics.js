@@ -54,6 +54,7 @@ let clicksBound = false;
 export function initAnalytics(page) {
   if (!clicksBound) {
     clicksBound = true;
+    hit('pageview', { page }); // только в свой счётчик: по нему же Worker считает уникальных посетителей за день
     // клики по ссылкам шапки и подвала (соцсети, «Поддержать», переходы между разделами) — одним обработчиком
     document.addEventListener('click', (e) => {
       const a = e.target.closest && e.target.closest('a[data-track]');

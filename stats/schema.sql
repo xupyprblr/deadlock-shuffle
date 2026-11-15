@@ -10,3 +10,12 @@ CREATE TABLE IF NOT EXISTS hits (
   PRIMARY KEY (day, env, ev, dim, val)
 );
 CREATE INDEX IF NOT EXISTS hits_env_day ON hits (env, day);
+
+-- Отпечатки посетителей за текущие сутки (sha256 с солью дня), только чтобы не считать человека дважды.
+-- Старше вчерашнего дня удаляются самим Worker.
+CREATE TABLE IF NOT EXISTS visitors (
+  day TEXT NOT NULL,
+  env TEXT NOT NULL,
+  h TEXT NOT NULL,
+  PRIMARY KEY (day, env, h)
+);

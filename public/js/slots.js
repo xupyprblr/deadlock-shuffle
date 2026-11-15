@@ -482,19 +482,32 @@ function renderLegend() {
   document.getElementById('legend').innerHTML = `
     <h2>${L('Редкости', 'Rarities')}</h2>
     <div class="sl-rars">${RARITY.map((r, i) => `<div class="sl-rar rar-${r.k}"><b>${r.name}</b><span>${L('винрейт ', 'win rate ')}${rarRange(i)}</span></div>`).join('')}</div>
-    <p class="lab-legend">${L(`В пуле — опубликованные сборки с ${RND.minMatches}+ матчами от ${RND.minPlayers}+ игроков за ${RND.days} дней. На малом числе матчей высокий винрейт часто просто везение: Legendary — это редкий дроп, а не гарантия побед.`, `The pool is published builds with ${RND.minMatches}+ matches from ${RND.minPlayers}+ players over ${RND.days} days. On a small sample a high win rate is often just luck: Legendary is a rare drop, not a guaranteed win.`)}</p>`;
+    <p class="lab-legend">${L(`В пуле — опубликованные сборки с ${RND.minMatches}+ матчами от ${RND.minPlayers}+ игроков за ${RND.days} дней.`, `The pool is published builds with ${RND.minMatches}+ matches from ${RND.minPlayers}+ players over ${RND.days} days.`)}</p>`;
 }
 
 const mode = () => (state.shared ? 'box' : opts.mode); // ссылка тиммейта всегда показывается видом лутбокса
 const isParty = () => mode() === 'box';
 const S = () => (isParty() ? state.box : state.slot); // результаты активного режима
-const shareBtn = () => (S().list.length ? `<button class="btn btn-game sl-share" data-share="1">${ICON.link}<span>${S().list.length > 1 ? L('Ссылка на команду', 'Team link') : L('Ссылка на сборку', 'Build link')}</span></button>` : '');
+// группа «Забрать», как в «Рандоме»: «Скопировать в игру» (сборка на автомате / раскрытая карта) + «Ссылка» + инструкция
+const takeBuild = () => { const s = S(); return isParty() ? (s.open >= 0 ? s.list[s.open] : null) : s.list[state.slot.cur] || null; };
+const takeGroup = () => {
+  const n = S().list.length; if (!n) return '';
+  const g = takeBuild();
+  return `<div class="act-group sl-take">
+    <span class="act-lbl">${L('Забрать', 'Take it')}</span>
+    <div class="btn-row">
+      ${g ? `<button class="btn btn-game" data-take="1">${ICON.game}<span>${L('Скопировать в игру', 'Copy to game')}</span></button>` : ''}
+      <button class="btn" data-share="1">${ICON.link}<span>${n > 1 ? L('Ссылка на команду', 'Team link') : L('Ссылка', 'Link')}</span></button>
+    </div>
+    ${g ? `<button class="how-link" data-how-open="1">${L('Как вставить в игру?', 'How to paste it in game?')}</button>` : `<span class="sl-take-hint">${L('Открой карточку, чтобы скопировать её сборку', 'Open a card to copy its build')}</span>`}
+  </div>`;
+};
 const boxLabel = () => (state.shared ? L('Открыть свой лутбокс', 'Open your own box') : state.box.list.length ? L('Открыть ещё', 'Open another') : L('Открыть лутбокс', 'Open the loot box'));
-const boxGo = () => `<button class="btn btn-main sl-roll" data-spin="1">${boxLabel()}</button>${shareBtn()}`;
+const boxGo = () => `<div class="act-main"><button class="btn btn-main sl-roll" data-spin="1">${boxLabel()}</button></div>${takeGroup()}`;
 const slotGo = () => {
   const n = state.slot.list.length;
-  return `<button class="btn btn-main sl-roll" data-spin="1">${L('Крутить билд', 'Spin a build')}</button>
-    ${n && n < PARTY_MAX ? `<button class="btn btn-next sl-next" data-next="1">${ICON.plus}<span>${L('Следующий игрок', 'Next player')}</span><small>${n + 1}/${PARTY_MAX}</small></button>` : ''}${shareBtn()}`;
+  return `<div class="act-main"><button class="btn btn-main sl-roll" data-spin="1">${L('Крутить билд', 'Spin a build')}</button>
+    ${n && n < PARTY_MAX ? `<button class="btn btn-next sl-next" data-next="1">${ICON.plus}<span>${L('Следующий игрок', 'Next player')}</span><small>${n + 1}/${PARTY_MAX}</small></button>` : ''}</div>${takeGroup()}`;
 };
 function paintGo() { const go = document.getElementById('go'); if (go) go.innerHTML = isParty() ? boxGo() : slotGo(); }
 function renderStage() {
@@ -853,7 +866,6 @@ function buildPanel(g, idx) {
     </header>
     <div class="g-actions">
       <button class="btn btn-game" data-game="${idx}">${ICON.game}<span>${L('Скопировать в игру', 'Copy to game')}</span></button>
-      <a class="btn" href="lab/builds.html?ids=${id}">${ICON.flask}<span>${L('Статистика и прокачка', 'Stats and skill order')}</span></a>
     </div>
     ${abilityPlan(b)}
     <div class="g-overview">
@@ -869,6 +881,7 @@ function renderOut() {
   const s = S(), g = s.open >= 0 ? s.list[s.open] : null;
   out.innerHTML = g ? `${s.list.length > 1 ? `<p class="sl-out-h">${L('Игрок', 'Player')} ${s.open + 1} · ${esc(g.hero.name)}</p>` : ''}${buildPanel(g, s.open)}` : '';
   for (const b of root.querySelectorAll('[data-open]')) b.setAttribute('aria-pressed', String(+b.dataset.open === s.open));
+  if (!state.busy) paintGo();
 }
 
 function gameCode(g) {
@@ -899,6 +912,59 @@ async function copy(text, msg) {
     document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); toast(msg); } catch {} ta.remove();
   }
 }
+
+// «Скопировать в игру»: where — кнопка (take — группа «Забрать», card — карточка / окно сборки, howto — из инструкции)
+function toGame(g, where) {
+  if (!g) return;
+  let code;
+  try { code = gameCode(g); } catch { toast(L('Не удалось собрать код сборки', 'Could not build the code')); return; }
+  copy(code, L(`Код для ${g.hero.name} скопирован. В игре: Поиск сборок → Создать сборку → Вставить сборку`, `Code for ${g.hero.name} copied. In game: Build Browser → Create new Build → Paste Build`));
+  track('to_game', { from: 'slots', via: 'code', where, mode: mode(), build: g.row.id, hero: g.hero.name, rarity: g.egg ? 'egg' : RARITY[g.rar].k });
+}
+
+// ---------- инструкция «Как вставить в игру?» (как на главной; стили .how-* в styles.css) ----------
+function openHow() {
+  closeHow();
+  const g = takeBuild(), h = g && g.hero;
+  const en = getLang() === 'en';
+  const el = document.createElement('div');
+  el.className = 'how-modal'; el.id = 'how';
+  el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'how-t');
+  const step = (n, title, text, body = '') => `<li class="how-step"><span class="how-n">${n}</span><div><h3>${title}</h3><p>${text}</p>${body}</div></li>`;
+  const shot = (f) => `<img class="how-shot" src="img/howto/${en ? 'en/' : ''}${f}.webp" alt="" loading="lazy">`;
+  el.innerHTML = `<div class="how-box">
+    <button class="how-x" data-how="close" aria-label="${L('Понятно', 'Got it')}">✕</button>
+    <h2 id="how-t">${L('Как вставить сборку в игру', 'How to paste the build in game')}</h2>
+    <ol class="how-steps">
+      ${step(1, L('Выбери в игре героя', 'Pick the hero in game'), L('Сборка вставляется только на того героя, для которого её собрали.', 'A build can only be pasted for the hero it was made for.'), h ? `<div class="how-hero">${h.small ? `<img src="${esc(h.small)}" alt="" width="56" height="56">` : ''}<b>${esc(h.name)}</b></div>` : '')}
+      ${step(2, L('Открой сборки и нажми «Поиск сборок»', 'Open builds and press “Build Browser”'), L('Кнопка справа вверху в окне сборок.', 'The button in the top right of the builds window.'), shot('search'))}
+      ${step(3, L('Нажми «Создать сборку»', 'Press “Create new Build”'), L('Откроется пустая сборка этого героя.', 'An empty build for this hero opens.'), shot('create'))}
+      ${step(4, L('Нажми «Вставить сборку»', 'Press “Paste Build”'), L('Маленькая квадратная кнопка рядом с «i». Предметы и прокачка встанут сами — останется сохранить.', 'The small square button next to the “i”. Items and abilities fill in on their own — just save.'), shot('paste'))}
+    </ol>
+    <p class="how-warn">${L('<b>Нет кнопки «Вставить сборку»?</b> Значит, в игре выбран другой герой или код пропал из буфера обмена. Проверь героя и скопируй код ещё раз.', '<b>No “Paste Build” button?</b> The game has a different hero selected, or the code is no longer in your clipboard. Check the hero and copy the code again.')}</p>
+    <div class="how-foot">
+      <div class="btn-row">
+        ${g ? `<button class="btn" data-how="again">${ICON.game}<span>${L('Скопировать код сборки', 'Copy build code')}</span></button>` : ''}
+        <button class="btn btn-game" data-how="close">${L('Понятно', 'Got it')}</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(el);
+  document.body.classList.add('noscroll');
+  el.querySelector('.btn[data-how="close"]').focus();
+}
+function closeHow() {
+  const el = document.getElementById('how');
+  if (el) { el.remove(); document.body.classList.remove('noscroll'); }
+}
+document.addEventListener('click', (e) => {
+  const m = document.getElementById('how'); if (!m) return;
+  if (e.target === m) { closeHow(); return; }
+  const b = e.target.closest('[data-how]'); if (!b) return;
+  if (b.dataset.how === 'close') closeHow();
+  else if (b.dataset.how === 'again') toGame(takeBuild(), 'howto');
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeHow(); });
 
 // ---------- ссылка на пати ----------
 // ?party=id.матчи.победы.игроки_… в base36: тиммейты видят те же карточки и редкости и забирают свою сборку.
@@ -950,7 +1016,7 @@ async function loadShared(rows) {
 const spin = () => (isParty() ? openBox() : spinSolo('reroll'));
 // на документе: переключатель режима (#modes) стоит в навигации, вне #slots
 document.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-spin],[data-next],[data-mode],[data-drop],[data-party],[data-lean],[data-floor],[data-hero],[data-sound],[data-game],[data-open],[data-copy-id],[data-share],.lc.flipped');
+  const t = e.target.closest('[data-spin],[data-next],[data-mode],[data-drop],[data-party],[data-lean],[data-floor],[data-hero],[data-sound],[data-game],[data-take],[data-how-open],[data-open],[data-copy-id],[data-share],.lc.flipped');
   if (!t) return;
   const d = t.dataset;
   if (d.spin) { spin(); return; }
@@ -963,15 +1029,16 @@ document.addEventListener('click', (e) => {
     track('slots_share', { size: S().list.length, mode: mode() });
     return;
   }
-  if (d.copyId) { copy(d.copyId, L(`ID ${d.copyId} скопирован`, `ID ${d.copyId} copied`)); return; }
-  if (d.game !== undefined) {
-    const g = current(+d.game); if (!g) return;
-    try {
-      copy(gameCode(g), L(`Код для ${g.hero.name} скопирован. В игре: Поиск сборок → Создать сборку → Вставить сборку`, `Code for ${g.hero.name} copied. In game: Build Browser → Create new Build → Paste Build`));
-      track('to_game', { from: 'slots', mode: mode(), build: g.row.id, hero: g.hero.name, rarity: g.egg ? 'egg' : RARITY[g.rar].k });
-    } catch { toast(L('Не удалось собрать код сборки', 'Could not build the code')); }
+  if (d.copyId) {
+    copy(d.copyId, L(`ID ${d.copyId} скопирован`, `ID ${d.copyId} copied`));
+    // ID сборки тоже «забрали в игру»: в игре сборку можно найти по ID
+    const g = S().list.find((x) => String(x.row.id) === d.copyId);
+    track('to_game', { from: 'slots', via: 'id', mode: mode(), build: d.copyId, hero: g && g.hero.name, rarity: g ? (g.egg ? 'egg' : RARITY[g.rar].k) : '' });
     return;
   }
+  if (d.howOpen) { openHow(); track('howto_open', { from: 'slots' }); return; }
+  if (d.take) { toGame(takeBuild(), 'take'); return; }
+  if (d.game !== undefined) { toGame(current(+d.game), 'card'); return; }
   const openIdx = d.open !== undefined ? +d.open : t.classList.contains('lc') ? +d.card : -1;
   if (openIdx >= 0) {
     const s = S();

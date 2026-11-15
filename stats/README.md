@@ -13,6 +13,10 @@ Cloudflare Worker + база D1 (бесплатный тариф). Сайт шл
 
 Тест: `node scripts/test-stats.mjs`.
 
+Уникальные посетители: событие `pageview` → отпечаток sha256(соль дня + IP + браузер) в таблице `visitors`
+(только на текущие сутки, старые Worker удаляет сам) → счётчик `visitor` за день. Соль — секрет `VISIT_SALT`
+(`npx wrangler secret put VISIT_SALT`, любая длинная случайная строка). Боты и headless-браузеры не считаются.
+
 ## Где развёрнуто
 https://randomlock-stats.randomlock.workers.dev — аккаунт Cloudflare Алекса, база D1 `randomlock-stats`.
 Ключ админки — `stats/.admin-token` (не в git).

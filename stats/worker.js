@@ -1,18 +1,22 @@
 // Счётчик статистики RANDOMLOCK: Cloudflare Worker + D1. Развёртывание — stats/README.md.
 // Хранит только обезличенные агрегаты «день × событие × измерение × значение → сколько раз».
-// Без cookies, IP нигде не сохраняется (используется только для лимита частоты).
+// Без cookies. IP не сохраняется: для лимита частоты он не пишется в базу, а для подсчёта уникальных посетителей
+// из него делается отпечаток sha256(соль дня + IP + браузер); соль своя на каждый день (секрет VISIT_SALT + дата),
+// отпечатки живут только до конца следующих суток и удаляются — остаётся одно число «посетителей за день».
 //
 //   POST /hit    { env: 'main'|'dev', ev, p: {...} }  — тело text/plain (navigator.sendBeacon без preflight)
 //   GET  /stats?env=main&days=30                      — только с заголовком Authorization: Bearer <ADMIN_TOKEN>
 
 // Белый список: событие → измерения, которые считаем. Остальные параметры отбрасываются.
 // Любое другое событие с нормальным именем считается только итогом (сколько раз за день), без разрезов.
+// Составной разрез 'a+b' — значение «a|b» (например, раздел + герой), чтобы делить героев и редкости по разделам.
 export const EVENTS = {
-  roll: ['team', 'kind', 'order', 'invest', 'hero'], // крутка на главной (team: 1 — режим «Команда»)
+  pageview: ['page'], // открыли страницу (roulette / slots / lab); заодно считает уникальных посетителей
+  roll: ['team', 'verdict', 'order', 'invest', 'hero'], // крутка на главной (team: 1 — режим «Команда»; verdict — оценка затара)
   team_add: [],
   reroll_slot: [],
-  slots_spin: ['mode', 'kind', 'rarity', 'got', 'size'], // автомат / лутбокс; got — выпавший герой (в лутбоксе — лучшей карты)
-  to_game: ['from', 'mode', 'rarity', 'hero'], // «Скопировать в игру»: from — раздел
+  slots_spin: ['mode', 'kind', 'mode+rarity', 'got', 'size'], // автомат / лутбокс; got — выпавший герой (в лутбоксе — лучшей карты)
+  to_game: ['from', 'mode', 'via', 'rarity', 'from+hero'], // в казино ещё where: take | card | howto — пока без разреза // «Скопировать в игру»: from — раздел, via — code (код сборки) | id (ID сборки)
   share_link: [],
   team_link: ['from'],
   slots_share: ['mode', 'size'],
@@ -39,12 +43,12 @@ export function cleanVal(v) {
 export function parseHit(text) {
   if (typeof text !== 'string' || !text || text.length > MAX_BODY) return null;
   let b; try { b = JSON.parse(text); } catch { return null; }
-  if (!b || typeof b !== 'object' || !ENVS.includes(b.env) || typeof b.ev !== 'string' || !/^[a-z][a-z0-9_]{1,29}$/.test(b.ev)) return null;
+  if (!b || typeof b !== 'object' || !ENVS.includes(b.env) || typeof b.ev !== 'string' || !/^[a-z][a-z0-9_]{1,29}$/.test(b.ev) || b.ev === 'visitor') return null; // visitor считает только сам Worker
   const rows = [['', '']];
   const p = b.p && typeof b.p === 'object' ? b.p : {};
   for (const dim of Object.hasOwn(EVENTS, b.ev) ? EVENTS[b.ev] : []) {
-    const val = cleanVal(p[dim]);
-    if (val !== null) rows.push([dim, val]);
+    const vals = dim.split('+').map((k) => cleanVal(p[k]));
+    if (vals.every((v) => v !== null)) rows.push([dim, vals.join('|')]);
   }
   return { env: b.env, ev: b.ev, rows };
 }
@@ -71,6 +75,17 @@ export function authorized(req, env) {
 }
 
 const UPSERT = 'INSERT INTO hits (day, env, ev, dim, val, n) VALUES (?, ?, ?, ?, ?, 1) ON CONFLICT (day, env, ev, dim, val) DO UPDATE SET n = n + 1';
+const SEEN = 'INSERT OR IGNORE INTO visitors (day, env, h) VALUES (?, ?, ?)';
+const FORGET = 'DELETE FROM visitors WHERE day < ?';
+
+// боты, превью ссылок и безголовые браузеры не считаем посетителями
+export const isBot = (ua) => !ua || /bot|crawl|spider|slurp|headless|preview|facebookexternalhit|telegram|whatsapp|discord|curl|wget|python|node/i.test(ua);
+
+export async function visitorHash(salt, day, ip, ua) {
+  const data = new TextEncoder().encode(`${salt}|${day}|${ip}|${ua}`);
+  const h = new Uint8Array(await crypto.subtle.digest('SHA-256', data));
+  return [...h.slice(0, 12)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 async function hit(req, env, origin) {
   if (!origin) return new Response(null, { status: 403 });
@@ -82,8 +97,20 @@ async function hit(req, env, origin) {
   const h = parseHit(await req.text());
   if (!h) return new Response(null, { status: 400, headers: cors(origin) });
   const day = dayOf();
+  const rows = h.rows.map(([dim, val]) => [h.ev, dim, val]);
+  if (h.ev === 'pageview') {
+    const ua = req.headers.get('User-Agent') || '';
+    if (isBot(ua)) return new Response(null, { status: 204, headers: cors(origin) });
+    if (env.VISIT_SALT) {
+      // первый просмотр за день с этого отпечатка — новый посетитель
+      const hash = await visitorHash(env.VISIT_SALT, day, req.headers.get('CF-Connecting-IP') || '', ua);
+      const [r] = await env.DB.batch([env.DB.prepare(SEEN).bind(day, h.env, hash)]);
+      if (r && r.meta && r.meta.changes) rows.push(['visitor', '', '']);
+      if (Math.random() < 0.02) await env.DB.prepare(FORGET).bind(dayOf(Date.now() - 86400e3)).run(); // вчерашние и старше
+    }
+  }
   const st = env.DB.prepare(UPSERT);
-  await env.DB.batch(h.rows.map(([dim, val]) => st.bind(day, h.env, h.ev, dim, val)));
+  await env.DB.batch(rows.map(([ev, dim, val]) => st.bind(day, h.env, ev, dim, val)));
   return new Response(null, { status: 204, headers: cors(origin) });
 }
 

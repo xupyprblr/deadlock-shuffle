@@ -4,7 +4,7 @@ import http from 'node:http';
 import worker from './worker.js';
 import { memDB } from './memdb.mjs';
 
-const env = { DB: memDB(), ADMIN_TOKEN: 'dev' };
+const env = { DB: memDB(), ADMIN_TOKEN: 'dev', VISIT_SALT: 'dev' };
 http.createServer(async (req, res) => {
   const chunks = []; for await (const c of req) chunks.push(c);
   const body = chunks.length ? Buffer.concat(chunks) : undefined;

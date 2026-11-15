@@ -11,6 +11,7 @@ const store = {
 };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const num = (n) => (Number.isFinite(+n) ? Math.round(+n).toLocaleString('ru-RU') : '0');
+const avgNum = (n) => (n > 0 && n < 10 ? (Math.round(n * 10) / 10).toLocaleString('ru-RU') : num(n)); // среднее: до 10 — с десятыми
 const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 + '%' : '—');
 
 const st = { token: store.get(KEY) || '', env: IS_DEV ? 'dev' : 'main', days: 7, data: null, err: '', busy: false };
@@ -22,6 +23,10 @@ const ORDER = { pseudo: 'Псевдо-рандом', curve: 'Баланс ран
 const INVEST = { chaos: 'Хаос', balanced: 'Поровну', mono: 'Все в один' };
 const SOCIAL = { yt: 'YouTube', tw: 'Twitch', tg: 'Telegram' };
 const MODE = { slot: 'Автомат', box: 'Лутбокс' };
+const VIA = { code: 'Кнопка «В игру»', id: 'Скопировали ID' };
+const VERDICT = [['meta', 'Мета-затар'], ['solid', 'Рабочая сборка'], ['risky', 'Рискованно'], ['challenge', 'Челлендж'], ['troll', 'Чистый троллинг']];
+const PAGE = { roulette: 'Рандом (главная)', slots: 'Казино билдов', lab: 'Лаборатория' };
+const RAND_FROM = ['button', 'howto', 'team']; // «в игру» из раздела «Рандом»
 
 // ---------- данные ----------
 async function load() {
@@ -41,6 +46,12 @@ function model(d) {
   const tot = (ev) => d.daily.reduce((a, x) => a + (x.ev === ev ? x.n : 0), 0);
   const dim = (ev, k, v) => d.dims.reduce((a, x) => a + (x.ev === ev && x.dim === k && x.val === String(v) ? x.n : 0), 0);
   const list = (ev, k) => d.dims.filter((x) => x.ev === ev && x.dim === k).map((x) => ({ val: x.val, n: x.n })).sort((a, b) => b.n - a.n);
+  // составной разрез «a|b»: оставить строки, где a подходит, и сложить по b
+  const split = (ev, k, keep) => {
+    const m = new Map();
+    for (const x of d.dims) if (x.ev === ev && x.dim === k) { const [a, b] = x.val.split('|'); if (keep(a)) m.set(b, (m.get(b) || 0) + x.n); }
+    return [...m].map(([val, n]) => ({ val, n })).sort((p, q) => q.n - p.n);
+  };
   const sections = [
     { name: 'Рандом · соло', spins: dim('roll', 'team', 0), game: dim('to_game', 'from', 'button') + dim('to_game', 'from', 'howto') },
     { name: 'Рандом · команда', spins: dim('roll', 'team', 1), game: dim('to_game', 'from', 'team') },
@@ -54,7 +65,8 @@ function model(d) {
   for (let i = st.days - 1; i >= 0; i--) days.push(new Date(end - i * 86400e3).toISOString().slice(0, 10));
   const perDay = (evs) => days.map((day) => ({ day, n: d.daily.reduce((a, x) => a + (x.day === day && evs.includes(x.ev) ? x.n : 0), 0) }));
   return {
-    tot, dim, list, sections, days,
+    tot, dim, list, split, sections, days,
+    visitorsByDay: perDay(['visitor']),
     spinsByDay: perDay(['roll', 'slots_spin', 'lab_random']),
     gameByDay: perDay(['to_game']),
   };
@@ -72,11 +84,13 @@ function bars(rows, { total, empty = 'пока пусто' } = {}) {
     <b class="ad-val">${num(r.n)}</b><small class="ad-pct">${pct(r.n, sum)}</small></li>`).join('')}</ul>`;
 }
 const fmtDay = (day) => { const [, m, dd] = day.split('-'); return `${+dd}.${m}`; };
-function columns(series, title) {
+function columns(series, title, { avg = false } = {}) {
   const max = Math.max(1, ...series.map((x) => x.n));
   const sum = series.reduce((a, x) => a + x.n, 0);
+  // уникальные посетители между днями не складываются — для них показываем среднее за день
+  const note = avg ? `в среднем ${avgNum(sum / series.length)} в день · макс. ${num(max)}` : `${num(sum)} за период · макс. ${num(max)} в день`;
   return `<figure class="ad-cols">
-    <figcaption><b>${esc(title)}</b><span>${num(sum)} за период · макс. ${num(max)} в день</span></figcaption>
+    <figcaption><b>${esc(title)}</b><span>${note}</span></figcaption>
     <div class="ad-cols-plot" style="--n:${series.length}">${series.map((x) => `<div class="ad-col" data-tip="${fmtDay(x.day)}: ${num(x.n)}"><i style="height:${x.n ? Math.max(2, (x.n / max) * 100).toFixed(1) : 0}%"></i></div>`).join('')}</div>
     <div class="ad-cols-axis"><span>${fmtDay(series[0].day)}</span><span>${fmtDay(series[series.length - 1].day)}</span></div>
   </figure>`;
@@ -112,8 +126,16 @@ function paint() {
   const m = model(d);
   const spins = m.sections.reduce((a, s) => a + s.spins, 0), game = m.sections.reduce((a, s) => a + s.game, 0);
   const shares = m.tot('share_link') + m.tot('team_link') + m.tot('slots_share');
+  const vis = m.visitorsByDay, visToday = vis[vis.length - 1].n;
+  const visTile = st.days === 1 ? ['Посетители сегодня', num(visToday), 'уникальные'] : ['Посетители в день', avgNum(vis.reduce((a, x) => a + x.n, 0) / vis.length), `в среднем · сегодня ${num(visToday)}`];
   root.innerHTML = head + `
-    ${tiles([['Крутки', num(spins)], ['Забрали в игру', num(game), `${pct(game, spins)} от круток`], ['Поделились ссылкой', num(shares)], ['Пасхалка', num(m.dim('slots_spin', 'rarity', 'egg')), 'лого в автомате']])}
+    ${tiles([visTile, ['Крутки', num(spins)], ['Забрали в игру', num(game), `${pct(game, spins)} от круток`], ['Поделились ссылкой', num(shares)]])}
+
+    <section class="ad-sec">
+      <h2>Посетители</h2>
+      <div class="ad-grid2">${columns(m.visitorsByDay, 'Уникальные посетители по дням', { avg: true })}
+        <div><h3>Просмотры страниц <small>всего ${num(m.tot('pageview'))}</small></h3>${bars(labeled(m.list('pageview', 'page'), PAGE))}</div></div>
+    </section>
 
     <section class="ad-sec">
       <h2>Разделы</h2>
@@ -125,15 +147,25 @@ function paint() {
     </section>
 
     <section class="ad-sec">
-      <h2>Что выпадало</h2>
+      <h2>Рандомайзер</h2>
       <div class="ad-grid2">
-        <div><h3>Редкость в казино <small>лутбокс — лучшая карта</small></h3>${bars(RAR.map(([k, label, chip]) => ({ label, chip, n: m.dim('slots_spin', 'rarity', k) })))}</div>
-        <div><h3>Редкость того, что забрали в игру</h3>${bars(RAR.map(([k, label, chip]) => ({ label, chip, n: m.dim('to_game', 'rarity', k) })))}</div>
-        <div><h3>Герои в казино <small>топ-15</small></h3>${bars(top(m.list('slots_spin', 'got')))}</div>
-        <div><h3>Герои в рандоме <small>топ-15</small></h3>${bars(top(m.list('roll', 'hero')))}</div>
-        <div><h3>Забрали в игру: герои <small>топ-15</small></h3>${bars(top(m.list('to_game', 'hero')))}</div>
-        <div><h3>Режим крутки в рандоме</h3>${bars(labeled(m.list('roll', 'order'), ORDER))}
-          <h3>Баланс инвеста в рандоме</h3>${bars(labeled(m.list('roll', 'invest'), INVEST))}
+        <div><h3>Крутки: герои <small>топ-15</small></h3>${bars(top(m.list('roll', 'hero')))}</div>
+        <div><h3>Забрали в игру: герои <small>топ-15</small></h3>${bars(top(m.split('to_game', 'from+hero', (f) => RAND_FROM.includes(f))))}</div>
+        <div><h3>Оценка затара</h3>${bars(VERDICT.map(([k, label]) => ({ label, n: m.dim('roll', 'verdict', k) })))}</div>
+        <div><h3>Режим крутки</h3>${bars(labeled(m.list('roll', 'order'), ORDER))}
+          <h3>Баланс инвеста</h3>${bars(labeled(m.list('roll', 'invest'), INVEST))}</div>
+      </div>
+    </section>
+
+    <section class="ad-sec">
+      <h2>Казино билдов</h2>
+      <div class="ad-grid2">
+        <div><h3>Редкость · автомат</h3>${bars(RAR.map(([k, label, chip]) => ({ label, chip, n: m.dim('slots_spin', 'mode+rarity', 'slot|' + k) })))}</div>
+        <div><h3>Редкость · лутбокс <small>лучшая карта</small></h3>${bars(RAR.map(([k, label, chip]) => ({ label, chip, n: m.dim('slots_spin', 'mode+rarity', 'box|' + k) })))}</div>
+        <div><h3>Крутки: герои <small>топ-15</small></h3>${bars(top(m.list('slots_spin', 'got')))}</div>
+        <div><h3>Забрали в игру: герои <small>топ-15</small></h3>${bars(top(m.split('to_game', 'from+hero', (f) => f === 'slots')))}</div>
+        <div><h3>Забрали в игру: редкость</h3>${bars(RAR.map(([k, label, chip]) => ({ label, chip, n: m.dim('to_game', 'rarity', k) })))}</div>
+        <div><h3>Как забирают</h3>${bars(labeled(m.list('to_game', 'via'), VIA))}
           <h3>Размер лутбокса</h3>${bars(labeled(m.list('slots_spin', 'size'), {}).sort((a, b) => +a.label - +b.label).map((r) => ({ ...r, label: r.label + ' ' + (r.label === '1' ? 'карта' : +r.label < 5 ? 'карты' : 'карт') })))}</div>
       </div>
     </section>
@@ -155,7 +187,7 @@ function paint() {
         ])}</div>
       </div>
     </section>
-    <p class="muted ad-note">Счётчик не использует cookies и не хранит IP; считаются только итоги по дням. Данные GA4 — отдельно, в Google Analytics.</p>`;
+    <p class="muted ad-note">Счётчик не использует cookies и не хранит IP: для уникальных посетителей — только суточный обезличенный отпечаток, который удаляется на следующий день; остальное — итоги по дням. Данные GA4 — отдельно, в Google Analytics.</p>`;
 }
 
 // ---------- подсказка при наведении ----------

@@ -138,7 +138,8 @@ async function freshBuild(id, old) {
   if (!old || refetchLog.length >= 10) return old;
   refetchLog.push(now);
   try {
-    const r = await fetch(`${API}/builds/${num(old.hero_id)}/${num(id)}?force_refetch=true`);
+    // не дольше 3 с: ждём его по нажатию «Скопировать в игру»
+    const r = await fetch(`${API}/builds/${num(old.hero_id)}/${num(id)}?force_refetch=true`, typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? { signal: AbortSignal.timeout(3000) } : {});
     if (!r.ok) return old;
     const d = await r.json();
     const b = d && (d.hero_build || d);
@@ -227,9 +228,8 @@ async function rollBuilds(n, skip = new Set()) {
   // лутбокс: сначала гарантированная карточка, остальные — обычной круткой без её героя
   const g0 = n > 1 && GUARANTEE[n] > opts.floor ? await rollLucky(GUARANTEE[n]) : null;
   const skip2 = new Set(skip); if (g0) skip2.add(g0.hero.id);
-  const [res, fresh] = await Promise.all([rollRest(g0 ? n - 1 : n, skip2, n === 1 && !skip.size), g0 && freshBuild(g0.row.id, g0.build)]);
+  const res = await rollRest(g0 ? n - 1 : n, skip2, n === 1 && !skip.size);
   if (g0) {
-    if (fresh && fresh !== g0.build) { g0.build = fresh; if (opts.lean === 'any') g0.lean = leanOf(fresh) || g0.lean; }
     res.list.splice(Math.floor(Math.random() * (res.list.length + 1)), 0, g0); seen.add(g0.row.id); // место случайное, вскроется всё равно последней
   }
   return res;
@@ -255,11 +255,7 @@ async function rollRest(n, skip, solo) {
     queue = shuffled(all.filter((h) => !opts.heroes.includes(h.id)));
     i = 0; limit = Math.min(queue.length, n + RND.extraHeroes);
   }
-  // свежие версии из игры — параллельно, в пределах лимита
-  await Promise.all(list.map(async (g) => {
-    const b = await freshBuild(g.row.id, g.build);
-    if (b !== g.build) { g.build = b; if (opts.lean === 'any') g.lean = leanOf(b) || g.lean; }
-  }));
+  // свежую версию из игры (force_refetch) здесь не берём: она нужна только для кода в игру — см. toGame()
   for (const g of list) seen.add(g.row.id);
   return { list, short: short && list.length > 0 };
 }
@@ -617,6 +613,7 @@ async function spinSolo(kind = 'reroll') {
   const slot = kind === 'next' || !T.list.length ? T.list.length : T.cur; // куда ляжет результат
   setBusy(true); showMsg('');
   const sm = document.getElementById('sm'), plate = document.getElementById('plate');
+  centerOn(sm);
   sm.dataset.state = 'spin'; delete sm.dataset.rar;
   plate.innerHTML = `<span class="sm-idle">${kind === 'next' ? L(`Игрок ${slot + 1}…`, `Player ${slot + 1}…`) : L('Кручу…', 'Spinning…')}</span>`;
   T.open = -1; renderOut();
@@ -723,6 +720,9 @@ async function openBox() {
   state.box = { list: [], short: false, open: -1 }; cards.innerHTML = ''; renderOut(); paintGo();
   lb.dataset.state = 'shake';
   const still = reduced();
+  centerOn(lb.querySelector('.lb-scene'));
+  // телефон: ряд карточек ниже экрана — вскрываем каждую над сундуком, потом она улетает на своё место
+  const stack = !still && matchMedia('(max-width: 640px)').matches;
   const t0 = performance.now();
   SFX.shake(true);
   let got = null, err = '';
@@ -744,18 +744,20 @@ async function openBox() {
   const box = lb.querySelector('.lb-box');
   const [bx, by] = centerOf(box);
   burst(bx, by - 20, RAR_COLOR[RARITY[best].k], 60, 640);
-  paintParty(!still, [bx, by]);
-  if (!still) list.forEach((_, i) => SFX.fly(i));
+  paintParty(!still, [bx, by], !stack);
+  if (stack) cards.classList.add('lb-stack');
+  else if (!still) list.forEach((_, i) => SFX.fly(i));
   const notes = [];
   if (list.length < opts.party) notes.push(L(`Под эти условия нашлось только ${list.length} из ${opts.party} — опусти планку или расширь пул героев.`, `Only ${list.length} of ${opts.party} found for these settings — lower the floor or widen the hero pool.`));
   if (got.short) notes.push(L('В пуле не хватило героев — добрал из остальных.', 'Not enough heroes in the pool — filled in from the rest.'));
   showMsg(notes.join(' '));
   if (!still) {
-    await sleep(500 + list.length * 110);
+    await sleep(stack ? 350 : 500 + list.length * 110);
     // вскрываем от худшей к лучшей — самая редкая последней
     const order = list.map((g, i) => [g.rar, i]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
     for (const [rar, i] of order) {
       const el = cards.children[i]; if (!el) continue;
+      if (stack) await cardUp(el, box);
       el.classList.add('flipped'); SFX.flip();
       await sleep(260);
       if (rar) SFX.win(rar); else SFX.stop(2); // Trash в пати — глухой «клац», без долгой грустной мелодии на каждую карту
@@ -763,12 +765,40 @@ async function openBox() {
       if (rar === 5) { coinRain(); burst(x, y, RAR_COLOR.legendary, 60, 560); flash('legendary'); }
       else if (rar === 4) burst(x, y, RAR_COLOR.ultra, 40, 460);
       else if (rar === 3) burst(x, y, RAR_COLOR.rare, 20, 340);
-      await sleep(FLIP_GAP[rar]);
+      await sleep(stack ? Math.max(FLIP_GAP[rar], 650) : FLIP_GAP[rar]); // над сундуком карту надо успеть рассмотреть
+      if (stack) cardDown(el); // улетает на место, следующая уже поднимается
     }
+    if (stack) { await sleep(480); cards.classList.remove('lb-stack'); }
   }
   lb.dataset.state = 'open';
   paintGo(); renderOut();
   setBusy(false);
+}
+
+// плавно поставить элемент в центр экрана (крутка автомата, открытие лутбокса)
+function centerOn(el) {
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  const y = scrollY + r.top + r.height / 2 - innerHeight / 2;
+  if (Math.abs(y - scrollY) > 24) scrollTo({ top: Math.max(0, y), behavior: reduced() ? 'auto' : 'smooth' });
+}
+// телефон: карточка из ряда поднимается крупно над сундуком (FLIP: считаем смещение от её места в ряду)
+async function cardUp(el, box) {
+  const r = el.getBoundingClientRect(), b = box.getBoundingClientRect();
+  const k = Math.min(1.45, (innerWidth * 0.62) / r.width);
+  const dx = b.left + b.width / 2 - (r.left + r.width / 2), dy = b.top + b.height * 0.42 - (r.top + r.height / 2);
+  el.style.transition = 'none';
+  el.style.transform = `translate(${dx.toFixed(0)}px, ${dy.toFixed(0)}px) scale(${(k * 0.25).toFixed(3)})`;
+  el.classList.add('up'); void el.offsetWidth;
+  el.style.transition = 'transform .38s cubic-bezier(.2, .8, .3, 1.25)';
+  el.style.transform = `translate(${dx.toFixed(0)}px, ${dy.toFixed(0)}px) scale(${k.toFixed(3)})`;
+  play('card-fly');
+  await sleep(380);
+}
+function cardDown(el) {
+  el.style.transition = 'transform .45s cubic-bezier(.55, 0, .35, 1)';
+  el.style.transform = '';
+  setTimeout(() => { el.style.transition = ''; el.classList.add('placed'); }, 470);
 }
 
 // строка карточки: главное умение сборки (иконка + название); без прокачки в сборке — инвест, как раньше
@@ -796,13 +826,15 @@ function partyCard(g, i, flipped) {
     </div>
   </article>`;
 }
-function paintParty(animate, from) {
+// animate: карточки рубашкой вверх (вскроются по очереди); fly — вылет из сундука на места (на телефоне вместо него cardUp/cardDown)
+function paintParty(animate, from, fly = true) {
   const cards = document.getElementById('cards'), lb = document.getElementById('lb');
   if (!cards || !state.box.list.length) return;
   const { list } = state.box;
   cards.style.setProperty('--n', list.length);
   cards.innerHTML = list.map((g, i) => partyCard(g, i, !animate)).join('');
   if (!animate) { lb.dataset.state = 'open'; lb.dataset.rar = RARITY[list.reduce((m, g) => Math.max(m, g.rar), 0)].k; return; }
+  if (!fly) return;
   // карточки вылетают из коробки на свои места
   for (const el of cards.children) {
     const [x, y] = centerOf(el);
@@ -945,12 +977,35 @@ async function copy(text, msg) {
   }
 }
 
-// «Скопировать в игру»: where — кнопка (take — группа «Забрать», card — карточка / окно сборки, howto — из инструкции)
+// Скопировать текст, который ещё готовится (p — обещание строки). Safari пускает в буфер только сразу после нажатия,
+// поэтому буферу отдаём само обещание (ClipboardItem); где так нельзя — ждём текст и пишем обычным способом.
+async function copyLater(p, msg) {
+  try {
+    if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+      await navigator.clipboard.write([new ClipboardItem({ 'text/plain': p.then((t) => new Blob([t], { type: 'text/plain' })) })]);
+      toast(msg); return true;
+    }
+  } catch {}
+  let text; try { text = await p; } catch { toast(L('Не удалось собрать код сборки', 'Could not build the code')); return false; }
+  await copy(text, msg); return true;
+}
+
+// «Скопировать в игру»: where — кнопка (take — группа «Забрать», card — карточка / окно сборки, howto — из инструкции).
+// Только здесь берём свежую версию сборки прямо из игры (force_refetch): база API отстаёт, а в игру должна уйти последняя.
+// На крутках этого запроса нет — он самый тяжёлый для API (лимит ~20 в минуту с IP).
 function toGame(g, where) {
   if (!g) return;
-  let code;
-  try { code = gameCode(g); } catch { toast(L('Не удалось собрать код сборки', 'Could not build the code')); return; }
-  copy(code, L(`Код для ${g.hero.name} скопирован. В игре: Поиск сборок → Создать сборку → Вставить сборку`, `Code for ${g.hero.name} copied. In game: Build Browser → Create new Build → Paste Build`));
+  let changed = false;
+  const code = (async () => {
+    if (!g.fresh) {
+      const b = await freshBuild(g.row.id, g.build);
+      g.fresh = true;
+      if (b && b !== g.build) { g.build = b; changed = true; if (opts.lean === 'any') g.lean = leanOf(b) || g.lean; }
+    }
+    return gameCode(g);
+  })();
+  copyLater(code, L(`Код для ${g.hero.name} скопирован. В игре: Поиск сборок → Создать сборку → Вставить сборку`, `Code for ${g.hero.name} copied. In game: Build Browser → Create new Build → Paste Build`))
+    .then(() => { if (changed) renderOut(); }); // в окне сборки — та же версия, что ушла в игру
   track('to_game', { from: 'slots', via: 'code', where, mode: mode(), build: g.row.id, hero: g.hero.name, rarity: g.egg ? 'egg' : RARITY[g.rar].k });
 }
 

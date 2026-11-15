@@ -258,6 +258,10 @@
 @media (max-width: 1100px) { .lb-cards { grid-template-columns: repeat(3, minmax(0, 210px)); } }
 @media (max-width: 560px) { .lb-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } }
 .lc { min-width: 0; }
+/* телефон: карточки вскрываются по одной над сундуком (cardUp / cardDown в slots.js); пока не поднялась — не видна */
+.lb-cards.lb-stack { position: relative; z-index: 5; }
+.lb-stack .lc:not(.up) { visibility: hidden; }
+.lb-stack .lc.up:not(.placed) { position: relative; z-index: 2; }
 .lc.fly { animation: lc-fly .6s cubic-bezier(.2, .8, .3, 1.15) both; animation-delay: calc(var(--i) * 110ms); }
 @keyframes lc-fly { from { transform: translate(var(--dx), var(--dy)) scale(.12) rotate(-25deg); opacity: 0; } 30% { opacity: 1; } to { transform: none; opacity: 1; } }
 .lc-in { position: relative; display: grid; height: 100%; transform-style: preserve-3d; transition: transform .55s cubic-bezier(.3, .7, .3, 1.2); }

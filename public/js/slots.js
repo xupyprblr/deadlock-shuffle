@@ -281,7 +281,13 @@ const SFX = {
   tick: () => play('tick'),
   stop: (i) => play('reel-stop', { i }),
   win(i, slot = false) { cutWin(); const w = winSnd; w.push(play((slot && SLOT_SND[i]) || RAR_SND[i])); if (i === 5) setTimeout(() => { if (w === winSnd) w.push(play('coins')); }, 250); },
-  egg() { cutWin(); const w = winSnd; play('egg'); setTimeout(() => { if (w === winSnd) w.push(play('coins')); }, 900); },
+  // пасхалка: сначала звук Legendary с монетами, после него — спецзвук пасхалки
+  egg() {
+    cutWin(); const w = winSnd;
+    w.push(play('win-jackpot'));
+    setTimeout(() => { if (w === winSnd) w.push(play('coins')); }, 250);
+    setTimeout(() => { if (w === winSnd) play('egg'); }, 2700); // джекпот ~3 с, спецзвук на его хвосте
+  },
   shake: (on) => { if (on) cutWin(); sndLoop('crate-shake', on); },
   pop: () => play('crate-open'),
   flip: () => { cutWin(); play('card-flip'); },

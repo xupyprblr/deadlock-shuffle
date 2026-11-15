@@ -111,6 +111,8 @@
 .rc { height: var(--cell); display: grid; place-items: center; align-content: center; gap: .8cqw; padding: .8cqw .6cqw; text-align: center; overflow: hidden; color: #f7e9d5; }
 .rc span, .rc b { font: 900 clamp(8px, 2.3cqw, 12px)/1.05 var(--f-tag); text-transform: uppercase; letter-spacing: .02em; overflow-wrap: anywhere; }
 .rc-hero img { width: calc(var(--cell) * .62); height: calc(var(--cell) * .62); object-fit: cover; border: 2px solid #f7e9d5; background: #1a1716; }
+.rc-abil i { display: grid; place-items: center; width: calc(var(--cell) * .58); height: calc(var(--cell) * .58); border: 2px solid #f7e9d5; background: #1a1716; }
+.rc-abil img { width: 82%; height: 82%; object-fit: contain; }
 .rc-inv img, .rc-rar img { width: calc(var(--cell) * .66); height: calc(var(--cell) * .66); }
 .rc-rar b { color: var(--rc); }
 
@@ -180,7 +182,7 @@
 
 @media (max-width: 640px) {
   .reel.rolling .reel-strip { filter: blur(1px); }
-  .rc-hero img { border-width: 1px; }
+  .rc-hero img, .rc-abil i { border-width: 1px; }
 }
 
 /* ---------- вспышка и частицы ---------- */
@@ -282,6 +284,9 @@
 .lc p { margin: 0 6px; font-size: 13px; line-height: 1.25; color: rgba(247, 233, 213, .75); }
 .lc-wr b { font: 900 17px var(--f-tag); color: var(--rc); }
 .lc-lean { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.lc-abil i { display: grid; place-items: center; width: 22px; height: 22px; flex: none; border: 1px solid color-mix(in srgb, #f7e9d5 55%, transparent); }
+.lc-abil img { width: 18px; height: 18px; object-fit: contain; }
+.lc-abil span { font-weight: 700; overflow-wrap: anywhere; }
 .dotc { width: 10px; height: 10px; border-radius: 2px; flex: none; }
 .dotc.weapon { background: var(--weapon); } .dotc.spirit { background: var(--spirit); } .dotc.vitality { background: var(--vitality); }
 .lc-btns { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding: 4px 6px 0; }

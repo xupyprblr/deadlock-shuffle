@@ -333,16 +333,32 @@ const rarCell = (i) => (i === 'egg'
   ? `<div class="rc rc-rar rar-egg"><img src="${IMG('egg')}" alt="" draggable="false"><b>${L('ОЙ!', 'OOPS!')}</b></div>`
   : `<div class="rc rc-rar rar-${RARITY[i].k}"><img src="${IMG('rar-' + RARITY[i].k)}" alt="" draggable="false"><b>${RARITY[i].name}</b></div>`);
 const rarSym = (g) => (g.egg ? 'egg' : g.rar); // что показывает барабан редкости
+const abilCell = (a) => `<div class="rc rc-abil"><i>${a.icon ? `<img src="${esc(a.icon)}" alt="" draggable="false">` : ''}</i><span>${esc(a.name)}</span></div>`;
+const midCell = (s) => (typeof s === 'string' ? invCell(s) : abilCell(s)); // умение; инвест — если в сборке нет прокачки
+const abilSym = (g) => mainAbil(g) || g.lean.cat;
+// полоса умений: пока герой не известен — умения всех героев вперемешку, после — умения выпавшего героя
+let reelHero = null;
+const ABIL_N = 16;
+function abilStrip() {
+  const own = ((reelHero && reelHero.abilities) || []).filter((a) => a.id && a.icon);
+  if (own.length) { const out = []; while (out.length < ABIL_N) out.push(...shuffled(own)); return out.slice(0, ABIL_N); }
+  const all = D.heroes.flatMap((h) => (h.abilities || []).filter((a) => a.id && a.icon));
+  return all.length >= ABIL_N ? shuffled(all).slice(0, ABIL_N) : shuffled([...CATS, ...CATS, ...CATS, ...CATS]);
+}
 const RAR_STRIP = [0, 1, 2, 3, 1, 0, 4, 2, 1, 5, 0, 3, 1, 2];
 const SPEED = 24; // клеток в секунду на свободном ходу
 
 class Reel {
   constructor(el, gen, render) {
     this.el = el; this.strip = el.querySelector('.reel-strip'); this.gen = gen; this.render = render;
-    this.syms = gen(); this.L = this.syms.length; this.p = 0; this.mode = 'idle'; this.cell = 0;
+    this.p = 0; this.mode = 'idle'; this.cell = 0;
+    this.refill(); this.measure(); this.draw();
+  }
+  // новая полоса целиком (длина у gen всегда одна и та же)
+  refill() {
+    this.syms = this.gen(); this.L = this.syms.length;
     // элемент k полосы показывает символ (k−1): сверху — последний, снизу — первые два (для прокрутки по кругу)
     this.strip.innerHTML = Array.from({ length: this.L + 3 }, (_, k) => this.render(this.syms[mod(k - 1, this.L)])).join('');
-    this.measure(); this.draw();
   }
   measure() { const c = this.strip.firstElementChild; this.cell = c ? c.getBoundingClientRect().height : 0; }
   set(i, sym) {
@@ -501,7 +517,7 @@ function renderStage() {
           <img class="sm-cab" src="${IMG('cabinet')}" width="878" height="1511" alt="" draggable="false">
           <i class="sm-bulbs" aria-hidden="true">${BULBS.map(([x, y]) => `<i style="--x:${x}%;--y:${y}%"></i>`).join('')}</i>
           <div class="sm-reels">
-            ${[L('Герой', 'Hero'), L('Инвест', 'Investment'), L('Редкость', 'Rarity')].map((lbl, i) => `<div class="reel" data-reel="${i}" role="group" aria-label="${lbl}"><div class="reel-strip"></div></div>`).join('')}
+            ${[L('Герой', 'Hero'), L('Главное умение', 'Main ability'), L('Редкость', 'Rarity')].map((lbl, i) => `<div class="reel" data-reel="${i}" role="group" aria-label="${lbl}"><div class="reel-strip"></div></div>`).join('')}
             <i class="sm-line" aria-hidden="true"></i>
           </div>
           <button class="sm-lever" data-spin="1" aria-label="${L('Дёрнуть рычаг', 'Pull the lever')}" title="${L('Дёрнуть рычаг', 'Pull the lever')}">
@@ -514,15 +530,16 @@ function renderStage() {
       <p class="sl-msg" id="msg" role="status"></p>
       <div class="lb-cards sl-team" id="cards"></div>`;
     const els = st.querySelectorAll('.reel');
+    const g = state.slot.list[state.slot.cur];
+    reelHero = g ? g.hero : null;
     reels = [
       new Reel(els[0], () => shuffled(D.heroes), heroCell),
-      new Reel(els[1], () => shuffled([...CATS, ...CATS, ...CATS, ...CATS]), invCell),
+      new Reel(els[1], abilStrip, midCell),
       new Reel(els[2], () => { const k = Math.floor(Math.random() * RAR_STRIP.length); return RAR_STRIP.map((_, i) => RAR_STRIP[(i + k) % RAR_STRIP.length]); }, rarCell),
     ];
     reels.forEach((r, i) => { r.idx = i; });
     reels[2].ticks = true;
-    const g = state.slot.list[state.slot.cur];
-    if (g) { reels[0].show(g.hero); reels[1].show(g.lean.cat); reels[2].show(rarSym(g)); paintSoloWin(false); }
+    if (g) { reels[0].show(g.hero); reels[1].show(abilSym(g)); reels[2].show(rarSym(g)); paintSoloWin(false); }
     paintTeam();
   }
   renderOut();
@@ -580,12 +597,13 @@ async function spinSolo(kind = 'reroll') {
     setBusy(false);
     return;
   }
-  if (still) { reels[0].show(res.hero); reels[1].show(res.lean.cat); reels[2].show(rarSym(res)); }
+  reelHero = res.hero; // дальше средний барабан набирается из умений выпавшего героя
+  if (still) { reels[1].refill(); reels[0].show(res.hero); reels[1].show(abilSym(res)); reels[2].show(rarSym(res)); }
   else {
     // герой → инвест → редкость; последний барабан тянем дольше всех
     const a = reels[0].stopOn(res.hero, 9);
     await sleep(350);
-    const b = reels[1].stopOn(res.lean.cat, 15);
+    const b = reels[1].stopOn(abilSym(res), 15);
     await sleep(400);
     const c = reels[2].stopOn(rarSym(res), res.rar >= 4 || res.egg ? 20 : 17);
     await Promise.all([a, b, c]);
@@ -610,7 +628,8 @@ function pickSlot(i) {
   const T = state.slot; if (!T.list[i]) return;
   T.cur = i; T.open = i;
   const g = T.list[i];
-  reels[0].show(g.hero); reels[1].show(g.lean.cat); reels[2].show(rarSym(g));
+  reelHero = g.hero; reels[1].refill();
+  reels[0].show(g.hero); reels[1].show(abilSym(g)); reels[2].show(rarSym(g));
   paintSoloWin(false); paintTeam(); renderOut();
 }
 function dropSlot(i) {
@@ -699,6 +718,12 @@ async function openBox() {
   setBusy(false);
 }
 
+// строка карточки: главное умение сборки (иконка + название); без прокачки в сборке — инвест, как раньше
+function cardAbil(g) {
+  const a = mainAbil(g);
+  if (!a) return `<p class="lc-lean"><i class="dotc ${g.lean.cat}"></i>${esc(CAT_NAME[g.lean.cat])} ${pct(g.lean.share, 0)}</p>`;
+  return `<p class="lc-lean lc-abil" title="${L('Главное умение: качается первым', 'Main ability: maxed first')}"><i>${a.icon ? `<img src="${esc(a.icon)}" alt="">` : ''}</i><span>${esc(a.name)}</span></p>`;
+}
 function partyCard(g, i, flipped) {
   const r = RARITY[g.rar], team = !isParty(), cur = team && state.slot.cur === i;
   return `<article class="lc rar-${r.k}${flipped ? ' flipped' : ''}${cur ? ' cur' : ''}" style="--i:${i}" data-card="${i}">
@@ -709,7 +734,7 @@ function partyCard(g, i, flipped) {
         <div class="lc-rar">${g.rar === 5 ? 'Jackpot · ' : ''}${r.name}</div>
         <h3>${esc(g.hero.name)}</h3>
         <p class="lc-wr"><b>${pct(g.row.wr)}</b> · ${fmt(g.row.matches)} ${L('матчей', 'matches')}</p>
-        <p class="lc-lean"><i class="dotc ${g.lean.cat}"></i>${esc(CAT_NAME[g.lean.cat])} ${pct(g.lean.share, 0)}</p>
+        ${cardAbil(g)}
         <div class="lc-btns">
           <button class="btn btn-mini btn-game" data-game="${i}">${L('В игру', 'To game')}</button>
           <button class="btn btn-mini" data-open="${i}" aria-pressed="${S().open === i}">${L('Сборка', 'Build')}</button>
@@ -770,19 +795,26 @@ function cleanAbilityOrder(raw, allowed) {
   }
   return out;
 }
-function abilityPlan(b) {
-  const h = heroById[b.hero_id];
+// шаги прокачки сборки и приоритет: в каком порядке умения доводят до максимума
+// (кто раньше получил 3-е улучшение; недокачанные — по числу улучшений)
+function abilityPrio(b) {
+  const h = b && heroById[b.hero_id];
   const abs = ((h && h.abilities) || []).filter((a) => a.id);
   const own = new Set(abs.map((a) => a.id >>> 0));
-  const ch = cleanAbilityOrder(b.details && b.details.ability_order && b.details.ability_order.currency_changes, own);
-  if (!ch.length) return '';
-  // приоритет: в каком порядке умения доводят до максимума (кто раньше получил 3-е улучшение; недокачанные — по числу улучшений)
+  const ch = cleanAbilityOrder(b && b.details && b.details.ability_order && b.details.ability_order.currency_changes, own);
   const st = new Map(abs.map((a) => [a.id >>> 0, { a, ups: 0, first: Infinity, max: Infinity }]));
   ch.forEach((c, i) => {
     const x = st.get(c.ability_id >>> 0); if (!x || c.currency_type === 2) return;
     x.ups++; x.first = Math.min(x.first, i); if (x.ups === 3) x.max = i;
   });
   const prio = [...st.values()].filter((x) => x.ups).sort((p, q) => p.max - q.max || q.ups - p.ups || p.first - q.first);
+  return { abs, ch, prio };
+}
+// главное умение сборки — то, что качают в максимум первым; без прокачки в сборке — null
+const mainAbil = (g) => { const p = abilityPrio(g.build).prio[0]; return p ? p.a : null; };
+function abilityPlan(b) {
+  const { abs, ch, prio } = abilityPrio(b);
+  if (!ch.length) return '';
   const ic = (a) => (a.icon ? `<img src="${esc(a.icon)}" alt="">` : '');
   const cols = `grid-template-columns: 30px repeat(${ch.length}, minmax(24px, 1fr))`;
   return `<section class="g-abil sl-abil">

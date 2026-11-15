@@ -1,0 +1,15 @@
+# Cloudflare Worker счётчика статистики. Развёртывание — stats/README.md.
+name = "randomlock-stats"
+main = "worker.js"
+compatibility_date = "2026-11-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "randomlock-stats"
+database_id = "1e7e45cd-91bb-48fe-9207-55410939c52a"
+
+# не больше 120 событий в минуту с одного адреса (адрес нигде не хранится)
+[[ratelimits]]
+name = "LIMIT"
+namespace_id = "1001"
+simple = { limit = 120, period = 60 }

@@ -12,3 +12,8 @@ slot_machine/refs/*
 sound/
 *.key
 *.key.txt
+
+# счётчик статистики: служебные файлы wrangler и ключ админки
+stats/.wrangler/
+.wrangler/
+stats/.admin-token

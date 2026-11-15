@@ -281,7 +281,7 @@ function doRoll(kind = 'all', src = 'button') {
   kick(kind === 'all' ? '#roll-btn' : `[data-act="${kind}"]`);
   scrollToStage();
   const sc = state.stats ? scoreBuild(res.build, heroStats(res.hero)) : null;
-  track('roll', { kind, src, order: state.opts.order, invest: state.opts.mode, hero: res.hero.name, verdict: sc ? sc.verdict : '', chance: sc ? Math.round(sc.chance) : '', actives: res.build.filter((i) => i.active).length });
+  track('roll', { team: team ? 1 : 0, kind, src, order: state.opts.order, invest: state.opts.mode, hero: res.hero.name, verdict: sc ? sc.verdict : '', chance: sc ? Math.round(sc.chance) : '', actives: res.build.filter((i) => i.active).length });
   renderSkills();
   ensureAbilities(res.hero);
 }

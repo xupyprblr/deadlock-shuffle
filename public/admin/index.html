@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; connect-src 'self' https://randomlock-stats.randomlock.workers.dev; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Статистика — RANDOMLOCK</title>
+  <!-- Админка: статистика своего счётчика (stats/). Нигде не ссылается, данные только по ключу. -->
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#100e0e">
+  <script src="../js/theme.js"></script>
+  <link rel="icon" href="../favicon.ico" sizes="48x48">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:wght@800&family=Jost:wght@400;500;600&family=Rubik:wght@700;900&display=swap">
+  <link rel="stylesheet" href="../css/styles.css">
+  <link rel="stylesheet" href="../css/admin.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <a class="brand" href="../"><b>Random<em>lock</em></b><span class="tag ad-tag">stats</span></a>
+    </header>
+    <main id="admin" class="ad"><div class="loading">Загружаю…</div></main>
+  </div>
+  <script type="module" src="../js/admin.js"></script>
+</body>
+</html>

@@ -2,6 +2,16 @@
 Обновлено: 14.11.2026, локально (VS Code + Claude Code), ветка dev
 
 ## Сделано в последней сессии
+- **Свой счётчик статистики и админка** (решение Алекса: Cloudflare Worker + D1, бесплатно; GA4 остаётся как есть).
+  `stats/worker.js` принимает события `POST /hit` и отдаёт итоги `GET /stats` по ключу; хранятся только счётчики по дням
+  (без cookies, IP и личных данных), раздельно main / dev. `track()` в `analytics.js` шлёт событие и в счётчик
+  (всегда, и на dev, и без согласия на cookies). Добавлены параметры: `roll.team`, `slots_spin.got`, `to_game.mode`.
+  Админка `public/admin/` (noindex, нигде не ссылается, только RU): разделы (крутки / в игру / конверсия),
+  по дням, редкости, топ героев, режимы, ссылки и соцсети. Локально: `node stats/dev.mjs` (ключ `dev`), тест `node scripts/test-stats.mjs`.
+  **Развёрнуто** в аккаунте Cloudflare Алекса: https://randomlock-stats.randomlock.workers.dev (D1 `randomlock-stats`, регион WEUR).
+  Адрес вписан в `STATS_URL` и в CSP `index.html`, `slots.html`, `my.html`, `lab/builds.html`, `admin/index.html`.
+  Ключ админки лежит у Алекса в `stats/.admin-token` (в `.gitignore`), он же секрет `ADMIN_TOKEN` Worker.
+  Обновить Worker: `cd stats && npx wrangler deploy`. На main счётчик заработает с переносом dev → main.
 - Разделы сайта переименованы и сведены в два (вкладки сверху на обеих страницах): **Рандом** (`/`, EN Randomizer) и
   **Казино билдов** (`slots.html`, EN Build Casino). Под вкладками — переключатель режима раздела (`.mode-seg` в `styles.css`):
   в «Рандоме» — Соло / Команда (раньше это были отдельные вкладки «Соло» и «Собрать команду»), в казино — Автомат / Лутбокс.

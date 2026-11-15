@@ -592,7 +592,7 @@ async function spinSolo(kind = 'reroll') {
   }
   if (!res) try { const got = await rollBuilds(1, skip); res = got.list[0] || null; short = got.short; } catch (e) { err = e.message; }
   if (!still) await sleep(Math.max(0, 700 - (performance.now() - t0)));
-  track('slots_spin', { mode: 'slot', kind, team: T.list.length + (kind === 'next' ? 1 : 0), hero: opts.heroes.length === 1 ? heroById[opts.heroes[0]].name : opts.heroes.length ? 'pool' : 'any', invest: opts.lean, floor: RARITY[opts.floor].k, found: res ? 1 : 0, rarity: res ? (res.egg ? 'egg' : RARITY[res.rar].k) : '', build: res ? res.row.id : '' });
+  track('slots_spin', { mode: 'slot', kind, team: T.list.length + (kind === 'next' ? 1 : 0), hero: opts.heroes.length === 1 ? heroById[opts.heroes[0]].name : opts.heroes.length ? 'pool' : 'any', invest: opts.lean, floor: RARITY[opts.floor].k, found: res ? 1 : 0, rarity: res ? (res.egg ? 'egg' : RARITY[res.rar].k) : '', got: res ? res.hero.name : '', build: res ? res.row.id : '' });
   if (!res) {
     // нечего показать — барабаны просто останавливаются где были
     if (!still) await Promise.all(reels.map((r, i) => r.stopOn(r.syms[mod(Math.floor(r.p) - 6 - i * 2, r.L)], 6 + i * 2)));
@@ -685,7 +685,7 @@ async function openBox() {
   if (!still) await sleep(Math.max(0, 1500 - (performance.now() - t0)));
   const list = got ? got.list : [];
   const best = list.reduce((m, g) => Math.max(m, g.rar), 0);
-  track('slots_spin', { mode: 'box', size: opts.party, hero: opts.heroes.length ? 'pool' : 'any', invest: opts.lean, floor: RARITY[opts.floor].k, found: list.length, rarity: list.length ? RARITY[best].k : '' });
+  track('slots_spin', { mode: 'box', size: opts.party, hero: opts.heroes.length ? 'pool' : 'any', invest: opts.lean, floor: RARITY[opts.floor].k, found: list.length, rarity: list.length ? RARITY[best].k : '', got: list.length ? list.find((g) => g.rar === best).hero.name : '' });
   SFX.shake(false);
   if (!list.length) {
     lb.dataset.state = 'idle';
@@ -968,7 +968,7 @@ document.addEventListener('click', (e) => {
     const g = current(+d.game); if (!g) return;
     try {
       copy(gameCode(g), L(`Код для ${g.hero.name} скопирован. В игре: Поиск сборок → Создать сборку → Вставить сборку`, `Code for ${g.hero.name} copied. In game: Build Browser → Create new Build → Paste Build`));
-      track('to_game', { from: 'slots', build: g.row.id, hero: g.hero.name, rarity: RARITY[g.rar].k });
+      track('to_game', { from: 'slots', mode: mode(), build: g.row.id, hero: g.hero.name, rarity: g.egg ? 'egg' : RARITY[g.rar].k });
     } catch { toast(L('Не удалось собрать код сборки', 'Could not build the code')); }
     return;
   }

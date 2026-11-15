@@ -6,8 +6,15 @@
 // Согласие на cookies (плашка внизу, только на основном сайте):
 //  • до выбора и после «Отказаться» GA работает в Consent Mode без cookies (обезличенные пинги);
 //  • после «Принять» — полноценно; Метрика (если подключена) запускается только после «Принять».
-// На тестовом сайте (/dev/) аналитика выключена целиком.
+// На тестовом сайте (/dev/) GA и Метрика выключены целиком.
+//
+// Свой счётчик (stats/, Cloudflare Worker): те же события, но только обезличенные итоги — без cookies и личных данных,
+// поэтому шлём всегда: и на dev (env=dev), и без согласия. Белый список событий и параметров — stats/worker.js.
+// Смотреть — админка /admin/ (по ключу).
 import { IS_DEV } from './env.js';
+
+// адрес Worker счётчика ('' — выключен); с localhost — локальный node stats/dev.mjs
+export const STATS_URL = typeof location !== 'undefined' && location.hostname === 'localhost' ? 'http://localhost:8787' : 'https://randomlock-stats.randomlock.workers.dev';
 
 export const ANALYTICS = {
   ga: 'G-THC8ZRB51Z', // идентификатор потока GA4 «Randomlock» (https://randomlock.com)
@@ -43,7 +50,16 @@ function applyConsent(v) {
   if (v === 'granted') startYm();
 }
 
+let clicksBound = false;
 export function initAnalytics(page) {
+  if (!clicksBound) {
+    clicksBound = true;
+    // клики по ссылкам шапки и подвала (соцсети, «Поддержать», переходы между разделами) — одним обработчиком
+    document.addEventListener('click', (e) => {
+      const a = e.target.closest && e.target.closest('a[data-track]');
+      if (a) track(a.dataset.track, { target: a.dataset.trackV || a.href });
+    }, true);
+  }
   if (started || !on()) return;
   started = true;
   const consent = getConsent();
@@ -61,11 +77,6 @@ export function initAnalytics(page) {
   }
   if (consent === 'granted') startYm();
   if (!consent) setTimeout(showBanner, 1200); // после первой отрисовки: язык страницы уже выбран
-  // клики по внешним ссылкам шапки и подвала — одним обработчиком
-  document.addEventListener('click', (e) => {
-    const a = e.target.closest && e.target.closest('a[data-track]');
-    if (a) track(a.dataset.track, { target: a.dataset.trackV || a.href });
-  }, true);
 }
 
 const TEXT = {
@@ -91,9 +102,19 @@ function showBanner() {
 
 // Событие: имя латиницей через «_», параметры — строки и числа
 export function track(name, params = {}) {
-  if (!on()) return;
   const p = {};
   for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null && v !== '') p[k] = typeof v === 'number' ? v : String(v).slice(0, 100);
+  hit(name, p);
+  if (!on()) return;
   try { if (ANALYTICS.ga && window.gtag) window.gtag('event', name, p); } catch {}
   try { if (ANALYTICS.ym && window.ym && ymStarted) window.ym(ANALYTICS.ym, 'reachGoal', name, p); } catch {}
+}
+
+// свой счётчик: sendBeacon с text/plain уходит без preflight и не теряется при переходе по ссылке
+function hit(ev, p) {
+  if (!STATS_URL) return;
+  try {
+    const body = new Blob([JSON.stringify({ env: IS_DEV ? 'dev' : 'main', ev, p })], { type: 'text/plain' });
+    if (!(navigator.sendBeacon && navigator.sendBeacon(STATS_URL + '/hit', body))) fetch(STATS_URL + '/hit', { method: 'POST', body, keepalive: true, mode: 'cors' }).catch(() => {});
+  } catch {}
 }

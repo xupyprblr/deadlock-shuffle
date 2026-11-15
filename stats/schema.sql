@@ -11,6 +11,12 @@ CREATE TABLE IF NOT EXISTS hits (
 );
 CREATE INDEX IF NOT EXISTS hits_env_day ON hits (env, day);
 
+-- Настройки, которые меняются из админки (пул пасхалки автомата: k = 'egg:main' / 'egg:dev', v — JSON).
+CREATE TABLE IF NOT EXISTS config (
+  k TEXT PRIMARY KEY,
+  v TEXT NOT NULL
+);
+
 -- Отпечатки посетителей за текущие сутки (sha256 с солью дня), только чтобы не считать человека дважды.
 -- Старше вчерашнего дня удаляются самим Worker.
 CREATE TABLE IF NOT EXISTS visitors (

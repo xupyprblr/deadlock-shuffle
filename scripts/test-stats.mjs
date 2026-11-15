@@ -1,6 +1,6 @@
 // Тест счётчика статистики (stats/worker.js) на базе в памяти: node scripts/test-stats.mjs
 import assert from 'node:assert/strict';
-import worker, { parseHit, cleanVal, EVENTS, dayOf, isBot } from '../stats/worker.js';
+import worker, { parseHit, cleanVal, EVENTS, dayOf, isBot, cleanEgg, EGG_DEFAULT } from '../stats/worker.js';
 import { memDB } from '../stats/memdb.mjs';
 
 // чистка значений
@@ -63,5 +63,17 @@ assert.equal(total('visitor'), 2, 'уникальные посетители');
 assert.equal(dim('pageview', 'page', 'slots'), 3);
 const sd = await (await get('secret-token', 'env=dev&days=1')).json();
 assert.equal(sd.daily.reduce((a, x) => a + x.n, 0), 1);
+
+// пул пасхалки
+assert.deepEqual(cleanEgg([{ id: 5, ru: ' Привет <b> ', en: '' }]), [{ id: 5, ru: 'Привет b', en: 'Привет b' }], 'текст чистится, пустой EN берёт RU');
+assert.equal(cleanEgg([{ id: 'x', ru: 'a' }]), null);
+assert.equal(cleanEgg([{ id: 1 }]), null, 'без текста нельзя');
+assert.equal(cleanEgg('nope'), null);
+const eggReq = (method, q, body, token) => worker.fetch(new Request('https://s/egg?' + q, { method, headers: { Origin: O, ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body }), env);
+assert.deepEqual((await (await eggReq('GET', 'env=main')).json()).pool, EGG_DEFAULT, 'по умолчанию — встроенный пул');
+assert.equal((await eggReq('PUT', 'env=dev', JSON.stringify({ pool: [{ id: 7, ru: 'ТЕСТ', en: 'TEST' }] }))).status, 401, 'без ключа не сохранить');
+assert.equal((await eggReq('PUT', 'env=dev', JSON.stringify({ pool: [{ id: 7, ru: 'ТЕСТ', en: 'TEST' }] }), 'secret-token')).status, 200);
+assert.deepEqual((await (await eggReq('GET', 'env=dev')).json()).pool, [{ id: 7, ru: 'ТЕСТ', en: 'TEST' }]);
+assert.deepEqual((await (await eggReq('GET', 'env=main')).json()).pool, EGG_DEFAULT, 'main и dev раздельно');
 
 console.log('OK: счётчик статистики (белый список, составные разрезы, посетители без IP, ключ, Origin, main/dev)');

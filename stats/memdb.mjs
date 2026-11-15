@@ -3,7 +3,10 @@
 export function memDB() {
   const rows = new Map(); // ключ day|env|ev|dim|val → строка
   const seen = new Set(); // отпечатки посетителей day|env|h
+  const config = new Map();
   const run = ({ sql, a }) => {
+    if (sql.startsWith('INSERT INTO config')) { config.set(a[0], a[1]); return { results: [], meta: { changes: 1 } }; }
+    if (sql.startsWith('SELECT v FROM config')) return { results: config.has(a[0]) ? [{ v: config.get(a[0]) }] : [] };
     if (sql.startsWith('INSERT OR IGNORE INTO visitors')) {
       const k = a.join('|'), had = seen.has(k); seen.add(k);
       return { results: [], meta: { changes: had ? 0 : 1 } };
@@ -24,7 +27,7 @@ export function memDB() {
   };
   return {
     rows, seen,
-    prepare: (sql) => ({ bind: (...a) => { const q = { sql, a }; q.run = async () => run(q); return q; } }),
+    prepare: (sql) => ({ bind: (...a) => { const q = { sql, a }; q.run = async () => run(q); q.first = async () => run(q).results[0] || null; return q; } }),
     batch: async (list) => list.map(run),
   };
 }

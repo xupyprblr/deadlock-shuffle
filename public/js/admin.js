@@ -15,6 +15,8 @@ const avgNum = (n) => (n > 0 && n < 10 ? (Math.round(n * 10) / 10).toLocaleStrin
 const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 + '%' : '—');
 
 const st = { token: store.get(KEY) || '', env: IS_DEV ? 'dev' : 'main', days: 7, data: null, err: '', busy: false };
+// пул пасхалки автомата (GET/PUT /egg): правится здесь, сайт берёт его при открытии казино
+const egg = { env: '', pool: [], msg: '', saving: false };
 const PERIODS = [[1, 'Сегодня'], [7, '7 дней'], [30, '30 дней'], [90, '90 дней']];
 
 // подписи значений
@@ -38,8 +40,40 @@ async function load() {
     if (r.status === 401) { st.err = 'Неверный ключ.'; st.token = ''; store.set(KEY, ''); st.data = null; }
     else if (!r.ok) st.err = `Счётчик ответил ошибкой ${r.status}.`;
     else st.data = await r.json();
+    if (st.data && egg.env !== st.env) {
+      const e = await fetch(`${STATS_URL}/egg?env=${st.env}`, { cache: 'no-store' }).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+      if (e && Array.isArray(e.pool)) { egg.env = st.env; egg.pool = e.pool.map((x) => ({ ...x })); egg.msg = ''; }
+    }
   } catch { st.err = 'Нет связи со счётчиком.'; }
   st.busy = false; paint();
+}
+async function saveEgg() {
+  const pool = egg.pool.map((x) => ({ id: +String(x.id).replace(/\D/g, ''), ru: String(x.ru || '').trim(), en: String(x.en || '').trim() })).filter((x) => x.id && (x.ru || x.en));
+  egg.saving = true; egg.msg = 'Сохраняю…'; paint();
+  try {
+    const r = await fetch(`${STATS_URL}/egg?env=${egg.env}`, { method: 'PUT', headers: { Authorization: 'Bearer ' + st.token, 'Content-Type': 'application/json' }, body: JSON.stringify({ pool }) });
+    const d = await r.json().catch(() => null);
+    if (r.ok && d) { egg.pool = d.pool.map((x) => ({ ...x })); egg.msg = `Сохранено: ${d.pool.length} шт. Новые крутки на ${egg.env === 'main' ? 'сайте' : 'dev'} берут этот пул.`; }
+    else egg.msg = r.status === 401 ? 'Неверный ключ.' : 'Не сохранилось: проверь ID (только цифры) и текст.';
+  } catch { egg.msg = 'Нет связи со счётчиком.'; }
+  egg.saving = false; paint();
+}
+function eggSection() {
+  return `<section class="ad-sec" id="egg">
+    <h2>Пасхалка автомата</h2>
+    <p class="muted ad-egg-note">Редко (2% круток в автомате, при любых настройках) на всех барабанах выпадает лого, а игроку достаётся одна из этих сборок —
+      случайная. Текст показывается на табло вместо «ГЕРОЙ %». Пул свой для ${st.env === 'main' ? '<b>сайта</b>' : '<b>dev</b>'} (переключатель вверху).</p>
+    <div class="ad-egg">
+      <div class="ad-egg-row ad-egg-h"><span>ID сборки</span><span>Текст RU</span><span>Текст EN</span><span></span></div>
+      ${egg.pool.map((x, i) => `<div class="ad-egg-row">
+        <input data-egg="${i}" data-k="id" inputmode="numeric" value="${esc(x.id)}" placeholder="249095" aria-label="ID сборки">
+        <input data-egg="${i}" data-k="ru" maxlength="32" value="${esc(x.ru)}" placeholder="БАЛТИКА 7" aria-label="Текст RU">
+        <input data-egg="${i}" data-k="en" maxlength="32" value="${esc(x.en)}" placeholder="BALTICA 7" aria-label="Текст EN">
+        <button class="btn btn-mini" data-egg-del="${i}" aria-label="Убрать">×</button></div>`).join('')}
+    </div>
+    <div class="ad-egg-acts"><button class="btn btn-mini" data-egg-add="1">+ Добавить</button><button class="btn btn-game" data-egg-save="1"${egg.saving ? ' disabled' : ''}>Сохранить</button>
+      ${egg.msg ? `<span class="muted">${esc(egg.msg)}</span>` : ''}</div>
+  </section>`;
 }
 
 function model(d) {
@@ -187,6 +221,7 @@ function paint() {
         ])}</div>
       </div>
     </section>
+    ${eggSection()}
     <p class="muted ad-note">Счётчик не использует cookies и не хранит IP: для уникальных посетителей — только суточный обезличенный отпечаток, который удаляется на следующий день; остальное — итоги по дням. Данные GA4 — отдельно, в Google Analytics.</p>`;
 }
 
@@ -201,8 +236,15 @@ root.addEventListener('submit', (e) => {
   const t = new FormData(e.target).get('t');
   st.token = String(t || '').trim(); store.set(KEY, st.token); load();
 });
+root.addEventListener('input', (e) => {
+  const t = e.target; if (t.dataset.egg === undefined) return;
+  const x = egg.pool[+t.dataset.egg]; if (x) x[t.dataset.k] = t.value; // без перерисовки, чтобы не терять фокус
+});
 root.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b || st.busy) return;
+  if (b.dataset.eggAdd) { egg.pool.push({ id: '', ru: '', en: '' }); egg.msg = ''; paint(); return; }
+  if (b.dataset.eggDel !== undefined) { egg.pool.splice(+b.dataset.eggDel, 1); egg.msg = 'Не забудь сохранить.'; paint(); return; }
+  if (b.dataset.eggSave) { saveEgg(); return; }
   if (b.dataset.env) { st.env = b.dataset.env; load(); }
   else if (b.dataset.days) { st.days = +b.dataset.days; load(); }
   else if (b.dataset.logout) { st.token = ''; st.data = null; store.set(KEY, ''); paint(); }

@@ -3,7 +3,7 @@
 // Редкость — по винрейту сборки за 30 дней: Trash … Legendary (60%+ — джекпот).
 // Все данные — напрямую из Deadlock API в браузере, как в лаборатории.
 import { encodeBuildCode } from './buildcode.js';
-import { initAnalytics, track } from './analytics.js';
+import { initAnalytics, track, STATS_URL } from './analytics.js';
 import { NS, IS_DEV, markDev } from './env.js';
 import { getLang, setLang } from './lang.js';
 import { play, loop as sndLoop, loopSpeed, setSound } from './slots-sound.js';
@@ -20,9 +20,20 @@ const PARTY_MAX = 6;
 // Гарантия лутбокса: одна карточка не ниже этой редкости (индекс в RARITY) — по размеру пати.
 // 2–3 → Unique+, 4–5 → Rare+, 6 → Ultra Rare+; на 1 карточку гарантии нет. Остальные карточки крутятся как обычно.
 const GUARANTEE = { 2: 2, 3: 2, 4: 3, 5: 3, 6: 4 };
-// Пасхалка автомата: с шансом 1% вместо Trash выпадает лого канала («ОЙ ОЙ ОЙ» / «PATCH SOON»).
-// Выдаётся настоящая Trash-сборка; при планке винрейта выше Trash пасхалки нет. В dev и на localhost с ?egg — всегда.
-const EGG_CHANCE = (IS_DEV || location.hostname === 'localhost') && /[?&]egg(&|=|$)/.test(location.search) ? 1 : 0.01;
+// Пасхалка автомата: с шансом EGG_CHANCE при любых настройках на всех барабанах лого канала, а выдаётся сборка из пула
+// (случайная), на табло — её текст. Пул правится в админке (/admin/ → «Пасхалка автомата»), хранится в счётчике (GET /egg).
+// Если счётчик недоступен — встроенный пул ниже. В лутбоксе пасхалки нет. В dev и на localhost с ?egg — всегда.
+const EGG_CHANCE = (IS_DEV || location.hostname === 'localhost') && /[?&]egg(&|=|$)/.test(location.search) ? 1 : 0.02;
+let eggPool = [
+  { id: 249095, ru: 'БАЛТИКА 7', en: 'BALTICA 7' },
+  { id: 410706, ru: 'САНЯ БИБЧИК', en: 'MELEE BEBOP' },
+];
+function loadEggPool() {
+  if (!STATS_URL) return;
+  fetch(`${STATS_URL}/egg?env=${IS_DEV ? 'dev' : 'main'}`).then((r) => (r.ok ? r.json() : null))
+    .then((d) => { if (d && Array.isArray(d.pool) && d.pool.length) eggPool = d.pool.filter((e) => e && Number.isInteger(e.id)); })
+    .catch(() => {});
+}
 
 // Редкости по винрейту сборки. min — нижняя граница (доля побед).
 const RARITY = [
@@ -155,11 +166,10 @@ function leanOf(b) {
 
 // ---------- подбор сборок ----------
 const seen = new Set();
-let rarCap = -1; // ≥ 0 — брать сборки не выше этой редкости (пасхалка автомата: только Trash)
 // Одна сборка для героя под текущие условия или null; minRar — поднять нижнюю планку редкости (гарантия лутбокса)
 async function findFor(hero, minRar = 0) {
   const floor = RARITY[Math.max(opts.floor, minRar)].min;
-  const rows = (await heroPoolRows(hero.id)).map(([id, matches, players, wins]) => ({ id, matches, players, wins, wr: wins / matches })).filter((r) => r.wr >= floor && (rarCap < 0 || rarityOf(r.wr) <= rarCap));
+  const rows = (await heroPoolRows(hero.id)).map(([id, matches, players, wins]) => ({ id, matches, players, wins, wr: wins / matches })).filter((r) => r.wr >= floor);
   if (!rows.length) return null;
   const order = [...shuffled(rows.filter((r) => !seen.has(r.id))), ...shuffled(rows.filter((r) => seen.has(r.id)))];
   const hit = (r, b) => { const lean = leanOf(b); return b && lean && (opts.lean === 'any' || lean.cat === opts.lean) ? { hero, row: r, build: b, lean, pool: rows.length, rar: rarityOf(r.wr) } : null; };
@@ -193,6 +203,20 @@ async function rollLucky(rar) {
         if (g) return g;
       }
     }
+  }
+  return null;
+}
+
+// Пасхалка: случайная сборка из пула (герой не из skip). Статистика — из пула героя, если сборка в нём есть.
+async function rollEgg(skip) {
+  for (const e of shuffled(eggPool)) {
+    const b = await getBuild(e.id).catch(() => null);
+    const hero = b && heroById[b.hero_id];
+    if (!hero || skip.has(hero.id)) continue;
+    const r = (await heroPoolRows(hero.id).catch(() => [])).find((x) => x[0] === e.id);
+    const row = r ? { id: e.id, matches: r[1], players: r[2], wins: r[3], wr: r[3] / r[1] } : { id: e.id, matches: 0, players: 0, wins: 0, wr: NaN };
+    seen.add(e.id);
+    return { hero, row, build: b, lean: leanOf(b) || { cat: CATS[0], share: 0 }, pool: 0, rar: r ? rarityOf(row.wr) : 0, egg: { ru: e.ru, en: e.en || e.ru } };
   }
   return null;
 }
@@ -334,15 +358,18 @@ const centerOf = (el) => { const r = el.getBoundingClientRect(); return [r.left 
 // арт автомата: public/img/slots/, нарезка и замеры — slot_machine/cut.py → slot_machine/layout.json
 const IMG = (n) => `img/slots/${n}.webp`;
 const BULBS = [[13.45, 7.9], [24.03, 4.43], [36.43, 2.64], [50.42, 1.94], [64.37, 2.64], [77.03, 4.48], [87.49, 7.96]]; // центры ламп вывески, % корпуса
-const heroCell = (h) => `<div class="rc rc-hero">${h.small ? `<img src="${esc(h.small)}" alt="" draggable="false">` : ''}<span>${esc(h.name)}</span></div>`;
+const eggCell = () => `<div class="rc rc-rar rar-egg"><img src="${IMG('egg')}" alt="" draggable="false"><b>${L('ОЙ!', 'OOPS!')}</b></div>`;
+const heroCell = (h) => (h === 'egg' ? eggCell() : `<div class="rc rc-hero">${h.small ? `<img src="${esc(h.small)}" alt="" draggable="false">` : ''}<span>${esc(h.name)}</span></div>`);
 const invCell = (c) => `<div class="rc rc-inv ${c}"><img src="${IMG('sym-' + c)}" alt="" draggable="false"><span>${esc(CAT_NAME[c])}</span></div>`;
-const rarCell = (i) => (i === 'egg'
-  ? `<div class="rc rc-rar rar-egg"><img src="${IMG('egg')}" alt="" draggable="false"><b>${L('ОЙ!', 'OOPS!')}</b></div>`
-  : `<div class="rc rc-rar rar-${RARITY[i].k}"><img src="${IMG('rar-' + RARITY[i].k)}" alt="" draggable="false"><b>${RARITY[i].name}</b></div>`);
-const rarSym = (g) => (g.egg ? 'egg' : g.rar); // что показывает барабан редкости
+const rarCell = (i) => (i === 'egg' ? eggCell() : `<div class="rc rc-rar rar-${RARITY[i].k}"><img src="${IMG('rar-' + RARITY[i].k)}" alt="" draggable="false"><b>${RARITY[i].name}</b></div>`);
+// что показывают барабаны: при пасхалке — лого на всех трёх
+const heroSym = (g) => (g.egg ? 'egg' : g.hero);
+const rarSym = (g) => (g.egg ? 'egg' : g.rar);
+const EGG_RAR = { k: 'egg', name: L('Пасхалка', 'Easter egg') };
+const rarOf = (g) => (g.egg ? EGG_RAR : RARITY[g.rar]);
 const abilCell = (a) => `<div class="rc rc-abil"><i>${a.icon ? `<img src="${esc(a.icon)}" alt="" draggable="false">` : ''}</i><span>${esc(a.name)}</span></div>`;
-const midCell = (s) => (typeof s === 'string' ? invCell(s) : abilCell(s)); // умение; инвест — если в сборке нет прокачки
-const abilSym = (g) => mainAbil(g) || g.lean.cat;
+const midCell = (s) => (s === 'egg' ? eggCell() : typeof s === 'string' ? invCell(s) : abilCell(s)); // умение; инвест — если в сборке нет прокачки
+const abilSym = (g) => (g.egg ? 'egg' : mainAbil(g) || g.lean.cat);
 // полоса умений: пока герой не известен — умения всех героев вперемешку, после — умения выпавшего героя
 let reelHero = null;
 const ABIL_N = 16;
@@ -559,7 +586,7 @@ function renderStage() {
     ];
     reels.forEach((r, i) => { r.idx = i; });
     reels[2].ticks = true;
-    if (g) { reels[0].show(g.hero); reels[1].show(abilSym(g)); reels[2].show(rarSym(g)); paintSoloWin(false); }
+    if (g) { reels[0].show(heroSym(g)); reels[1].show(abilSym(g)); reels[2].show(rarSym(g)); paintSoloWin(false); }
     paintTeam();
   }
   renderOut();
@@ -597,11 +624,10 @@ async function spinSolo(kind = 'reroll') {
   // герои остальных игроков команды не повторяются
   const skip = new Set(T.list.filter((_, i) => i !== slot).map((g) => g.hero.id));
   let short = false;
-  // пасхалка: сперва пробуем Trash-сборку; не нашлось — обычная крутка
-  if (opts.floor === 0 && Math.random() < EGG_CHANCE) {
-    rarCap = 0;
-    try { const got = await rollBuilds(1, skip); res = got.list[0] || null; short = got.short; } catch { res = null; } finally { rarCap = -1; }
-    if (res) { res.egg = true; if (!EGG_IMG.src) EGG_IMG.src = IMG('egg'); }
+  // пасхалка: при любых настройках, сборка из пула; не загрузилась — обычная крутка
+  if (Math.random() < EGG_CHANCE) {
+    res = await rollEgg(skip).catch(() => null);
+    if (res && !EGG_IMG.src) EGG_IMG.src = IMG('egg');
   }
   if (!res) try { const got = await rollBuilds(1, skip); res = got.list[0] || null; short = got.short; } catch (e) { err = e.message; }
   if (!still) await sleep(Math.max(0, 700 - (performance.now() - t0)));
@@ -618,10 +644,10 @@ async function spinSolo(kind = 'reroll') {
     return;
   }
   reelHero = res.hero; // дальше средний барабан набирается из умений выпавшего героя
-  if (still) { reels[1].refill(); reels[0].show(res.hero); reels[1].show(abilSym(res)); reels[2].show(rarSym(res)); }
+  if (still) { reels[1].refill(); reels[0].show(heroSym(res)); reels[1].show(abilSym(res)); reels[2].show(rarSym(res)); }
   else {
     // герой → инвест → редкость; последний барабан тянем дольше всех
-    const a = reels[0].stopOn(res.hero, 9);
+    const a = reels[0].stopOn(heroSym(res), 9);
     await sleep(350);
     const b = reels[1].stopOn(abilSym(res), 15);
     await sleep(400);
@@ -649,7 +675,7 @@ function pickSlot(i) {
   T.cur = i; T.open = i;
   const g = T.list[i];
   reelHero = g.hero; reels[1].refill();
-  reels[0].show(g.hero); reels[1].show(abilSym(g)); reels[2].show(rarSym(g));
+  reels[0].show(heroSym(g)); reels[1].show(abilSym(g)); reels[2].show(rarSym(g));
   paintSoloWin(false); paintTeam(); renderOut();
 }
 function dropSlot(i) {
@@ -663,11 +689,11 @@ function dropSlot(i) {
 function paintSoloWin(animate) {
   const g = state.slot.list[state.slot.cur], sm = document.getElementById('sm'), plate = document.getElementById('plate');
   if (!g || !sm) return;
-  const r = g.egg ? { k: 'egg', name: 'Trash' } : RARITY[g.rar];
+  const r = rarOf(g);
   sm.dataset.state = 'win'; sm.dataset.rar = r.k;
   sm.classList.toggle('fresh', animate);
-  const line = g.egg ? L('ОЙ ОЙ ОЙ', 'PATCH SOON') : `${g.hero.name} ${pct(g.row.wr)}`;
-  plate.innerHTML = `<div class="sm-win rar-${r.k}${animate ? ' in' : ''}" title="${r.name} · ${esc(g.hero.name)} · ${L('винрейт', 'win rate')} ${pct(g.row.wr)} · ${fmt(g.row.matches)} ${L('матчей', 'matches')}">${g.rar === 5 ? '<em class="sm-jack">Jackpot!</em>' : ''}<b style="--len:${line.length}">${esc(line)}</b></div>`;
+  const line = g.egg ? L(g.egg.ru, g.egg.en) : `${g.hero.name} ${pct(g.row.wr)}`;
+  plate.innerHTML = `<div class="sm-win rar-${r.k}${animate ? ' in' : ''}" title="${r.name} · ${esc(g.hero.name)} · ${L('винрейт', 'win rate')} ${pct(g.row.wr)} · ${fmt(g.row.matches)} ${L('матчей', 'matches')}">${g.rar === 5 && !g.egg ? '<em class="sm-jack">Jackpot!</em>' : ''}<b style="--len:${line.length}">${esc(line)}</b></div>`;
   if (!animate) return;
   const [x, y] = centerOf(sm.querySelector('.sm-reels'));
   if (g.egg) { SFX.egg(); logoRain(); burst(x, y, '#2be38a', 40, 600); burst(x, y, '#c8323c', 40, 560); flash('egg'); return; }
@@ -746,15 +772,15 @@ function cardAbil(g) {
   return `<p class="lc-lean lc-abil" title="${L('Главное умение: качается первым', 'Main ability: maxed first')}"><i>${a.icon ? `<img src="${esc(a.icon)}" alt="">` : ''}</i><span>${esc(a.name)}</span></p>`;
 }
 function partyCard(g, i, flipped) {
-  const r = RARITY[g.rar], team = !isParty(), cur = team && state.slot.cur === i;
+  const r = rarOf(g), team = !isParty(), cur = team && state.slot.cur === i;
   return `<article class="lc rar-${r.k}${flipped ? ' flipped' : ''}${cur ? ' cur' : ''}" style="--i:${i}" data-card="${i}">
     <div class="lc-in">
       <div class="lc-back"></div>
       <div class="lc-front">
         <div class="lc-art">${g.hero.card ? `<img src="${esc(g.hero.card)}" alt="" loading="lazy">` : ''}<span class="lc-n"${cur ? ` title="${L('Сейчас на автомате', 'On the machine now')}"` : ''}>${L('Игрок', 'Player')} ${i + 1}</span>${team ? `<button class="sl-x" data-drop="${i}" title="${L('Убрать игрока', 'Remove player')}" aria-label="${L('Убрать игрока', 'Remove player')} ${i + 1}">×</button>` : ''}</div>
-        <div class="lc-rar">${g.rar === 5 ? 'Jackpot · ' : ''}${r.name}</div>
+        <div class="lc-rar">${g.egg ? esc(L(g.egg.ru, g.egg.en)) : `${g.rar === 5 ? 'Jackpot · ' : ''}${r.name}`}</div>
         <h3>${esc(g.hero.name)}</h3>
-        <p class="lc-wr"><b>${pct(g.row.wr)}</b> · ${fmt(g.row.matches)} ${L('матчей', 'matches')}</p>
+        <p class="lc-wr">${g.row.matches ? `<b>${pct(g.row.wr)}</b> · ${fmt(g.row.matches)} ${L('матчей', 'matches')}` : L('Секретная сборка', 'Secret build')}</p>
         ${cardAbil(g)}
         <div class="lc-btns">
           <button class="btn btn-mini btn-game" data-game="${i}">${L('В игру', 'To game')}</button>
@@ -852,7 +878,7 @@ function abilityPlan(b) {
   </section>`;
 }
 function buildPanel(g, idx) {
-  const b = g.build, r = RARITY[g.rar], id = g.row.id;
+  const b = g.build, r = rarOf(g), id = g.row.id;
   const cats = (b.details && b.details.mod_categories) || [];
   return `<article class="g-build sl-build rar-${r.k}">
     <header class="g-head">
@@ -860,7 +886,7 @@ function buildPanel(g, idx) {
       <div class="g-title">
         <div class="sl-tags"><span class="sl-tag rar-${r.k}">${r.name}</span><span class="sl-tag inv ${g.lean.cat}">${esc(CAT_NAME[g.lean.cat])} ${pct(g.lean.share, 0)}</span></div>
         <h2>${esc(b.name || L('Без названия', 'Untitled'))}</h2>
-        <div class="g-sub"><span>${esc(g.hero.name)}</span><span>${L('Винрейт', 'Win rate')}: <b>${pct(g.row.wr)}</b></span><span>${fmt(g.row.matches)} ${L('матчей', 'matches')} · ${fmt(g.row.players)} ${L('игроков', 'players')}</span></div>
+        <div class="g-sub"><span>${esc(g.hero.name)}</span>${g.row.matches ? `<span>${L('Винрейт', 'Win rate')}: <b>${pct(g.row.wr)}</b></span><span>${fmt(g.row.matches)} ${L('матчей', 'matches')} · ${fmt(g.row.players)} ${L('игроков', 'players')}</span>` : `<span>${L('Секретная сборка', 'Secret build')}</span>`}</div>
         <div class="g-upd">${L(`за ${RND.days} дней`, `over ${RND.days} days`)} · <button class="id-copy" data-copy-id="${id}" title="${L('Скопировать ID', 'Copy ID')}">ID ${id}</button> ${g.pool ? ` · ${L('подходящих сборок у героя', 'matching builds for this hero')}: ${fmt(g.pool)}` : ''}</div>
       </div>
     </header>
@@ -1105,6 +1131,7 @@ function localizeStatic() {
   if (!root) return;
   markDev();
   initAnalytics('slots');
+  loadEggPool();
   localizeStatic();
   try {
     D = await fetch(`data/${LANG}.json`).then((r) => r.json());

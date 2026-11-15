@@ -6,6 +6,8 @@
 //
 //   POST /hit    { env: 'main'|'dev', ev, p: {...} }  — тело text/plain (navigator.sendBeacon без preflight)
 //   GET  /stats?env=main&days=30                      — только с заголовком Authorization: Bearer <ADMIN_TOKEN>
+//   GET  /egg?env=main                                — пул пасхалки автомата (публично): { pool: [{ id, ru, en }] }
+//   PUT  /egg?env=main  { pool: [...] }               — сохранить пул (только с ключом админки)
 
 // Белый список: событие → измерения, которые считаем. Остальные параметры отбрасываются.
 // Любое другое событие с нормальным именем считается только итогом (сколько раз за день), без разрезов.
@@ -30,6 +32,27 @@ export const EVENTS = {
 export const ENVS = ['main', 'dev'];
 export const ORIGINS = ['https://randomlock.com', 'http://localhost:5173'];
 const MAX_BODY = 1024;
+
+// Пасхалка автомата: сборки, которые выпадают вместо обычной крутки, и текст на табло (RU / EN).
+export const EGG_DEFAULT = [
+  { id: 249095, ru: 'БАЛТИКА 7', en: 'BALTICA 7' },
+  { id: 410706, ru: 'САНЯ БИБЧИК', en: 'MELEE BEBOP' },
+];
+const EGG_MAX = 30;
+const eggText = (v) => (typeof v === 'string' ? v.replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 32) : '');
+// проверить пул из админки; null — неверный
+export function cleanEgg(pool) {
+  if (!Array.isArray(pool) || pool.length > EGG_MAX) return null;
+  const out = [];
+  for (const e of pool) {
+    const id = Number(e && e.id);
+    if (!Number.isInteger(id) || id <= 0 || id > 1e10) return null;
+    const ru = eggText(e.ru), en = eggText(e.en);
+    if (!ru && !en) return null;
+    if (!out.some((x) => x.id === id)) out.push({ id, ru: ru || en, en: en || ru });
+  }
+  return out;
+}
 
 // значение измерения: короткая строка из безопасных символов, иначе null
 export function cleanVal(v) {
@@ -61,7 +84,7 @@ export function allowedOrigin(req) {
   return ORIGINS.includes(o) ? o : '';
 }
 function cors(origin, extra = {}) {
-  return origin ? { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Headers': 'Authorization', 'Access-Control-Allow-Methods': 'GET, POST', Vary: 'Origin', ...extra } : extra;
+  return origin ? { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET, POST, PUT', Vary: 'Origin', ...extra } : extra;
 }
 const json = (data, status, origin) => new Response(JSON.stringify(data), { status, headers: cors(origin, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }) });
 
@@ -128,6 +151,24 @@ async function stats(req, env, origin) {
   return json({ env: e, from, to: dayOf(), daily: daily.results, dims: dims.results }, 200, origin);
 }
 
+async function egg(req, env, origin) {
+  const u = new URL(req.url);
+  const e = ENVS.includes(u.searchParams.get('env')) ? u.searchParams.get('env') : 'main';
+  const key = 'egg:' + e;
+  if (req.method === 'PUT') {
+    if (!authorized(req, env)) return json({ error: 'auth' }, 401, origin);
+    let b; try { b = JSON.parse(await req.text()); } catch { return json({ error: 'json' }, 400, origin); }
+    const pool = cleanEgg(b && b.pool);
+    if (!pool) return json({ error: 'pool' }, 400, origin);
+    await env.DB.prepare('INSERT INTO config (k, v) VALUES (?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v').bind(key, JSON.stringify(pool)).run();
+    return json({ env: e, pool }, 200, origin);
+  }
+  const row = await env.DB.prepare('SELECT v FROM config WHERE k = ?').bind(key).first();
+  let pool = EGG_DEFAULT;
+  try { if (row && row.v) pool = JSON.parse(row.v); } catch {}
+  return new Response(JSON.stringify({ env: e, pool }), { status: 200, headers: cors(origin, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=60' }) });
+}
+
 export default {
   async fetch(req, env) {
     const origin = allowedOrigin(req);
@@ -136,6 +177,7 @@ export default {
     try {
       if (req.method === 'POST' && pathname === '/hit') return await hit(req, env, origin);
       if (req.method === 'GET' && pathname === '/stats') return await stats(req, env, origin);
+      if ((req.method === 'GET' || req.method === 'PUT') && pathname === '/egg') return await egg(req, env, origin);
     } catch (err) {
       return json({ error: 'server' }, 500, origin);
     }

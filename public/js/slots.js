@@ -99,13 +99,26 @@ async function getJson(url) {
   }
 }
 
-// Пул сборок героя: [id, матчи, игроки, победы]. Кэш на час в памяти и в localStorage (компактно — ответ API весит ~50 КБ на героя).
+// Пул сборок героя: [id, матчи, игроки, победы].
+// 1) Файл с нашего сайта data/pools/<id>.json — его раз в 6 часов собирает CI (scripts/pools.mjs), запроса к API нет.
+// 2) Если файла нет или он старше POOL_FRESH_H (CI не отработал) — как раньше, из API с кэшем на час в localStorage.
+const POOL_FRESH_H = 12;
 const pools = new Map();
 const POOL_PREFIX = NS + 'slots:pool:';
+async function staticPool(heroId) {
+  try {
+    const r = await fetch(`data/pools/${num(heroId)}.json`);
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d && Array.isArray(d.v) && Date.now() / 1000 - d.at < POOL_FRESH_H * 3600 ? d.v : null;
+  } catch { return null; }
+}
 function heroPoolRows(heroId) {
   if (pools.has(heroId)) return pools.get(heroId);
   const t = since();
   const p = (async () => {
+    const pre = await staticPool(heroId);
+    if (pre) return pre;
     try {
       const c = JSON.parse(localStorage.getItem(POOL_PREFIX + heroId) || 'null');
       if (c && c.t === t && Array.isArray(c.v)) return c.v;

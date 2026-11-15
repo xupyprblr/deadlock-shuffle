@@ -17,3 +17,6 @@ sound/
 stats/.wrangler/
 .wrangler/
 stats/.admin-token
+
+# пулы «Казино билдов»: собирает CI при деплое (scripts/pools.mjs), в git не храним
+public/data/pools/

@@ -36,8 +36,22 @@
   (`GUARANTEE`: 2–3 → Unique+, 4–5 → Rare+, 6 → Ultra Rare+), рубашка из частей рисунка, исправлен наезд кнопок на главной.
 
 ## Не доделано / известные проблемы
-- Звуки пока только синтез. Алекс может прислать файлы (список слотов — в шапке `slots-sound.js`), класть в `public/snd/slots/`,
-  требование: лицензия с коммерческим использованием (CC0 и т.п.), mp3/ogg, всё вместе до ~400 КБ.
+- Звуки файлами (`public/snd/slots/*.mp3`, ~240 КБ), источники в `public/snd/slots/README.md`:
+  - вылет карт `card-slide-1…8` (на каждую карту случайный) и переворот `card-place-1, 2, 4`: Kenney «Casino Audio», CC0;
+  - `win-trash`, `win-common`, `win-unique`, `win-rare`, `win-ultra`, `coins` сгенерированы в ElevenLabs Sound Effects
+    (`node slot_machine/sfx.mjs`, описания там же: латунный автомат 1930-х, оккультный ар-деко в духе Deadlock).
+    Ключ лежит в `sound/elven.key` (папка `sound/` в `.gitignore`), варианты в `sound/gen/`, страница прослушивания `sound/gen/index.html`;
+  - автомат играет свои, более длинные `slot-unique`, `slot-rare`, `slot-ultra` (2.6 / 2.8 / 4.5 с, тоже ElevenLabs;
+    `SLOT_SND` в `slots.js`, замена на `win-*` через `ALIAS` в `slots-sound.js`). Лутбокс играет короткие `win-*`.
+    Trash, Common и Legendary общие;
+  - `win-jackpot`: файл Алекса (`sound/casino/win-jackpot.wav`), источник и лицензию уточнить.
+  Перегонка: `python -I slot_machine/snd.py` (нужен PyAV), mp3 моно 64 кбит/с, обрезка тишины, выравнивание громкости.
+  `FILES` в `slots-sound.js` принимает список файлов: каждый раз играет случайный.
+  Звук выигрыша гасится (`cutWin` в `slots.js`, затухание 0.5 с) при новой крутке, перевороте следующей карты и новом лутбоксе.
+  Паузы между картами лутбокса: `FLIP_GAP`, прежние короткие.
+  Синтезом остались lever, spin-loop, reel-stop, tick, crate-shake, crate-open и пасхалка `egg`.
+- ElevenLabs бесплатный: только некоммерческое использование, с указанием ElevenLabs. Если сайт станет коммерческим,
+  звук заказываем у человека (решение Алекса).
 - Пороги редкостей (Trash < 45 … Legendary 60+) Алекс ещё не подтверждал.
 - Если арт корпуса поменяется: перезапустить `python -I slot_machine/cut.py` и перенести цифры из `layout.json` в `css/slots.css` и `BULBS` в `js/slots.js`.
 - Исправление кнопок на главной (`.btn-next` в `css/styles.css`) есть только в dev, в main уедет с переносом.

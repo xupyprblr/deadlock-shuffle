@@ -242,19 +242,26 @@ async function rollRest(n, skip, solo) {
 
 // ---------- звук: public/js/slots-sound.js (синтез, любой звук можно заменить файлом) ----------
 const RAR_SND = ['win-trash', 'win-common', 'win-unique', 'win-rare', 'win-ultra', 'win-jackpot'];
+const SLOT_SND = { 2: 'slot-unique', 3: 'slot-rare', 4: 'slot-ultra' }; // автомату — длиннее, чем карте лутбокса
+// звук выигрыша (файлы длиной до 4–5 с) гасим, когда начинается следующее событие: новая крутка, следующая карта, новый лутбокс
+let winSnd = [];
+const cutWin = () => { for (const h of winSnd) h?.stop(0.5); winSnd = []; };
+// лутбокс: пауза после вскрытия карты по редкости, мс (звуки редкостей 1–2 с; следующий переворот гасит предыдущий)
+const FLIP_GAP = [220, 220, 220, 250, 450, 900];
 const SFX = {
-  lever: () => play('lever'),
+  lever: () => { cutWin(); play('lever'); },
   // у каждого барабана своя петля стрекота чуть разной высоты: по звуку слышно, сколько их ещё крутится
   reel: (i, on) => sndLoop('spin-loop', on, { id: i, rate: [1, 1.12, 1.26][i] || 1, vol: 0.75 }),
   reelSpeed: (i, k) => loopSpeed('spin-loop', i, k),
   spinOff: () => { for (let i = 0; i < 3; i++) sndLoop('spin-loop', false, { id: i }); },
   tick: () => play('tick'),
   stop: (i) => play('reel-stop', { i }),
-  win(i) { play(RAR_SND[i]); if (i === 5) setTimeout(() => play('coins'), 250); },
-  egg() { play('egg'); setTimeout(() => play('coins'), 900); },
-  shake: (on) => sndLoop('crate-shake', on),
+  win(i, slot = false) { cutWin(); const w = winSnd; w.push(play((slot && SLOT_SND[i]) || RAR_SND[i])); if (i === 5) setTimeout(() => { if (w === winSnd) w.push(play('coins')); }, 250); },
+  egg() { cutWin(); const w = winSnd; play('egg'); setTimeout(() => { if (w === winSnd) w.push(play('coins')); }, 900); },
+  shake: (on) => { if (on) cutWin(); sndLoop('crate-shake', on); },
   pop: () => play('crate-open'),
-  flip: () => play('card-flip'),
+  flip: () => { cutWin(); play('card-flip'); },
+  fly: (i) => setTimeout(() => play('card-fly'), i * 110 + 30), // в такт вылету карточек (lc-fly, задержка 110 мс на карту)
 };
 
 // ---------- частицы (монеты, искры) ----------
@@ -651,7 +658,7 @@ function paintSoloWin(animate) {
   if (!animate) return;
   const [x, y] = centerOf(sm.querySelector('.sm-reels'));
   if (g.egg) { SFX.egg(); logoRain(); burst(x, y, '#2be38a', 40, 600); burst(x, y, '#c8323c', 40, 560); flash('egg'); return; }
-  SFX.win(g.rar);
+  SFX.win(g.rar, true);
   if (g.rar === 5) { coinRain(); burst(x, y, RAR_COLOR.legendary, 70, 620); flash('legendary'); }
   else if (g.rar === 4) { burst(x, y, RAR_COLOR.ultra, 55, 520); flash('ultra'); }
   else if (g.rar === 3) burst(x, y, RAR_COLOR.rare, 26, 380);
@@ -693,6 +700,7 @@ async function openBox() {
   const [bx, by] = centerOf(box);
   burst(bx, by - 20, RAR_COLOR[RARITY[best].k], 60, 640);
   paintParty(!still, [bx, by]);
+  if (!still) list.forEach((_, i) => SFX.fly(i));
   const notes = [];
   if (list.length < opts.party) notes.push(L(`Под эти условия нашлось только ${list.length} из ${opts.party} — опусти планку или расширь пул героев.`, `Only ${list.length} of ${opts.party} found for these settings — lower the floor or widen the hero pool.`));
   if (got.short) notes.push(L('В пуле не хватило героев — добрал из остальных.', 'Not enough heroes in the pool — filled in from the rest.'));
@@ -707,10 +715,10 @@ async function openBox() {
       await sleep(260);
       if (rar) SFX.win(rar); else SFX.stop(2); // Trash в пати — глухой «клац», без долгой грустной мелодии на каждую карту
       const [x, y] = centerOf(el);
-      if (rar === 5) { coinRain(); burst(x, y, RAR_COLOR.legendary, 60, 560); flash('legendary'); await sleep(900); }
-      else if (rar === 4) { burst(x, y, RAR_COLOR.ultra, 40, 460); await sleep(450); }
-      else if (rar === 3) { burst(x, y, RAR_COLOR.rare, 20, 340); await sleep(250); }
-      else await sleep(220);
+      if (rar === 5) { coinRain(); burst(x, y, RAR_COLOR.legendary, 60, 560); flash('legendary'); }
+      else if (rar === 4) burst(x, y, RAR_COLOR.ultra, 40, 460);
+      else if (rar === 3) burst(x, y, RAR_COLOR.rare, 20, 340);
+      await sleep(FLIP_GAP[rar]);
     }
   }
   lb.dataset.state = 'open';

@@ -7,3 +7,8 @@ dist/
 slot_machine/raw/
 slot_machine/refs/*
 !slot_machine/refs/README.md
+
+# исходники звуков Алекса и ключи сервисов (ElevenLabs и т.п.) не публикуем
+sound/
+*.key
+*.key.txt

@@ -1,11 +1,22 @@
 // Звук режима «Крутить билд». Всё синтезируется в браузере (Web Audio), файлов не нужно.
 // Любой звук можно заменить файлом: положить его в public/snd/slots/ и вписать в FILES ниже —
 // тогда вместо синтеза играет файл (mp3 или ogg). Ключи: lever, spin-loop, reel-stop, tick, win-trash, win-common,
-// win-unique, win-rare, win-ultra, win-jackpot, egg, coins, crate-shake, crate-open, card-flip. Петли: spin-loop, crate-shake.
+// win-unique, win-rare, win-ultra, win-jackpot, egg, coins, crate-shake, crate-open, card-fly, card-flip. Петли: spin-loop, crate-shake.
+// Можно дать список файлов — каждый раз играет случайный (чтобы одинаковые звуки подряд не звучали как пулемёт).
+// Если файл не загрузился или браузер не умеет формат — играет синтез.
+// play() для файла возвращает { stop(fade) } — длинный звук можно плавно погасить; для синтеза — null.
+// Файлы готовит slot_machine/snd.py (mp3 моно 64 кбит/с, громкость выровнена); источники — public/snd/slots/README.md.
+const SND = (n) => `snd/slots/${n}.mp3`;
 const FILES = {
-  // lever: 'snd/slots/lever.mp3',
-  // 'spin-loop': 'snd/slots/spin-loop.mp3',
+  'card-fly': [1, 2, 3, 4, 5, 6, 7, 8].map((i) => SND(`card-slide-${i}`)), // вылет карты из лутбокса
+  'card-flip': [1, 2, 4].map((i) => SND(`card-place-${i}`)), // переворот карты
+  ...Object.fromEntries(['win-trash', 'win-common', 'win-unique', 'win-rare', 'win-ultra', 'win-jackpot', 'coins'].map((k) => [k, SND(k)])),
+  // автомат: свои, более длинные звуки выигрыша; лутбокс играет короткие win-*
+  ...Object.fromEntries(['slot-unique', 'slot-rare', 'slot-ultra'].map((k) => [k, SND(k)])),
 };
+// нет файла — играет замена (а у неё уже есть синтез)
+const ALIAS = { 'slot-unique': 'win-unique', 'slot-rare': 'win-rare', 'slot-ultra': 'win-ultra' };
+const FILE_VOL = { 'card-fly': 0.8 }; // громкость отдельных файлов относительно общей (по умолчанию 1)
 const VOL = 0.9; // общая громкость
 
 let AC = null, out = null, noiseBuf = null, enabled = true;
@@ -19,7 +30,8 @@ function ctx() {
     out = AC.createGain(); out.gain.value = VOL; out.connect(comp).connect(AC.destination);
     noiseBuf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
     const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-    for (const [k, url] of Object.entries(FILES)) fetch(url).then((r) => r.arrayBuffer()).then((b) => AC.decodeAudioData(b)).then((b) => { bufs[k] = b; }).catch(() => {});
+    for (const [k, urls] of Object.entries(FILES)) for (const url of [].concat(urls))
+      fetch(url).then((r) => r.arrayBuffer()).then((b) => AC.decodeAudioData(b)).then((b) => { (bufs[k] ||= []).push(b); }).catch(() => {});
   }
   if (AC.state === 'suspended') AC.resume();
   return AC;
@@ -129,6 +141,7 @@ const SYN = {
     for (let i = 0; i < 8; i++) bell(hz(i % 2 ? 96 : 91), { vol: 0.035, at: 0.95 + i * 0.09, dur: 0.4 });
     tone(hz(36), 1.1, { type: 'sine', vol: 0.16, at: 1.61 });
   },
+  'card-fly': () => noise(0.2, { vol: 0.1, freq: 1400, freq1: 4200, type: 'bandpass', q: 1.2, attack: 0.03 }), // шорох карты
   coins: () => { // монеты сыплются: часто в начале, реже к концу
     for (let i = 0; i < 46; i++) { const at = Math.pow(Math.random(), 1.6) * 2.6; clink(at, 0.025 + Math.random() * 0.03); }
   },
@@ -144,11 +157,23 @@ const SYN = {
 // ---------- API ----------
 export function play(name, e) {
   if (!ctx()) return;
-  if (bufs[name]) {
-    const s = AC.createBufferSource(); s.buffer = bufs[name];
-    if (name === 'reel-stop') s.playbackRate.value = 1 - (e?.i || 0) * 0.06; // три барабана — три чуть разных удара
-    s.connect(out); s.start();
-  } else SYN[name]?.(e);
+  const set = bufs[name];
+  if (set && set.length) {
+    const s = AC.createBufferSource(), g = AC.createGain();
+    s.buffer = set[Math.floor(Math.random() * set.length)];
+    s.playbackRate.value = name === 'reel-stop' ? 1 - (e?.i || 0) * 0.06 // три барабана — три чуть разных удара
+      : 0.94 + Math.random() * 0.12; // остальным — лёгкий разброс высоты
+    g.gain.value = FILE_VOL[name] ?? 1;
+    s.connect(g).connect(out); s.start();
+    return {
+      stop(fade = 0.25) {
+        try { const t = AC.currentTime; g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(g.gain.value, t); g.gain.linearRampToValueAtTime(0, t + fade); s.stop(t + fade + 0.02); } catch {}
+      },
+    };
+  }
+  if (ALIAS[name]) return play(ALIAS[name], e);
+  SYN[name]?.(e);
+  return null;
 }
 // петля: loop(name, true/false), плавные края. id — несколько копий одной петли (у каждого барабана своя),
 // rate — скорость/высота (1 — как записано)
@@ -162,8 +187,9 @@ export function loop(name, on, { id = '', rate = 1, vol = 1 } = {}) {
   }
   if (loops[key] || !ctx()) return;
   const s = AC.createBufferSource(), g = AC.createGain();
-  s.buffer = bufs[name] || synthLoop(name); s.loop = true; s.playbackRate.value = rate;
-  const t = AC.currentTime, v = (bufs[name] ? 0.8 : 0.5) * vol;
+  const file = bufs[name] && bufs[name][0];
+  s.buffer = file || synthLoop(name); s.loop = true; s.playbackRate.value = rate;
+  const t = AC.currentTime, v = (file ? 0.8 : 0.5) * vol;
   g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + 0.08);
   s.connect(g).connect(out); s.start(t, Math.random() * s.buffer.duration);
   loops[key] = { s, g, base: rate, v };

@@ -20,3 +20,6 @@ stats/.admin-token
 
 # пулы «Казино билдов»: собирает CI при деплое (scripts/pools.mjs), в git не храним
 public/data/pools/
+
+# референсы для генерации арта (изображения Valve и др.): только локально
+art/refs/

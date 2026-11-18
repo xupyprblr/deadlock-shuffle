@@ -1,0 +1,521 @@
+{
+ "_note": "Семейства героев для ивентов (черновик). id — из Deadlock API. Лорные семейства собраны по биографиям героев (API) и deadlock.wiki; визуальные (крылатые, в масках) не включены — проверить по артам. Классы и пол берутся из API автоматически: hero_type, gender.",
+ "families": [
+  {
+   "key": "returned",
+   "ru": "Вернувшиеся с того света",
+   "en": "Returned from Beyond",
+   "about": "Мёртвые, но всё ещё здесь: призраки, ожившие, нежить",
+   "heroes": [
+    3,
+    11,
+    12,
+    60,
+    63,
+    64,
+    66
+   ],
+   "names": [
+    "Drifter",
+    "Dynamo",
+    "Kelvin",
+    "Mina",
+    "Sinclair",
+    "Victor",
+    "Vindicta"
+   ]
+  },
+  {
+   "key": "creatures",
+   "ru": "Не-люди",
+   "en": "Not Quite Human",
+   "about": "Твари, духи и существа из других планов",
+   "heroes": [
+    1,
+    15,
+    18,
+    20,
+    35,
+    69,
+    79,
+    80,
+    81,
+    84
+   ],
+   "names": [
+    "Bebop",
+    "Celeste",
+    "Infernus",
+    "Ivy",
+    "Mo & Krill",
+    "Rat King",
+    "Rem",
+    "Silver",
+    "The Doorman",
+    "Viscous"
+   ]
+  },
+  {
+   "key": "hunters",
+   "ru": "Охотники на чудовищ",
+   "en": "Monster Hunters",
+   "about": "Общество Бакстера, орден Св. Бенедикта и прочие, кто охотится на тварей",
+   "heroes": [
+    14,
+    16,
+    17,
+    19,
+    25,
+    65,
+    80
+   ],
+   "names": [
+    "Calico",
+    "Grey Talon",
+    "Holliday",
+    "Shiv",
+    "Silver",
+    "Venator",
+    "Warden"
+   ]
+  },
+  {
+   "key": "law",
+   "ru": "Закон и порядок",
+   "en": "Law & Order",
+   "about": "Сыщики, агенты и шерифы",
+   "heroes": [
+    6,
+    13,
+    14,
+    25
+   ],
+   "names": [
+    "Abrams",
+    "Haze",
+    "Holliday",
+    "Warden"
+   ]
+  },
+  {
+   "key": "underworld",
+   "ru": "Преступный Нью-Йорк",
+   "en": "The Underworld",
+   "about": "Игорные дома, подпольные бои, контрабанда, воры и беглецы",
+   "heroes": [
+    2,
+    7,
+    10,
+    15,
+    16,
+    18,
+    27,
+    31,
+    58
+   ],
+   "names": [
+    "Bebop",
+    "Calico",
+    "Lash",
+    "Mo & Krill",
+    "Paradox",
+    "Seven",
+    "Vyper",
+    "Wraith",
+    "Yamato"
+   ]
+  },
+  {
+   "key": "fairfax",
+   "ru": "Fairfax Industries",
+   "en": "Fairfax Industries",
+   "about": "Люди оккультно-промышленного гиганта",
+   "heroes": [
+    8,
+    50,
+    78
+   ],
+   "names": [
+    "Deadman Danny",
+    "McGinnis",
+    "Pocket"
+   ]
+  },
+  {
+   "key": "youth",
+   "ru": "Юные и дерзкие",
+   "en": "Young Blood",
+   "about": "Студенты Блэкмора и молодые таланты",
+   "heroes": [
+    50,
+    76,
+    77,
+    86
+   ],
+   "names": [
+    "Apollo",
+    "Graves",
+    "Pocket",
+    "Violet"
+   ]
+  },
+  {
+   "key": "scholars",
+   "ru": "Учёные и маги",
+   "en": "Scholars of the Occult",
+   "about": "Профессора, изобретатели, библиоманты и некроманты",
+   "heroes": [
+    2,
+    8,
+    11,
+    12,
+    67,
+    76,
+    88
+   ],
+   "names": [
+    "Baba",
+    "Dynamo",
+    "Graves",
+    "Kelvin",
+    "McGinnis",
+    "Paige",
+    "Seven"
+   ]
+  },
+  {
+   "key": "outsiders",
+   "ru": "Чужаки в городе",
+   "en": "Strangers in Town",
+   "about": "Приехали в Нью-Йорк ради своей цели",
+   "heroes": [
+    12,
+    14,
+    17,
+    27,
+    35,
+    52,
+    65,
+    77,
+    79
+   ],
+   "names": [
+    "Apollo",
+    "Grey Talon",
+    "Holliday",
+    "Kelvin",
+    "Mirage",
+    "Rem",
+    "Venator",
+    "Viscous",
+    "Yamato"
+   ]
+  },
+  {
+   "key": "high_society",
+   "ru": "Высший свет",
+   "en": "High Society",
+   "about": "Аристократы, богачи и наследники",
+   "heroes": [
+    4,
+    7,
+    50,
+    63,
+    77
+   ],
+   "names": [
+    "Apollo",
+    "Lady Geist",
+    "Mina",
+    "Pocket",
+    "Wraith"
+   ]
+  },
+  {
+   "key": "vengeance",
+   "ru": "Мстители",
+   "en": "Avengers",
+   "about": "Пришли в ритуал за местью",
+   "heroes": [
+    2,
+    3,
+    14,
+    17
+   ],
+   "names": [
+    "Grey Talon",
+    "Holliday",
+    "Seven",
+    "Vindicta"
+   ]
+  },
+  {
+   "key": "class_assassin",
+   "ru": "Убийцы",
+   "en": "Assassins",
+   "about": "из Deadlock API",
+   "auto": true,
+   "heroes": [
+    13,
+    16,
+    27,
+    31,
+    50,
+    52,
+    58,
+    64,
+    77
+   ],
+   "names": [
+    "Apollo",
+    "Calico",
+    "Drifter",
+    "Haze",
+    "Lash",
+    "Mirage",
+    "Pocket",
+    "Vyper",
+    "Yamato"
+   ]
+  },
+  {
+   "key": "class_brawler",
+   "ru": "Громилы",
+   "en": "Brawlers",
+   "about": "из Deadlock API",
+   "auto": true,
+   "heroes": [
+    6,
+    15,
+    18,
+    19,
+    25,
+    35,
+    66,
+    72,
+    80,
+    84
+   ],
+   "names": [
+    "Abrams",
+    "Bebop",
+    "Billy",
+    "Mo & Krill",
+    "Rat King",
+    "Shiv",
+    "Silver",
+    "Victor",
+    "Viscous",
+    "Warden"
+   ]
+  },
+  {
+   "key": "class_healer",
+   "ru": "Целители",
+   "en": "Healers",
+   "about": "из Deadlock API",
+   "auto": true,
+   "heroes": [
+    11,
+    12,
+    20,
+    67,
+    79,
+    87
+   ],
+   "names": [
+    "Dynamo",
+    "Ivy",
+    "Kelvin",
+    "Nurse Harrow",
+    "Paige",
+    "Rem"
+   ]
+  },
+  {
+   "key": "class_marksman",
+   "ru": "Стрелки",
+   "en": "Marksmen",
+   "about": "из Deadlock API",
+   "auto": true,
+   "heroes": [
+    3,
+    7,
+    10,
+    14,
+    65,
+    78
+   ],
+   "names": [
+    "Deadman Danny",
+    "Holliday",
+    "Paradox",
+    "Venator",
+    "Vindicta",
+    "Wraith"
+   ]
+  },
+  {
+   "key": "class_mystic",
+   "ru": "Мистики",
+   "en": "Mystics",
+   "about": "из Deadlock API",
+   "auto": true,
+   "heroes": [
+    1,
+    2,
+    4,
+    8,
+    17,
+    60,
+    63,
+    69,
+    76,
+    81,
+    85,
+    86,
+    88
+   ],
+   "names": [
+    "Baba",
+    "Celeste",
+    "Graves",
+    "Grey Talon",
+    "Infernus",
+    "Lady Geist",
+    "McGinnis",
+    "Mina",
+    "Seven",
+    "Sinclair",
+    "Solomon",
+    "The Doorman",
+    "Violet"
+   ]
+  },
+  {
+   "key": "flyers",
+   "ru": "Летающие (по тегам API, дополнить по артам)",
+   "en": "Flyers",
+   "about": "из Deadlock API",
+   "auto": true,
+   "heroes": [
+    3,
+    31,
+    78
+   ],
+   "names": [
+    "Deadman Danny",
+    "Lash",
+    "Vindicta"
+   ]
+  },
+  {
+   "key": "men",
+   "ru": "Мужчины",
+   "en": "Men",
+   "about": "из Deadlock API",
+   "auto": true,
+   "heroes": [
+    1,
+    2,
+    6,
+    11,
+    12,
+    15,
+    16,
+    17,
+    18,
+    19,
+    25,
+    31,
+    35,
+    50,
+    52,
+    64,
+    65,
+    66,
+    69,
+    72,
+    77,
+    78,
+    79,
+    84,
+    85
+   ],
+   "names": [
+    "Abrams",
+    "Apollo",
+    "Bebop",
+    "Billy",
+    "Calico",
+    "Deadman Danny",
+    "Drifter",
+    "Dynamo",
+    "Grey Talon",
+    "Infernus",
+    "Kelvin",
+    "Lash",
+    "Mirage",
+    "Mo & Krill",
+    "Pocket",
+    "Rat King",
+    "Rem",
+    "Seven",
+    "Shiv",
+    "Solomon",
+    "The Doorman",
+    "Venator",
+    "Victor",
+    "Viscous",
+    "Warden"
+   ]
+  },
+  {
+   "key": "women",
+   "ru": "Женщины",
+   "en": "Women",
+   "about": "из Deadlock API",
+   "auto": true,
+   "heroes": [
+    3,
+    4,
+    7,
+    8,
+    10,
+    13,
+    14,
+    20,
+    27,
+    58,
+    63,
+    67,
+    76,
+    80,
+    81,
+    86,
+    87,
+    88
+   ],
+   "names": [
+    "Baba",
+    "Celeste",
+    "Graves",
+    "Haze",
+    "Holliday",
+    "Ivy",
+    "Lady Geist",
+    "McGinnis",
+    "Mina",
+    "Nurse Harrow",
+    "Paige",
+    "Paradox",
+    "Silver",
+    "Vindicta",
+    "Violet",
+    "Vyper",
+    "Wraith",
+    "Yamato"
+   ]
+  }
+ ]
+}

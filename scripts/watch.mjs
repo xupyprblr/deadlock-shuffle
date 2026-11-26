@@ -5,7 +5,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { API, isPlayable } from '../public/js/normalize.js';
+import { API, isPlayable, STEAM_NEWS, steamPatches, latestPatch } from '../public/js/normalize.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const get = async (u) => {
@@ -18,12 +18,20 @@ let meta = {};
 try { meta = JSON.parse(await readFile(path.join(root, 'public/data/meta.json'), 'utf8')); } catch {}
 
 const [versions, heroes] = await Promise.all([get(`${API}/client-versions`), get(`${API}/heroes?only_active=true`)]);
+// Патч в новостях Steam появляется раньше, чем новая версия клиента в Deadlock API: сверяем и его.
+const steam = await get(STEAM_NEWS).catch((e) => (console.warn(`Новости Steam недоступны: ${e.message}`), null));
+let snapPatch = null;
+try { snapPatch = JSON.parse(await readFile(path.join(root, 'public/data/en.json'), 'utf8')).patch; } catch {}
+const newsPatch = latestPatch(steamPatches(steam));
 const clientVersion = Math.max(...versions);
 const ids = heroes.filter(isPlayable).map((h) => h.id).sort((a, b) => a - b);
 const names = Object.fromEntries(heroes.map((h) => [h.id, h.name]));
 
 const reasons = [];
 if (!meta.clientVersion || clientVersion > meta.clientVersion) reasons.push(`версия клиента ${meta.clientVersion ?? '—'} → ${clientVersion}`);
+if (newsPatch && (!snapPatch || !snapPatch.date || Date.parse(newsPatch.date) > Date.parse(snapPatch.date))) {
+  reasons.push(`новый патч в Steam: ${snapPatch ? snapPatch.title : '—'} → ${newsPatch.title}`);
+}
 const known = new Set(meta.heroIds || []);
 const fresh = ids.filter((id) => !known.has(id));
 const gone = (meta.heroIds || []).filter((id) => !ids.includes(id));

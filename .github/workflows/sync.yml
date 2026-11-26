@@ -1,5 +1,5 @@
 # Два режима:
-#  • каждые 20 минут — быстрый сторож (scripts/watch.mjs): версия игры + список героев.
+#  • каждые 20 минут — быстрый сторож (scripts/watch.mjs): версия игры, патч в новостях Steam, список героев.
 #    Если вышел патч или новый герой — сразу полная синхронизация и деплой;
 #  • каждые 3 часа — полная синхронизация в любом случае (предметы, запреты, картинки).
 #  • пулы «Казино билдов» (scripts/pools.mjs → public/data/pools/) — раз в 6 часов: хранятся в кэше Actions
@@ -14,7 +14,7 @@ name: sync-and-deploy
 
 on:
   schedule:
-    - cron: '*/20 * * * *'
+    - cron: '7,27,47 * * * *' # не ровно в :00/:20/:40 — такие запуски GitHub чаще всего пропускает
     - cron: '17 */3 * * *'
   workflow_dispatch:
   push:
@@ -61,7 +61,7 @@ jobs:
           node-version: 22
       - name: Быстрая проверка (патч / новые герои)
         id: watch
-        if: github.event_name == 'schedule' && github.event.schedule == '*/20 * * * *'
+        if: github.event_name == 'schedule' && github.event.schedule == '7,27,47 * * * *'
         run: |
           node scripts/watch.mjs | tee watch.log
           echo "changed=$(grep -q '^CHANGED' watch.log && echo yes || echo no)" >> "$GITHUB_OUTPUT"
